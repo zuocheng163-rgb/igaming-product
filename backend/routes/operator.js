@@ -338,7 +338,7 @@ router.get('/userdetails/:userid', verifyGameProviderOrUser, async (req, res) =>
         return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({
+    const responseData = {
         user_id: user.user_id || user.id,
         username: user.username || `user_${user.id}`,
         first_name: user.first_name || 'John',
@@ -369,7 +369,16 @@ router.get('/userdetails/:userid', verifyGameProviderOrUser, async (req, res) =>
             vip_level: 1,
             special_segmentation: "PoC"
         }
+    };
+
+    ftService.logActivity('inbound', {
+        method: 'GET',
+        endpoint: `/userdetails/${userid}`,
+        status: 200,
+        payload: { request: req.query, response: responseData }
     });
+
+    res.json(responseData);
 });
 
 /**
@@ -378,7 +387,7 @@ router.get('/userdetails/:userid', verifyGameProviderOrUser, async (req, res) =>
  */
 router.get('/userblocks/:userid', verifyGameProviderOrUser, async (req, res) => {
     // For PoC, we return a compliant blocks object
-    res.json({
+    const responseData = {
         blocks: [
             {
                 active: false,
@@ -391,7 +400,16 @@ router.get('/userblocks/:userid', verifyGameProviderOrUser, async (req, res) => 
                 note: "Not blocked in PoC"
             }
         ]
+    };
+
+    ftService.logActivity('inbound', {
+        method: 'GET',
+        endpoint: `/userblocks/${req.params.userid}`,
+        status: 200,
+        payload: { request: req.query, response: responseData }
     });
+
+    res.json(responseData);
 });
 
 /**
@@ -414,7 +432,7 @@ router.put('/userblocks/:userid', authenticateUser, async (req, res) => {
  */
 router.get('/userconsents/:userid', verifyGameProviderOrUser, async (req, res) => {
     // For PoC, we return standard marketing consents in compliant object format
-    res.json({
+    const responseData = {
         consents: [
             { opted_in: true, type: 'email' },
             { opted_in: true, type: 'sms' },
@@ -423,7 +441,16 @@ router.get('/userconsents/:userid', verifyGameProviderOrUser, async (req, res) =
             { opted_in: true, type: 'siteNotification' },
             { opted_in: true, type: 'pushNotification' }
         ]
+    };
+
+    ftService.logActivity('inbound', {
+        method: 'GET',
+        endpoint: `/userconsents/${req.params.userid}`,
+        status: 200,
+        payload: { request: req.query, response: responseData }
     });
+
+    res.json(responseData);
 });
 
 /**
@@ -434,13 +461,16 @@ router.post('/userconsents/:userid', verifyGameProviderOrUser, async (req, res) 
     const { userid } = req.params;
     const { consents } = req.body;
 
-    console.log(`[Operator API] Consents updated for user ${userid}:`, consents);
-
     // Push 'consents' event to FT
     await ftService.pushEvent(userid, 'consents', { consents });
 
-    // In dynamic PoC, we would update the DB here.
-    // For now, we acknowledge success.
+    ftService.logActivity('inbound', {
+        method: 'POST',
+        endpoint: `/userconsents/${userid}`,
+        status: 200,
+        payload: { request: req.body, response: { status: 'success' } }
+    });
+
     res.json({ status: 'success', origin: PLATFORM_ORIGIN });
 });
 
@@ -498,6 +528,13 @@ router.post('/bonus/credit', verifyGameProviderOrUser, async (req, res) => {
         currency: user.currency
     });
 
+    ftService.logActivity('inbound', {
+        method: 'POST',
+        endpoint: '/bonus/credit',
+        status: 200,
+        payload: { request: req.body, response: 'OK' }
+    });
+
     res.status(200).send('OK');
 });
 
@@ -506,7 +543,7 @@ router.post('/bonus/credit', verifyGameProviderOrUser, async (req, res) => {
  * Returns list of available bonuses for FT to display.
  */
 router.get('/bonus/list', verifyGameProviderOrUser, async (req, res) => {
-    res.json({
+    const responseData = {
         "Data": [
             { "text": "Welcome Bonus 100%", "value": "WELCOME100" },
             { "text": "Free Spin Reward", "value": "FREESPIN20" },
@@ -514,7 +551,16 @@ router.get('/bonus/list', verifyGameProviderOrUser, async (req, res) => {
         ],
         "Success": true,
         "Errors": []
+    };
+
+    ftService.logActivity('inbound', {
+        method: 'GET',
+        endpoint: '/bonus/list',
+        status: 200,
+        payload: { request: req.query, response: responseData }
     });
+
+    res.json(responseData);
 });
 
 /**
@@ -556,7 +602,19 @@ router.post('/bonus/credit/funds', verifyGameProviderOrUser, async (req, res) =>
         currency: user.currency
     });
 
+    ftService.logActivity('inbound', {
+        method: 'POST',
+        endpoint: '/bonus/credit/funds',
+        status: 200,
+        payload: { request: req.body, response: 'OK' }
+    });
+
     res.status(200).send('OK');
+});
+
+// New endpoint to fetch Backend <=> FT activities
+router.get('/activities', async (req, res) => {
+    res.json(ftService.getActivities());
 });
 
 module.exports = router;

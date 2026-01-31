@@ -4,6 +4,36 @@ const FT_API_URL = process.env.FT_API_URL || 'https://api.fasttrack-integration.
 const FT_API_KEY = process.env.FT_API_KEY;
 const PLATFORM_ORIGIN = process.env.PLATFORM_ORIGIN || 'igaming-poc';
 
+const activityBuffer = [];
+const MAX_BUFFER_SIZE = 50;
+
+const cleanPayload = (obj) => {
+    if (obj === null || obj === undefined) return null;
+    if (typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) {
+        const cleanedArr = obj.map(cleanPayload).filter(v => v !== null && v !== undefined);
+        return cleanedArr.length > 0 ? cleanedArr : null;
+    }
+    const entries = Object.entries(obj)
+        .map(([k, v]) => [k, cleanPayload(v)])
+        .filter(([_, v]) => v !== null && v !== undefined && (typeof v !== 'object' || Object.keys(v).length > 0));
+    return entries.length > 0 ? Object.fromEntries(entries) : null;
+};
+
+const logActivity = (type, data) => {
+    activityBuffer.unshift({
+        id: Date.now() + Math.random(),
+        timestamp: new Date().toISOString(),
+        type, // 'inbound' or 'outbound'
+        ...cleanPayload(data)
+    });
+    if (activityBuffer.length > MAX_BUFFER_SIZE) {
+        activityBuffer.pop();
+    }
+};
+
+const getActivities = () => activityBuffer;
+
 // Endpoint mapping based on FT Documentation
 const EVENT_CONFIG = {
     'login': { path: '/v2/integration/login', method: 'POST' },
@@ -196,15 +226,37 @@ const pushEvent = async (userId, eventType, payload) => {
         });
 
         console.log('[FT Integration] Event pushed successfully:', response.data);
+
+        const telemetry = {
+            method: config.method,
+            endpoint: config.path,
+            status: response.status,
+            payload: {
+                request: requestBody,
+                response: response.data
+            }
+        };
+
+        logActivity('outbound', telemetry);
+        return telemetry;
     } catch (error) {
         console.error('[FT Integration] Failed to push event:', error.message);
-        if (error.response) {
-            console.error('[FT Integration] Status:', error.response.status);
-            console.error('[FT Integration] Data:', JSON.stringify(error.response.data, null, 2));
-        }
+        const errorTelemetry = {
+            method: config ? config.method : 'UNKNOWN',
+            endpoint: config ? config.path : 'UNKNOWN',
+            status: error.response ? error.response.status : 500,
+            payload: {
+                request: requestBody || payload,
+                response: error.response ? error.response.data : { error: error.message }
+            }
+        };
+        logActivity('outbound', errorTelemetry);
+        return errorTelemetry;
     }
 };
 
 module.exports = {
-    pushEvent
+    pushEvent,
+    logActivity,
+    getActivities
 };
