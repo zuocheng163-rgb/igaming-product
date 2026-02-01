@@ -165,6 +165,15 @@ const pushEvent = async (userId, eventType, payload, options = {}) => {
             };
         }
 
+        console.log(`[FT Debug] Requesting ${targetUrl}`, {
+            method: eventConfig.method,
+            headers: {
+                'X-API-Key': config_key ? '***' : 'MISSING',
+                'X-Correlation-ID': correlationId
+            },
+            body: JSON.stringify(requestBody)
+        });
+
         const response = await axios({
             method: eventConfig.method,
             url: targetUrl,

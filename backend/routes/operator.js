@@ -248,6 +248,7 @@ router.post('/registration', authenticateRequest, async (req, res) => {
 
 router.post('/logout', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
+    console.log(`[Operator Debug] Processing Logout for user ${user.id}`, { correlationId, operatorId: user.operator_id });
     try {
         await ftService.pushEvent(user.id, 'logout', {}, { correlationId, operatorId: user.operator_id });
         res.json({ success: true });
