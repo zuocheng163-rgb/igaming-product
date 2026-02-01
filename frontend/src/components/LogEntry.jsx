@@ -9,9 +9,9 @@ function LogEntry({ log, type }) {
     return (
         <div className={`log-entry ${neonClass}`}>
             <div className="log-entry-header" onClick={() => setExpanded(!expanded)}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
                     <span className="log-entry-method">{log.method}</span>
-                    <span style={{ color: 'var(--text-main)', opacity: 0.8, fontSize: '0.75rem', wordBreak: 'break-all' }}>
+                    <span style={{ color: '#fff', opacity: 0.8, fontSize: '0.75rem', wordBreak: 'break-all' }}>
                         {log.endpoint}
                     </span>
                 </div>

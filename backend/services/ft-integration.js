@@ -2,7 +2,7 @@ const axios = require('axios');
 const { logger, auditLog, generateCorrelationId } = require('./logger');
 
 // These will now be defaults if tenant-specific config is missing
-const DEFAULT_FT_API_URL = process.env.FT_API_URL || 'https://api.fasttrack-integration.com/v1';
+const DEFAULT_FT_API_URL = process.env.FT_API_URL || 'https://api.fasttrack-integration.com';
 const DEFAULT_FT_API_KEY = process.env.FT_API_KEY;
 const DEFAULT_PLATFORM_ORIGIN = process.env.PLATFORM_ORIGIN || 'igaming-gateway';
 
