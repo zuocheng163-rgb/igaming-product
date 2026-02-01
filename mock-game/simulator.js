@@ -1,17 +1,17 @@
 const axios = require('axios');
 
-const API_URL = 'http://localhost:5000/api';
-const API_KEY = 'fasttrack-demo-key'; // Matches .env OPERATOR_API_KEY
-const USER_ID = 'test-user';
-const ROUNDS = 5;
+const API_URL = process.env.API_URL || 'http://localhost:5000/api';
+const API_KEY = process.env.API_KEY || 'fasttrack-demo-key';
+const USER_ID = process.env.USER_ID || 'test-user'; // NOTE: Update this to a UUID from user_details table
+const ROUNDS = process.env.ROUNDS || 5;
 const BET_AMOUNT = 10;
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const runSimulation = async () => {
-    console.log('--- Starting Compliant Game Simulation ---');
-    console.log('Mode: Ready for Fast Track v1/v2 Events');
-    console.log(`User: ${USER_ID}, Rounds: ${ROUNDS}`);
+    console.log('--- NeoStrike Game SPI Simulator ---');
+    console.log(`Target: ${API_URL}`);
+    console.log(`User ID: ${USER_ID} (Table: user_details)`);
 
     try {
         // 1. Initial Balance Check

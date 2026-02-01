@@ -2,619 +2,278 @@ const express = require('express');
 const router = express.Router();
 const supabaseService = require('../services/supabase');
 const ftService = require('../services/ft-integration');
+const { logger, auditLog, generateCorrelationId } = require('../services/logger');
 
-const PLATFORM_ORIGIN = process.env.PLATFORM_ORIGIN || 'igaming-poc';
-
-// Middleware to mock authentication or extract token
-const authenticateUser = async (req, res, next) => {
-    const token = req.headers['authorization'];
-    const xUsername = req.headers['x-username'];
-    const bodyUsername = req.body ? req.body.username : undefined;
-    const username = xUsername || bodyUsername;
-    const actualToken = token && token.startsWith('Bearer ') ? token.slice(7) : token;
-
-    console.log(`[Middleware] Auth Attempt:
-        Path: ${req.path}
-        Method: ${req.method}
-        Token: "${actualToken ? actualToken.substring(0, 10) + '...' : 'null'}"
-        Header X-Username: "${xUsername}"
-        Body Username: "${bodyUsername}"
-        Final Username: "${username}"
-    `);
-
-    if (!actualToken) {
-        console.log('[Middleware] Fail: No token provided');
-        return res.status(401).json({ error: 'No token provided' });
-    }
-
-    const user = await supabaseService.getUser(username, actualToken);
-    if (!user) {
-        console.log(`[Middleware] Fail: User not found for token: ${actualToken.substring(0, 10)}... and username: ${username}`);
-        return res.status(401).json({ error: 'Invalid username or token' });
-    }
-
-    console.log(`[Middleware] Success: User ${user.username || user.id} authenticated`);
-    req.user = user;
+// Middleware to extract or generate Correlation ID
+const correlationMiddleware = (req, res, next) => {
+    req.correlationId = req.headers['x-correlation-id'] || generateCorrelationId();
+    res.setHeader('X-Correlation-ID', req.correlationId);
     next();
 };
 
-router.post('/authenticate', authenticateUser, async (req, res) => {
-    // If middleware passes, user is authenticated
-    // Push 'login' and 'balance' events to FT
-    await ftService.pushEvent(req.user.id, 'login', { session_id: 'mock-session-' + Date.now() });
-    await ftService.pushEvent(req.user.id, 'balance', {
-        amount: req.user.balance,
-        bonus_amount: req.user.bonus_balance || 0,
-        currency: req.user.currency
-    });
+router.use(correlationMiddleware);
 
-    res.json({
-        sid: 'session-' + req.user.id + '-' + Date.now(),
-        user_id: req.user.id,
-        currency: req.user.currency,
-        origin: PLATFORM_ORIGIN
-    });
-});
-
-router.get('/balance', authenticateUser, async (req, res) => {
-    res.json({
-        amount: req.user.balance,
-        bonus_amount: req.user.bonus_balance || 0,
-        currency: req.user.currency,
-        origin: PLATFORM_ORIGIN
-    });
-});
-
-// Mock Game Provider calls these, likely with a different auth mechanism (Server-to-Server)
-// For PoC, we'll assume the same auth for simplicity or a specific "Game Provider" secret.
-// Let's implement a simple "Game Provider" check or just reuse user auth if the simulator acts on behalf of user.
-// The prompt said "Mock Game Provider... hits the Core Platform's casino endpoint".
-// Usually this is S2S. Let's assume a secret key check for debit/credit.
-
-const verifyGameProviderOrUser = async (req, res, next) => {
+// Middleware to authenticate user or operator
+const authenticateRequest = async (req, res, next) => {
     const apiKey = req.headers['x-api-key'];
-    const validKey = process.env.OPERATOR_API_KEY;
+    const sessionToken = req.headers['authorization']?.startsWith('Bearer ')
+        ? req.headers['authorization'].slice(7)
+        : req.headers['authorization'];
+    const username = req.headers['x-username'] || req.body?.username;
 
-    // 1. Check if valid API Key is provided (Server-to-Server)
-    if (validKey && apiKey === validKey) {
+    // 1. S2S Authentication (API Key)
+    if (apiKey && apiKey === process.env.OPERATOR_API_KEY) {
+        req.isOperator = true;
         return next();
     }
 
-    // 2. Fallback: Check for User Token (Client-side Dashboard)
-    // Reuse the logic from authenticateUser but handle the error/next flow carefully
-    const token = req.headers['authorization'];
-    const actualToken = token && token.startsWith('Bearer ') ? token.slice(7) : token;
-
-    if (actualToken) {
-        const user = await supabaseService.getUser(null, actualToken);
+    // 2. User Authentication (Session Token)
+    if (sessionToken) {
+        const user = await supabaseService.getUser(username, sessionToken);
         if (user) {
             req.user = user;
+            req.operatorId = user.operator_id || 'default';
             return next();
         }
     }
 
-    // 3. Fail if neither
+    logger.warn('Unauthorized access attempt', {
+        path: req.path,
+        correlationId: req.correlationId
+    });
     return res.status(401).json({ error: 'Unauthorized: Invalid API Key or Token' });
 };
 
-router.post('/debit', verifyGameProviderOrUser, async (req, res) => {
-    const { user_id, amount, transaction_id, game_id } = req.body;
+// --- ENDPOINTS ---
 
-    if (!user_id || !amount) {
-        return res.status(400).json({ error: 'Missing user_id or amount' });
-    }
-
-    const user = await supabaseService.getUserById(user_id);
-    if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-    }
-
-    const totalBalance = (user.balance || 0) + (user.bonus_balance || 0);
-
-    if (totalBalance < amount) {
-        return res.status(402).json({ error: 'Insufficient funds' });
-    }
-
-    const bonus_balance_before = user.bonus_balance || 0;
-    const balance_before = user.balance || 0;
-
-    let remainingDebit = amount;
-    let newBonusBalance = bonus_balance_before;
-    let newBalance = balance_before;
-    let bonus_wager_amount = 0;
-    let real_wager_amount = 0;
-
-    // 1. Deduct from Bonus Wallet first
-    if (newBonusBalance > 0) {
-        bonus_wager_amount = Math.min(newBonusBalance, remainingDebit);
-        newBonusBalance -= bonus_wager_amount;
-        remainingDebit -= bonus_wager_amount;
-    }
-
-    // 2. Deduct remaining from Real Wallet
-    if (remainingDebit > 0) {
-        real_wager_amount = remainingDebit;
-        newBalance -= real_wager_amount;
-    }
-
-    await supabaseService.updateUser(user.id, {
-        balance: newBalance,
-        bonus_balance: newBonusBalance
-    });
-
-    // Push bet and balance events
-    await ftService.pushEvent(user.id, 'bet', {
-        amount,
-        bonus_wager_amount,
-        wager_amount: real_wager_amount,
-        transaction_id,
-        game_id,
-        balance_before: balance_before,
-        bonus_balance_before: bonus_balance_before,
-        balance_after: newBalance,
-        bonus_balance_after: newBonusBalance,
-        currency: user.currency
-    });
-
-    await ftService.pushEvent(user.id, 'balance', {
-        amount: newBalance,
-        bonus_amount: newBonusBalance,
-        currency: user.currency
-    });
-
-    res.json({
-        transaction_id,
-        balance: newBalance,
-        bonus_balance: newBonusBalance,
-        currency: user.currency,
-        origin: PLATFORM_ORIGIN
-    });
-});
-
-router.post('/credit', verifyGameProviderOrUser, async (req, res) => {
-    const { user_id, amount, transaction_id, game_id } = req.body;
-
-    if (!user_id || amount === undefined) {
-        return res.status(400).json({ error: 'Missing user_id or amount' });
-    }
-
-    const user = await supabaseService.getUserById(user_id);
-    if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Wins always go to Real balance
-    const newBalance = user.balance + amount;
-    const currentBonusBalance = user.bonus_balance || 0;
-
-    await supabaseService.updateUser(user.id, { balance: newBalance });
-
-    // Push win and balance events
-    await ftService.pushEvent(user.id, 'win', {
-        amount,
-        transaction_id,
-        game_id,
-        balance_before: user.balance,
-        bonus_balance_before: currentBonusBalance,
-        balance_after: newBalance,
-        bonus_balance_after: currentBonusBalance,
-        currency: user.currency
-    });
-
-    await ftService.pushEvent(user.id, 'balance', {
-        amount: newBalance,
-        bonus_amount: currentBonusBalance,
-        currency: user.currency
-    });
-
-    res.json({
-        transaction_id,
-        balance: newBalance,
-        bonus_balance: currentBonusBalance,
-        currency: user.currency,
-        origin: PLATFORM_ORIGIN
-    });
-});
-
-/**
- * 0. POST /registration
- * Explicitly triggers a registration event to FT.
- */
-router.post('/registration', authenticateUser, async (req, res) => {
-    await ftService.pushEvent(req.user.id, 'registration', {
-        note: 'User registered via PoC platform',
-        user_agent: req.headers['user-agent'],
-        ip_address: req.ip
-    });
-    res.json({ status: 'success', message: 'Registration event pushed' });
-});
-
-/**
- * NEW Post /register
- * Handles signup process
- */
-router.post('/register', async (req, res) => {
-    const { username, first_name, last_name, email } = req.body;
-
-    if (!username || !email) {
-        return res.status(400).json({ error: 'Username and Email are required' });
-    }
-
-    // Generate a mock token for the user
-    const token = `token-${username}-${Date.now()}`;
+router.post('/authenticate', authenticateRequest, async (req, res) => {
+    const { correlationId, user } = req;
+    const operatorId = user.operator_id || 'default';
 
     try {
-        const newUser = await supabaseService.createUser({
-            username,
-            first_name,
-            last_name,
-            email,
-            token
-        });
+        const sessionId = `sid-${user.id}-${Date.now()}`;
 
-        // Push 'registration' event to FT
-        await ftService.pushEvent(newUser.id, 'registration', {
-            note: 'User registered via NeoStrike Gate',
-            user_agent: req.headers['user-agent'],
+        await ftService.pushEvent(user.id, 'login', {
+            session_id: sessionId,
             ip_address: req.ip,
-            first_name: newUser.first_name,
-            last_name: newUser.last_name,
-            email: newUser.email
-        });
+            user_agent: req.headers['user-agent']
+        }, { correlationId, operatorId });
 
-        res.json({ status: 'success', user: newUser, token });
-    } catch (error) {
-        res.status(500).json({ error: 'Registration failed', details: error.message });
-    }
-});
+        await ftService.pushEvent(user.id, 'balance', {
+            amount: user.balance,
+            bonus_amount: user.bonus_balance || 0,
+            currency: user.currency
+        }, { correlationId, operatorId });
 
-/**
- * 0.5 POST /logout
- * Triggers a logout event to FT.
- */
-router.post('/logout', authenticateUser, async (req, res) => {
-    await ftService.pushEvent(req.user.id, 'logout', {});
-    res.json({ status: 'success', message: 'Logout event pushed' });
-});
-
-/**
- * 0.6 POST /user/update
- * Updates user profile and triggers user_update event to FT.
- */
-router.post('/user/update', authenticateUser, async (req, res) => {
-    const { first_name, last_name, email } = req.body;
-
-    const updates = {};
-    if (first_name) updates.first_name = first_name;
-    if (last_name) updates.last_name = last_name;
-    if (email) updates.email = email;
-
-    try {
-        const updatedUser = await supabaseService.updateUser(req.user.id, updates);
-
-        await ftService.pushEvent(req.user.id, 'user_update', {});
-
-        res.json({ status: 'success', user: updatedUser });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to update user', details: error.message });
-    }
-});
-
-// Helper for PoC Frontend "Deposit" button
-router.post('/deposit', authenticateUser, async (req, res) => {
-    const { amount } = req.body;
-    if (!amount || amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
-
-    const newBalance = req.user.balance + amount;
-    await supabaseService.updateBalance(req.user.id, newBalance);
-
-    await ftService.pushEvent(req.user.id, 'deposit', {
-        amount,
-        balance_after: newBalance,
-        currency: req.user.currency
-    });
-    await ftService.pushEvent(req.user.id, 'balance', {
-        amount: newBalance,
-        currency: req.user.currency
-    });
-
-    res.json({
-        balance: newBalance,
-        currency: req.user.currency,
-        origin: PLATFORM_ORIGIN
-    });
-});
-
-/**
- * 1. GET /userdetails/:userid
- * Returns user profile, balance, and currency.
- * Used by FT to verify user data on login or session start.
- */
-router.get('/userdetails/:userid', verifyGameProviderOrUser, async (req, res) => {
-    const { userid } = req.params;
-    const user = await supabaseService.getUserById(userid);
-
-    if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-    }
-
-    const responseData = {
-        user_id: user.user_id || user.id,
-        username: user.username || `user_${user.id}`,
-        first_name: user.first_name || 'John',
-        last_name: user.last_name || 'Doe',
-        email: user.email || `${user.id}@example.com`,
-        address: user.address || 'Tower Road, 120A',
-        city: user.city || 'Sliema',
-        country: user.country || 'MT',
-        postal_code: user.postal_code || 'SLM 1030',
-        language: user.language || 'en',
-        currency: user.currency || 'EUR',
-        birth_date: user.birth_date || '1990-01-01',
-        registration_date: user.registration_date || '2023-01-01T08:00:00Z',
-        mobile: user.mobile || '21435678',
-        mobile_prefix: user.mobile_prefix || '+356',
-        sex: user.sex || 'Male',
-        title: user.title || 'Mr',
-        is_blocked: user.is_blocked || false,
-        is_excluded: user.is_excluded || false,
-        market: user.market || 'gb',
-        origin: user.origin || PLATFORM_ORIGIN,
-        roles: user.roles || ["VIP", "TEST_USER"],
-        registration_code: user.registration_code || "ABC123",
-        affiliate_reference: user.affiliate_reference || "AFF_DEFAULT",
-        verified_at: user.verified_at || '2023-01-01T08:00:00Z',
-        bonus_balance: user.bonus_balance || 0,
-        segmentation: user.segmentation || {
-            vip_level: 1,
-            special_segmentation: "PoC"
-        }
-    };
-
-    ftService.logActivity('inbound', {
-        method: 'GET',
-        endpoint: `/userdetails/${userid}`,
-        status: 200,
-        payload: { request: req.query, response: responseData }
-    });
-
-    res.json(responseData);
-});
-
-/**
- * 2. GET /userblocks/:userid
- * Returns player account blocks (mocked for PoC).
- */
-router.get('/userblocks/:userid', verifyGameProviderOrUser, async (req, res) => {
-    // For PoC, we return a compliant blocks object
-    const responseData = {
-        blocks: [
-            {
-                active: false,
-                type: "Excluded",
-                note: "Not excluded in PoC"
-            },
-            {
-                active: false,
-                type: "Blocked",
-                note: "Not blocked in PoC"
+        res.json({
+            sid: sessionId,
+            user_id: user.id,
+            currency: user.currency,
+            operator_id: operatorId,
+            user: {
+                id: user.id,
+                user_id: user.id,
+                username: user.username,
+                balance: user.balance,
+                bonus_balance: user.bonus_balance,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                email: user.email
             }
-        ]
-    };
-
-    ftService.logActivity('inbound', {
-        method: 'GET',
-        endpoint: `/userblocks/${req.params.userid}`,
-        status: 200,
-        payload: { request: req.query, response: responseData }
-    });
-
-    res.json(responseData);
-});
-
-/**
- * 2.5 PUT /userblocks/:userid
- * Receives block updates/simulations and pushes to FT.
- */
-router.put('/userblocks/:userid', authenticateUser, async (req, res) => {
-    const { userid } = req.params;
-    const { blocks } = req.body;
-
-    // Push 'blocks' event to FT
-    await ftService.pushEvent(userid, 'blocks', { blocks });
-
-    res.json({ status: 'success', origin: PLATFORM_ORIGIN });
-});
-
-/**
- * 3. GET /userconsents/:userid
- * Returns marketing/data consents (mocked for PoC).
- */
-router.get('/userconsents/:userid', verifyGameProviderOrUser, async (req, res) => {
-    // For PoC, we return standard marketing consents in compliant object format
-    const responseData = {
-        consents: [
-            { opted_in: true, type: 'email' },
-            { opted_in: true, type: 'sms' },
-            { opted_in: false, type: 'telephone' },
-            { opted_in: true, type: 'postMail' },
-            { opted_in: true, type: 'siteNotification' },
-            { opted_in: true, type: 'pushNotification' }
-        ]
-    };
-
-    ftService.logActivity('inbound', {
-        method: 'GET',
-        endpoint: `/userconsents/${req.params.userid}`,
-        status: 200,
-        payload: { request: req.query, response: responseData }
-    });
-
-    res.json(responseData);
-});
-
-/**
- * 3.5 POST /userconsents/:userid
- * Receives consent updates from FT.
- */
-router.post('/userconsents/:userid', verifyGameProviderOrUser, async (req, res) => {
-    const { userid } = req.params;
-    const { consents } = req.body;
-
-    // Push 'consents' event to FT
-    await ftService.pushEvent(userid, 'consents', { consents });
-
-    ftService.logActivity('inbound', {
-        method: 'POST',
-        endpoint: `/userconsents/${userid}`,
-        status: 200,
-        payload: { request: req.body, response: { status: 'success' } }
-    });
-
-    res.json({ status: 'success', origin: PLATFORM_ORIGIN });
-});
-
-/**
- * 3.6 PUT /userconsents/:userid
- * Dashboard uses PUT to sync with FT events.
- */
-router.put('/userconsents/:userid', authenticateUser, async (req, res) => {
-    const { userid } = req.params;
-    const { consents } = req.body;
-
-    await ftService.pushEvent(userid, 'consents', { consents });
-
-    res.json({ status: 'success', origin: PLATFORM_ORIGIN });
-});
-
-/**
- * 4. POST /bonus/credit
- * Processes bonus code-based crediting from FT.
- */
-router.post('/bonus/credit', verifyGameProviderOrUser, async (req, res) => {
-    const { user_id, bonus_code } = req.body;
-
-    if (!user_id || !bonus_code) {
-        return res.status(400).json({ error: 'Missing user_id or bonus_code' });
+        });
+    } catch (error) {
+        logger.error('Authentication failure', { correlationId, error: error.message });
+        res.status(500).json({ error: 'Internal Server Error' });
     }
-
-    const user = await supabaseService.getUserById(user_id);
-    if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-    }
-
-    // In dynamic PoC, validate bonus_code...
-    // For now, we assume fixed $10 reward for any valid code
-    const bonusAmount = 10.0;
-    const currentBonusBalance = user.bonus_balance || 0;
-    const newBonusBalance = currentBonusBalance + bonusAmount;
-
-    await supabaseService.updateUser(user.id, { bonus_balance: newBonusBalance });
-
-    // Push 'bonus' event back to FT
-    await ftService.pushEvent(user.id, 'bonus', {
-        amount: bonusAmount,
-        bonus_code: bonus_code,
-        bonus_id: 'POC-BONUS-101',
-        status: 'Created',
-        type: 'WelcomeBonus',
-        currency: user.currency
-    });
-
-    // Sync balances (Both Real and Bonus)
-    await ftService.pushEvent(user.id, 'balance', {
-        amount: user.balance,
-        bonus_amount: newBonusBalance,
-        currency: user.currency
-    });
-
-    ftService.logActivity('inbound', {
-        method: 'POST',
-        endpoint: '/bonus/credit',
-        status: 200,
-        payload: { request: req.body, response: 'OK' }
-    });
-
-    res.status(200).send('OK');
 });
 
-/**
- * 5. GET /bonus/list
- * Returns list of available bonuses for FT to display.
- */
-router.get('/bonus/list', verifyGameProviderOrUser, async (req, res) => {
-    const responseData = {
-        "Data": [
-            { "text": "Welcome Bonus 100%", "value": "WELCOME100" },
-            { "text": "Free Spin Reward", "value": "FREESPIN20" },
-            { "text": "Loyalty Credit", "value": "LOYALTY-VAL" }
-        ],
-        "Success": true,
-        "Errors": []
-    };
-
-    ftService.logActivity('inbound', {
-        method: 'GET',
-        endpoint: '/bonus/list',
-        status: 200,
-        payload: { request: req.query, response: responseData }
+router.get('/balance', authenticateRequest, async (req, res) => {
+    res.json({
+        amount: req.user.balance,
+        bonus_amount: req.user.bonus_balance || 0,
+        currency: req.user.currency
     });
-
-    res.json(responseData);
 });
 
-/**
- * 6. POST /bonus/credit/funds
- * Processes specific monetary bonus crediting from FT.
- */
-router.post('/bonus/credit/funds', verifyGameProviderOrUser, async (req, res) => {
-    const { user_id, bonus_code, amount, currency } = req.body;
+const WalletService = require('../services/wallet-service');
+
+router.post('/debit', authenticateRequest, async (req, res) => {
+    const { correlationId } = req;
+    const { user_id, amount, transaction_id, game_id, operator_id } = req.body;
+    const currentOperatorId = operator_id || req.user?.operator_id || 'default';
 
     if (!user_id || amount === undefined) {
         return res.status(400).json({ error: 'Missing user_id or amount' });
     }
 
-    const user = await supabaseService.getUserById(user_id);
-    if (!user) {
-        return res.status(404).json({ error: 'User not found' });
+    try {
+        const result = await WalletService.debit(
+            user_id, amount, transaction_id, game_id,
+            currentOperatorId, correlationId
+        );
+        res.json(result);
+    } catch (error) {
+        const status = error.message === 'INSUFFICIENT_FUNDS' ? 402 : 500;
+        res.status(status).json({ error: error.message });
     }
-
-    // Note: Currency conversion could happen here if currency !== user.currency
-    const currentBonusBalance = user.bonus_balance || 0;
-    const newBonusBalance = currentBonusBalance + parseFloat(amount);
-
-    await supabaseService.updateUser(user.id, { bonus_balance: newBonusBalance });
-
-    // Push 'bonus' event
-    await ftService.pushEvent(user.id, 'bonus', {
-        amount: amount,
-        bonus_code: bonus_code || 'FUNDS-REWARD',
-        bonus_id: 'POC-FUNDS-REWARD',
-        status: 'Created',
-        type: 'ReloadBonus',
-        currency: currency || user.currency
-    });
-
-    // Sync balances (Both Real and Bonus)
-    await ftService.pushEvent(user.id, 'balance', {
-        amount: user.balance,
-        bonus_amount: newBonusBalance,
-        currency: user.currency
-    });
-
-    ftService.logActivity('inbound', {
-        method: 'POST',
-        endpoint: '/bonus/credit/funds',
-        status: 200,
-        payload: { request: req.body, response: 'OK' }
-    });
-
-    res.status(200).send('OK');
 });
 
-// New endpoint to fetch Backend <=> FT activities
-router.get('/activities', async (req, res) => {
-    res.json(ftService.getActivities());
+router.post('/credit', authenticateRequest, async (req, res) => {
+    const { correlationId } = req;
+    const { user_id, amount, transaction_id, game_id, operator_id } = req.body;
+    const currentOperatorId = operator_id || req.user?.operator_id || 'default';
+
+    if (!user_id || amount === undefined) {
+        return res.status(400).json({ error: 'Missing user_id or amount' });
+    }
+
+    try {
+        const result = await WalletService.credit(
+            user_id, amount, transaction_id, game_id,
+            currentOperatorId, correlationId
+        );
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// User Onboarding & Updates
+router.post('/register', async (req, res) => {
+    const { correlationId } = req;
+    const { username, email, first_name, last_name, operator_id } = req.body;
+    const currentOperatorId = operator_id || 'default';
+
+    if (!username || !email) return res.status(400).json({ error: 'Missing required fields' });
+
+    try {
+        const token = `token-${username}-${Date.now()}`;
+        const newUser = await supabaseService.createUser({
+            username, email, first_name, last_name,
+            token, operator_id: currentOperatorId
+        });
+
+        await ftService.pushEvent(newUser.id, 'registration', {
+            ip_address: req.ip,
+            user_agent: req.headers['user-agent']
+        }, { correlationId, operatorId: currentOperatorId });
+
+        res.json({
+            user_id: newUser.id,
+            token,
+            user: { ...newUser, user_id: newUser.id }
+        });
+    } catch (error) {
+        logger.error('Registration failed', { correlationId, error: error.message });
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+router.post('/user/update', authenticateRequest, async (req, res) => {
+    const { correlationId, user } = req;
+    try {
+        const updatedUser = await supabaseService.updateUser(user.id, req.body);
+
+        await ftService.pushEvent(user.id, 'user_update', {
+            ...req.body
+        }, { correlationId, operatorId: user.operator_id });
+
+        res.json({ user: { ...updatedUser, user_id: updatedUser.id } });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// FT Simulation Endpoints (Consents, Blocks, etc.)
+router.put('/userconsents/:userid', authenticateRequest, async (req, res) => {
+    const { correlationId } = req;
+    const { consents } = req.body;
+    const userId = req.params.userid;
+
+    try {
+        const user = await supabaseService.getUserById(userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        await ftService.pushEvent(user.id, 'consent', {
+            consents
+        }, { correlationId, operatorId: user.operator_id });
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
+    const { correlationId } = req;
+    const { blocks } = req.body;
+    const userId = req.params.userid;
+
+    try {
+        const user = await supabaseService.getUserById(userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        await ftService.pushEvent(user.id, 'block', {
+            blocks
+        }, { correlationId, operatorId: user.operator_id });
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post('/registration', authenticateRequest, async (req, res) => {
+    const { correlationId, user } = req;
+    try {
+        await ftService.pushEvent(user.id, 'registration', {
+            ip_address: req.ip,
+            user_agent: req.headers['user-agent']
+        }, { correlationId, operatorId: user.operator_id });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post('/logout', authenticateRequest, async (req, res) => {
+    const { correlationId, user } = req;
+    try {
+        await ftService.pushEvent(user.id, 'logout', {}, { correlationId, operatorId: user.operator_id });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// User Details (Used by FT)
+router.get('/userdetails/:userid', authenticateRequest, async (req, res) => {
+    const { correlationId } = req;
+    const user = await supabaseService.getUserById(req.params.userid);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const response = {
+        user_id: user.id,
+        username: user.username,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        currency: user.currency || 'EUR',
+        country: user.country || 'MT',
+        operator_id: user.operator_id
+    };
+
+    await auditLog({
+        correlationId,
+        operatorId: user.operator_id,
+        action: 'inbound:userdetails',
+        entity_type: 'user',
+        entity_id: user.id,
+        metadata: { response },
+        message: 'Shared user details with FT'
+    });
+
+    res.json(response);
 });
 
 module.exports = router;

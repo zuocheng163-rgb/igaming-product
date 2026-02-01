@@ -1,38 +1,10 @@
 const axios = require('axios');
+const { logger, auditLog, generateCorrelationId } = require('./logger');
 
-const FT_API_URL = process.env.FT_API_URL || 'https://api.fasttrack-integration.com/v1';
-const FT_API_KEY = process.env.FT_API_KEY;
-const PLATFORM_ORIGIN = process.env.PLATFORM_ORIGIN || 'igaming-poc';
-
-const activityBuffer = [];
-const MAX_BUFFER_SIZE = 50;
-
-const cleanPayload = (obj) => {
-    if (obj === null || obj === undefined) return null;
-    if (typeof obj !== 'object') return obj;
-    if (Array.isArray(obj)) {
-        const cleanedArr = obj.map(cleanPayload).filter(v => v !== null && v !== undefined);
-        return cleanedArr.length > 0 ? cleanedArr : null;
-    }
-    const entries = Object.entries(obj)
-        .map(([k, v]) => [k, cleanPayload(v)])
-        .filter(([_, v]) => v !== null && v !== undefined && (typeof v !== 'object' || Object.keys(v).length > 0));
-    return entries.length > 0 ? Object.fromEntries(entries) : null;
-};
-
-const logActivity = (type, data) => {
-    activityBuffer.unshift({
-        id: Date.now() + Math.random(),
-        timestamp: new Date().toISOString(),
-        type, // 'inbound' or 'outbound'
-        ...cleanPayload(data)
-    });
-    if (activityBuffer.length > MAX_BUFFER_SIZE) {
-        activityBuffer.pop();
-    }
-};
-
-const getActivities = () => activityBuffer;
+// These will now be defaults if tenant-specific config is missing
+const DEFAULT_FT_API_URL = process.env.FT_API_URL || 'https://api.fasttrack-integration.com/v1';
+const DEFAULT_FT_API_KEY = process.env.FT_API_KEY;
+const DEFAULT_PLATFORM_ORIGIN = process.env.PLATFORM_ORIGIN || 'igaming-gateway';
 
 // Endpoint mapping based on FT Documentation
 const EVENT_CONFIG = {
@@ -53,28 +25,35 @@ const EVENT_CONFIG = {
     'win': { path: '/v1/integration/casino', method: 'POST' }
 };
 
-const pushEvent = async (userId, eventType, payload) => {
-    console.log(`[FT Integration] Pushing event: ${eventType} for user: ${userId}`, payload);
+/**
+ * Pushes clinical events to Fast Track Integration API.
+ * Now supports multi-tenancy and professional observability.
+ */
+const pushEvent = async (userId, eventType, payload, options = {}) => {
+    const correlationId = options.correlationId || generateCorrelationId();
+    const operatorId = options.operatorId || 'default';
 
-    if (!FT_API_KEY) {
-        console.warn('[FT Integration] No API Key provided. Skipping actual HTTP request.');
+    // Dynamic config (to be fully implemented with supabase.js getTenantConfig)
+    const config_url = options.ft_api_url || DEFAULT_FT_API_URL;
+    const config_key = options.ft_api_key || DEFAULT_FT_API_KEY;
+    const origin = options.platform_origin || DEFAULT_PLATFORM_ORIGIN;
+
+    logger.debug(`[FT Integration] Processing event: ${eventType} for user: ${userId}`, { correlationId, operatorId });
+
+    if (!config_key) {
+        logger.warn('[FT Integration] No API Key provided for operator. Skipping request.', { correlationId, operatorId });
         return;
     }
 
-    const config = EVENT_CONFIG[eventType];
-    if (!config) {
-        console.error(`[FT Integration] Unknown event type: ${eventType}`);
+    const eventConfig = EVENT_CONFIG[eventType];
+    if (!eventConfig) {
+        logger.error(`[FT Integration] Unknown event type: ${eventType}`, { correlationId });
         return;
     }
 
     try {
-        const baseUrl = FT_API_URL.endsWith('/') ? FT_API_URL.slice(0, -1) : FT_API_URL;
-        const targetUrl = `${baseUrl}${config.path}`;
-
-        console.log(`[FT Integration] Target URL: ${targetUrl} [${config.method}]`);
-
-        // Refine payload based on Fast Track documentation
-        const origin = PLATFORM_ORIGIN;
+        const baseUrl = config_url.endsWith('/') ? config_url.slice(0, -1) : config_url;
+        const targetUrl = `${baseUrl}${eventConfig.path}`;
         const timestamp = new Date().toISOString();
         let requestBody = {};
 
@@ -94,28 +73,10 @@ const pushEvent = async (userId, eventType, payload) => {
                 note: payload.note || 'New user registration',
                 user_agent: payload.user_agent || 'Mozilla/5.0',
                 ip_address: payload.ip_address || '127.0.0.1',
-                timestamp: timestamp, // already ISO/RFC3339
-                origin: origin
-            };
-        } else if (eventType === 'user_update') {
-            requestBody = {
-                user_id: userId,
                 timestamp: timestamp,
                 origin: origin
             };
-        } else if (eventType === 'consents') {
-            requestBody = {
-                user_id: userId,
-                timestamp: timestamp,
-                origin: origin
-            };
-        } else if (eventType === 'blocks') {
-            requestBody = {
-                user_id: userId,
-                timestamp: timestamp,
-                origin: origin
-            };
-        } else if (eventType === 'logout') {
+        } else if (eventType === 'user_update' || eventType === 'consents' || eventType === 'blocks' || eventType === 'logout') {
             requestBody = {
                 user_id: userId,
                 timestamp: timestamp,
@@ -125,8 +86,8 @@ const pushEvent = async (userId, eventType, payload) => {
             requestBody = {
                 user_id: userId,
                 payment_id: payload.transaction_id || `tx-${Date.now()}`,
-                type: 'Credit', // Fast Track expects 'Credit' for Deposits
-                status: payload.status || 'Approved', // Requested, Approved, Rejected, Rollback, Cancelled
+                type: 'Credit',
+                status: payload.status || 'Approved',
                 cashtype: 'cash',
                 amount: parseFloat(payload.amount),
                 currency: payload.currency || 'EUR',
@@ -137,21 +98,19 @@ const pushEvent = async (userId, eventType, payload) => {
                 origin: origin,
                 timestamp: timestamp
             };
-            console.log(`[FT Integration] Payment payload: ${JSON.stringify(requestBody, null, 2)}`);
         } else if (eventType === 'bet' || eventType === 'win' || eventType === 'casino') {
             const real_balance_after = parseFloat(payload.balance_after || 0);
             const bonus_balance_after = parseFloat(payload.bonus_balance_after || 0);
             const real_balance_before = parseFloat(payload.balance_before || 0);
             const bonus_balance_before = parseFloat(payload.bonus_balance_before || 0);
 
-            // Per requirement: balance before/after is TOTAL balance
             const total_balance_before = real_balance_before + bonus_balance_before;
             const total_balance_after = real_balance_after + bonus_balance_after;
 
             requestBody = {
                 user_id: userId,
                 activity_id: payload.transaction_id || `ctx-${Date.now()}`,
-                type: eventType === 'win' ? 'Win' : 'Bet',
+                type: (eventType === 'win' || payload.type === 'Win') ? 'Win' : 'Bet',
                 status: 'Approved',
                 amount: parseFloat(payload.amount),
                 bonus_wager_amount: parseFloat(payload.bonus_wager_amount || 0),
@@ -172,14 +131,13 @@ const pushEvent = async (userId, eventType, payload) => {
                 origin: origin,
                 timestamp: timestamp
             };
-        }
-        else if (eventType === 'bonus') {
+        } else if (eventType === 'bonus') {
             requestBody = {
                 user_id: userId,
                 bonus_id: payload.bonus_id || '9821',
                 user_bonus_id: payload.user_bonus_id || `${userId}-${payload.bonus_id || '9821'}`,
-                type: payload.type || 'WelcomeBonus', // NoDeposit, WelcomeBonus, CashbackBonus, etc.
-                status: payload.status || 'Created', // Pending, Created, Ongoing, Completed, etc.
+                type: payload.type || 'WelcomeBonus',
+                status: payload.status || 'Created',
                 amount: parseFloat(payload.amount || 0),
                 bonus_code: payload.bonus_code || 'WELCOME100',
                 currency: payload.currency || 'EUR',
@@ -187,28 +145,16 @@ const pushEvent = async (userId, eventType, payload) => {
                 locked_amount: parseFloat(payload.locked_amount || 0.0),
                 bonus_turned_real: parseFloat(payload.bonus_turned_real || 0.0),
                 required_wagering_amount: parseFloat(payload.required_wagering_amount || 0.0),
-                product: payload.product || 'Casino', // Casino, Sportsbook, Lotto, Poker
+                product: payload.product || 'Casino',
                 origin: origin,
-                timestamp: timestamp,
-                meta: payload.meta || {},
-                fasttrack_references: payload.fasttrack_references || {}
+                timestamp: timestamp
             };
         } else if (eventType === 'balance') {
             requestBody = {
                 user_id: userId,
                 balances: payload.balances || [
-                    {
-                        amount: parseFloat(payload.amount || 0),
-                        currency: payload.currency || 'EUR',
-                        key: 'real_money',
-                        exchange_rate: 1
-                    },
-                    {
-                        amount: parseFloat(payload.bonus_amount || 0),
-                        currency: payload.currency || 'EUR',
-                        key: 'bonus_money',
-                        exchange_rate: 1
-                    }
+                    { amount: parseFloat(payload.amount || 0), currency: payload.currency || 'EUR', key: 'real_money', exchange_rate: 1 },
+                    { amount: parseFloat(payload.bonus_amount || 0), currency: payload.currency || 'EUR', key: 'bonus_money', exchange_rate: 1 }
                 ],
                 origin: origin,
                 timestamp: timestamp
@@ -216,47 +162,58 @@ const pushEvent = async (userId, eventType, payload) => {
         }
 
         const response = await axios({
-            method: config.method,
+            method: eventConfig.method,
             url: targetUrl,
             data: requestBody,
             headers: {
-                'X-API-Key': FT_API_KEY,
-                'Content-Type': 'application/json'
+                'X-API-Key': config_key,
+                'Content-Type': 'application/json',
+                'X-Correlation-ID': correlationId
             }
         });
 
-        console.log('[FT Integration] Event pushed successfully:', response.data);
-
-        const telemetry = {
-            method: config.method,
-            endpoint: config.path,
-            status: response.status,
-            payload: {
+        await auditLog({
+            correlationId,
+            operatorId,
+            actor_id: userId,
+            action: `push_event:${eventType}`,
+            entity_type: 'fasttrack_event',
+            entity_id: userId,
+            status: 'success',
+            metadata: {
+                targetUrl,
                 request: requestBody,
                 response: response.data
-            }
-        };
+            },
+            message: `Successfully pushed ${eventType} event to Fast Track`
+        });
 
-        logActivity('outbound', telemetry);
-        return telemetry;
+        return response.data;
     } catch (error) {
-        console.error('[FT Integration] Failed to push event:', error.message);
-        const errorTelemetry = {
-            method: config ? config.method : 'UNKNOWN',
-            endpoint: config ? config.path : 'UNKNOWN',
-            status: error.response ? error.response.status : 500,
-            payload: {
-                request: requestBody || payload,
-                response: error.response ? error.response.data : { error: error.message }
-            }
-        };
-        logActivity('outbound', errorTelemetry);
-        return errorTelemetry;
+        const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
+        logger.error(`[FT Integration] Failed to push event: ${eventType}`, { correlationId, error: errorMsg });
+
+        await auditLog({
+            correlationId,
+            operatorId,
+            actor_id: userId,
+            action: `push_event:${eventType}`,
+            entity_type: 'fasttrack_event',
+            entity_id: userId,
+            status: 'error',
+            level: 'error',
+            metadata: {
+                request: payload,
+                error: errorMsg
+            },
+            message: `Failed to push ${eventType} event to Fast Track`
+        });
+
+        throw error;
     }
 };
 
 module.exports = {
     pushEvent,
-    logActivity,
-    getActivities
+    generateCorrelationId
 };

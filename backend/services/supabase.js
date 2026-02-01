@@ -1,183 +1,142 @@
 const { createClient } = require('@supabase/supabase-js');
-const dotenv = require('dotenv');
-
-dotenv.config();
+const { logger } = require('./logger');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
-
-// Top-level diagnostics for Vercel
-console.log('[Supabase Init] SUPABASE_URL length:', supabaseUrl ? supabaseUrl.length : 'undefined');
-console.log('[Supabase Init] SUPABASE_ANON_KEY length:', supabaseKey ? supabaseKey.length : 'undefined');
-console.log('[Supabase Init] All ENV keys starting with SUPA:', Object.keys(process.env).filter(k => k.startsWith('SUPA')));
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Optional but recommended for S2S
 
 let supabase;
-
-// Mock DB for development if credentials are missing
-const mockDB = {
-    users: new Map([
-        ['test-user', {
-            id: 'test-user',
-            'user_update': { path: '/v2/integration/user', method: 'POST' }, // Changed from PUT to POST for upsert pattern
-            user_id: 'test-user',
-            username: 'Test User',
-            balance: 1000,
-            bonus_balance: 0,
-            currency: 'EUR',
-            token: 'valid-token',
-            country: 'MT',
-            language: 'en',
-            first_name: 'John',
-            last_name: 'Doe',
-            email: 'test-user@example.com',
-            address: 'Tower Road, 120A',
-            birth_date: '1990-01-01',
-            city: 'Sliema',
-            mobile: '21435678',
-            mobile_prefix: '+356',
-            registration_date: '2023-01-01T08:00:00Z',
-            postal_code: 'SLM 1030',
-            sex: 'Male',
-            title: 'Mr',
-            is_blocked: false,
-            is_excluded: false,
-            market: 'gb',
-            roles: ["VIP", "TEST_USER"],
-            registration_code: "ABC123",
-            verified_at: "2023-01-01T08:00:00Z",
-            affiliate_reference: "AFF_1234A_UK"
-        }]
-    ]),
-};
-
-if (supabaseUrl && supabaseKey) {
-    console.log('[Supabase Init] Initializing Supabase Client...');
-    supabase = createClient(supabaseUrl, supabaseKey);
+if (supabaseUrl && (supabaseServiceKey || supabaseKey)) {
+    supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseKey);
+    logger.info('[Supabase] Client initialized');
 } else {
-    console.warn('[Supabase Init] Supabase credentials not found. Falling back to Mock DB.');
+    logger.warn('[Supabase] Missing credentials. Backend will fail to perform DB operations.');
 }
 
+/**
+ * Fetches dynamic configuration for a specific operator.
+ */
+const getTenantConfig = async (operatorId) => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('tenant_configs')
+        .select('*')
+        .eq('operator_id', operatorId)
+        .single();
+
+    if (error) {
+        logger.error(`[Supabase] Failed to fetch tenant config for ${operatorId}`, { error: error.message });
+        return null;
+    }
+
+    return data;
+};
+
+/**
+ * Persists an audit log entry to Supabase.
+ */
+const saveAuditLog = async (logEntry) => {
+    if (!supabase) return;
+
+    const { error } = await supabase
+        .from('platform_audit_logs')
+        .insert([logEntry]);
+
+    if (error) {
+        logger.error('[Supabase] Failed to save audit log', { error: error.message, correlationId: logEntry.correlation_id });
+    }
+};
+
 const getUser = async (username, token) => {
-    const cleanToken = token ? token.trim() : '';
-    const cleanUsername = username ? username.trim().toLowerCase() : '';
+    if (!supabase) return null;
 
-    console.log(`[Supabase Service] getUser Attempt:
-        Username: "${cleanUsername}"
-        Token: "${cleanToken.substring(0, 10)}..."
-    `);
+    const { data, error } = await supabase
+        .from('user_details')
+        .select('*')
+        .eq('token', token)
+        .single();
 
-    // 1. Check Mock DB first for PoC/Testing
-    for (const user of mockDB.users.values()) {
-        if (user.token === cleanToken && user.username.toLowerCase() === cleanUsername) {
-            console.log('[Supabase Service] Success: Found in Mock DB');
-            return user;
-        }
+    if (error || !data) {
+        logger.debug(`[Supabase] User not found by token`, { username });
+        return null;
     }
 
-    // 2. Fallback to Supabase if initialized
-    if (supabase) {
-        console.log('[Supabase Service] Querying Supabase users table...');
-        const { data, error: dbError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('token', cleanToken)
-            .single();
-
-        if (dbError) {
-            console.log(`[Supabase Service] DB Error or No Row found by token: ${dbError.message}`);
-        }
-
-        if (data) {
-            console.log(`[Supabase Service] Success: Found in Supabase table. Username in DB: ${data.username}`);
-            return data;
-        }
-
-        console.log('[Supabase Service] Row not found in users table. Trying Supabase Auth fallback...');
-        try {
-            const { data: { user }, error } = await supabase.auth.getUser(token);
-            if (user) {
-                console.log('[Supabase Service] Success: Found via Supabase Auth');
-                return user;
-            }
-        } catch (e) {
-            console.log(`[Supabase Service] Auth fallback error: ${e.message}`);
-        }
-    }
-
-    console.log('[Supabase Service] Fail: User not found in Mock DB, Supabase table, or Auth fallback');
-    return null;
+    return data;
 };
 
 const getUserById = async (userId) => {
-    if (supabase) {
-        const { data, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', userId)
-            .single();
-        if (error) return null;
-        return data;
+    if (!supabase) return null;
+
+    // Basic UUID validation regex
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+
+    let query = supabase.from('user_details').select('*');
+    if (isUuid) {
+        query = query.eq('id', userId);
     } else {
-        return mockDB.users.get(userId) || null;
+        // Adaptation: If NOT a UUID, we assume it might be a username (common in PoC simulators)
+        query = query.eq('username', userId);
     }
-}
+
+    const { data, error } = await query.single();
+    if (error) return null;
+    return data;
+};
 
 const updateUser = async (userId, updates) => {
-    // 1. Check Mock DB first
-    const mockUser = mockDB.users.get(userId);
-    if (mockUser) {
-        console.log('[Supabase] Updating user in Mock DB');
-        const updatedUser = { ...mockUser, ...updates };
-        mockDB.users.set(userId, updatedUser);
-        return updatedUser;
-    }
+    if (!supabase) throw new Error('Supabase not initialized');
 
-    // 2. Fallback to Supabase
-    if (supabase) {
-        const { data, error } = await supabase
-            .from('users')
-            .update(updates)
-            .eq('id', userId)
-            .select();
-        if (error) throw error;
-        return data[0];
-    }
+    const { data, error } = await supabase
+        .from('user_details')
+        .update(updates)
+        .eq('id', userId)
+        .select();
 
-    throw new Error('User not found');
+    if (error) {
+        logger.error(`[Supabase] Update failed for user ${userId}`, { error: error.message });
+        throw error;
+    }
+    return data[0];
 };
 
 const createUser = async (userData) => {
-    const id = userData.username || `user_${Date.now()}`;
+    if (!supabase) throw new Error('Supabase not initialized');
+
     const newUser = {
-        id,
-        user_id: id,
         balance: 1000,
         currency: 'EUR',
         registration_date: new Date().toISOString(),
+        operator_id: userData.operator_id || 'default',
         ...userData
     };
 
-    if (supabase) {
-        const { data, error } = await supabase
-            .from('users')
-            .insert([newUser])
-            .select();
-        if (error) throw error;
-        return data[0];
-    } else {
-        mockDB.users.set(id, newUser);
-        return newUser;
+    const { data, error } = await supabase
+        .from('user_details')
+        .insert([newUser])
+        .select();
+
+    if (error) {
+        logger.error('[Supabase] User creation failed', { error: error.message });
+        throw error;
     }
+    return data[0];
 };
 
-const updateBalance = async (userId, newBalance) => {
+/**
+ * Atomic balance update using PostgreSQL Transactions placeholder
+ * (Will be fully implemented in WalletService)
+ */
+const updateBalance = async (userId, newBalance, operatorId) => {
     return updateUser(userId, { balance: newBalance });
 };
 
 module.exports = {
+    getTenantConfig,
+    saveAuditLog,
     getUser,
     getUserById,
-    updateBalance,
     updateUser,
-    createUser
+    createUser,
+    updateBalance
 };
