@@ -41,7 +41,7 @@ const auditLog = async (data) => {
         entity_id: data.entity_id || null,
         metadata: data.metadata || {},
         status: data.status || 'success',
-        operator_id: data.operator_id || 'default',
+        operator_id: data.operatorId || data.operator_id || 'default',
         message: data.message || data.action
     };
 

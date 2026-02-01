@@ -466,8 +466,10 @@ input:focus {
   white-space: pre-wrap;
   word-break: break-all;
   color: #fff;
-  max-height: 400px;
+  max-height: 600px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--glass-border-bright) transparent;
 }
 
 .inbound-neon {

@@ -212,6 +212,18 @@ router.put('/userconsents/:userid', authenticateRequest, async (req, res) => {
             consents
         }, { correlationId, operatorId: user.operator_id });
 
+        await auditLog({
+            correlationId,
+            operatorId: user.operator_id,
+            actor_id: user.id,
+            action: 'inbound:update_consent',
+            entity_type: 'user',
+            entity_id: user.id,
+            status: 'success',
+            metadata: { consents },
+            message: `User ${user.id} updated consents via simulation`
+        });
+
         res.json({ success: true });
     } catch (error) {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
@@ -231,6 +243,18 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
         await ftService.pushEvent(user.id, 'block', {
             blocks
         }, { correlationId, operatorId: user.operator_id });
+
+        await auditLog({
+            correlationId,
+            operatorId: user.operator_id,
+            actor_id: user.id,
+            action: 'inbound:update_block',
+            entity_type: 'user',
+            entity_id: user.id,
+            status: 'success',
+            metadata: { blocks },
+            message: `User ${user.id} updated blocks via simulation`
+        });
 
         res.json({ success: true });
     } catch (error) {
