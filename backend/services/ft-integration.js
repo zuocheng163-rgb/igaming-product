@@ -135,7 +135,7 @@ const pushEvent = async (userId, eventType, payload, options = {}) => {
             requestBody = {
                 user_id: userId,
                 bonus_id: payload.bonus_id || '9821',
-                user_bonus_id: payload.user_bonus_id || `${userId}-${payload.bonus_id || '9821'}`,
+                user_bonus_id: payload.user_bonus_id || `${userId}-${payload.bonus_id || '9821'}-${Date.now()}`,
                 type: payload.type || 'WelcomeBonus',
                 status: payload.status || 'Created',
                 amount: parseFloat(payload.amount || 0),

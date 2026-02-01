@@ -81,6 +81,14 @@ class WalletService {
                 currency: user.currency
             }, { correlationId, operatorId });
 
+            // Balance Sync
+            ftService.pushEvent(userId, 'balance', {
+                balances: [
+                    { amount: newBalance, currency: user.currency, key: 'real_money', exchange_rate: 1 },
+                    { amount: newBonusBalance || 0, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
+                ]
+            }, { correlationId, operatorId });
+
             return {
                 transaction_id: transactionId,
                 balance: newBalance,
@@ -125,6 +133,14 @@ class WalletService {
                 balance_before: user.balance,
                 balance_after: newBalance,
                 currency: user.currency
+            }, { correlationId, operatorId });
+
+            // Balance Sync
+            ftService.pushEvent(userId, 'balance', {
+                balances: [
+                    { amount: newBalance, currency: user.currency, key: 'real_money', exchange_rate: 1 },
+                    { amount: user.bonus_balance || 0, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
+                ]
             }, { correlationId, operatorId });
 
             return {
@@ -172,6 +188,14 @@ class WalletService {
                 currency: user.currency,
                 status: 'Approved',
                 provider: 'MockWallet'
+            }, { correlationId, operatorId });
+
+            // Balance Sync
+            ftService.pushEvent(userId, 'balance', {
+                balances: [
+                    { amount: newBalance, currency: user.currency, key: 'real_money', exchange_rate: 1 },
+                    { amount: user.bonus_balance || 0, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
+                ]
             }, { correlationId, operatorId });
 
             return {

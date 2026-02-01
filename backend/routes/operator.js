@@ -304,7 +304,7 @@ router.post('/bonus/credit', authenticateRequest, async (req, res) => {
         await ftService.pushEvent(user.id, 'bonus', {
             bonus_code,
             amount: 100, // Example
-            status: 'Claimed'
+            status: 'Completed'
         }, { correlationId, operatorId: user.operator_id });
 
         res.json({ success: true, message: `Bonus ${bonus_code} credited` });
