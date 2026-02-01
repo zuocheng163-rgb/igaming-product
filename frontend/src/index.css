@@ -411,6 +411,8 @@ input:focus {
   overflow: hidden;
   font-size: 0.85rem;
   transition: all 0.2s;
+  flex-shrink: 0;
+  /* Critical: Prevent shrinking when list grows */
 }
 
 .log-entry-header {

@@ -158,11 +158,16 @@ const getActivities = async (operatorId, limit = 20) => {
             if (log.metadata?.consents) endpoint = 'Update Consents';
             if (log.metadata?.blocks) endpoint = 'Update Blocks';
         } else {
-            // Outbound logic (e.g. outbound:push_event:login)
+            // Outbound logic (e.g. outbound:push_event:login or push_event:login)
             const parts = log.action.split(':');
             if (parts.length >= 3) {
+                // Format: outbound:push_event:login
                 method = 'FT-PUSH';
-                endpoint = parts[2].toUpperCase(); // e.g. LOGIN, BONUS
+                endpoint = parts[2].toUpperCase();
+            } else if (parts.length === 2 && parts[0] === 'push_event') {
+                // Format: push_event:login (Legacy)
+                method = 'FT-PUSH';
+                endpoint = parts[1].toUpperCase();
             }
         }
 
