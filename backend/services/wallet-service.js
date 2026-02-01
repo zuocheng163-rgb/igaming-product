@@ -63,7 +63,7 @@ class WalletService {
                 action: 'wallet:debit',
                 entity_type: 'transaction',
                 entity_id: transactionId,
-                metadata: { amount, gameId, balance_after: newBalance },
+                metadata: { request: { amount, gameId, balance_after: newBalance } },
                 message: `SPI Debit Success: ${amount}`
             });
 
@@ -122,7 +122,7 @@ class WalletService {
                 action: 'wallet:credit',
                 entity_type: 'transaction',
                 entity_id: transactionId,
-                metadata: { amount, gameId, balance_after: newBalance },
+                metadata: { request: { amount, gameId, balance_after: newBalance } },
                 message: `SPI Credit Success: ${amount}`
             });
 
@@ -177,7 +177,7 @@ class WalletService {
                 action: 'wallet:deposit',
                 entity_type: 'transaction',
                 entity_id: transactionId,
-                metadata: { amount, balance_after: newBalance },
+                metadata: { request: { amount, balance_after: newBalance } },
                 message: `SPI Deposit Success: ${amount}`
             });
 
@@ -232,7 +232,7 @@ class WalletService {
                 action: 'wallet:bonus_credit',
                 entity_type: 'transaction',
                 entity_id: transactionId,
-                metadata: { amount, bonusCode, bonus_balance_after: newBonusBalance },
+                metadata: { request: { amount, bonusCode, bonus_balance_after: newBonusBalance } },
                 message: `SPI Bonus Credit Success: ${amount}`
             });
 
