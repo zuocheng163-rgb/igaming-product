@@ -131,13 +131,13 @@ const updateBalance = async (userId, newBalance, operatorId) => {
     return updateUser(userId, { balance: newBalance });
 };
 
-const getActivities = async (operatorId, limit = 50) => {
+const getActivities = async (operatorId, limit = 20) => {
     if (!supabase) return [];
 
     const { data, error } = await supabase
         .from('platform_audit_logs')
         .select('*')
-        .eq('operator_id', operatorId)
+        .or(`operator_id.eq.${operatorId},operator_id.eq.default`) // Fetch both specific and default (fallback) logs
         .order('timestamp', { ascending: false })
         .limit(limit);
 
@@ -149,11 +149,28 @@ const getActivities = async (operatorId, limit = 50) => {
     // Map DB logs to Frontend Activity format
     return data.map(log => {
         const isInbound = log.action.startsWith('inbound:');
+        let method = 'POST';
+        let endpoint = log.action;
+
+        if (isInbound) {
+            method = log.action.split(':')[1]?.toUpperCase() || 'ACTION';
+            endpoint = log.entity_id ? `User: ${log.entity_id}` : 'System';
+            if (log.metadata?.consents) endpoint = 'Update Consents';
+            if (log.metadata?.blocks) endpoint = 'Update Blocks';
+        } else {
+            // Outbound logic (e.g. outbound:push_event:login)
+            const parts = log.action.split(':');
+            if (parts.length >= 3) {
+                method = 'FT-PUSH';
+                endpoint = parts[2].toUpperCase(); // e.g. LOGIN, BONUS
+            }
+        }
+
         return {
             id: log.id,
             type: isInbound ? 'inbound' : 'outbound',
-            method: isInbound ? log.action.split(':')[1].toUpperCase() : 'POST',
-            endpoint: log.metadata?.targetUrl || log.message || log.action,
+            method: method,
+            endpoint: endpoint,
             status: log.status === 'success' ? 200 : 500,
             payload: log.metadata || {},
             timestamp: log.timestamp
