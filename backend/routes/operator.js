@@ -160,6 +160,10 @@ router.post('/register', async (req, res) => {
             user_agent: req.headers['user-agent']
         }, { correlationId, operatorId: currentOperatorId });
 
+        if (!newUser) {
+            throw new Error('User creation succeeded but no data was returned');
+        }
+
         res.json({
             user_id: newUser.id,
             token,
