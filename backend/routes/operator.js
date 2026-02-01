@@ -257,7 +257,8 @@ router.post('/logout', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
     console.log(`[Operator Debug] Processing Logout for user ${user.id}`, { correlationId, operatorId: user.operator_id });
     try {
-        await ftService.pushEvent(user.id, 'logout', {}, { correlationId, operatorId: user.operator_id });
+        // FT logout event is not required/supported by current integration version
+        logger.info(`User ${user.id} logged out successfully`, { correlationId });
         res.json({ success: true });
     } catch (error) {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
