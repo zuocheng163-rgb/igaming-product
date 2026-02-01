@@ -61,7 +61,13 @@ CREATE TABLE IF NOT EXISTS public.transaction_locks (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '1 minute'
 );
--- 6. Enable RLS
+-- 6. Enable RLS & Policies
 ALTER TABLE public.user_details ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.platform_audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tenant_configs ENABLE ROW LEVEL SECURITY;
+-- Simple permissive policies to allow backend maturity testing
+CREATE POLICY "Enable all for user_details" ON public.user_details FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Enable all for audit_logs" ON public.platform_audit_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Enable all for transactions" ON public.transactions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Enable all for tenant_configs" ON public.tenant_configs FOR ALL USING (true) WITH CHECK (true);
