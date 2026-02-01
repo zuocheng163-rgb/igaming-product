@@ -14,34 +14,41 @@ const correlationMiddleware = (req, res, next) => {
 router.use(correlationMiddleware);
 
 // Middleware to authenticate user or operator
+// Middleware to authenticate user or operator
 const authenticateRequest = async (req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
-    const sessionToken = req.headers['authorization']?.startsWith('Bearer ')
-        ? req.headers['authorization'].slice(7)
-        : req.headers['authorization'];
-    const username = req.headers['x-username'] || req.body?.username;
+    const correlationId = req.correlationId;
+    try {
+        const apiKey = req.headers['x-api-key'];
+        const sessionToken = req.headers['authorization']?.startsWith('Bearer ')
+            ? req.headers['authorization'].slice(7)
+            : req.headers['authorization'];
+        const username = req.headers['x-username'] || req.body?.username;
 
-    // 1. S2S Authentication (API Key)
-    if (apiKey && apiKey === process.env.OPERATOR_API_KEY) {
-        req.isOperator = true;
-        return next();
-    }
-
-    // 2. User Authentication (Session Token)
-    if (sessionToken) {
-        const user = await supabaseService.getUser(username, sessionToken);
-        if (user) {
-            req.user = user;
-            req.operatorId = user.operator_id || 'default';
+        // 1. S2S Authentication (API Key)
+        if (apiKey && apiKey === process.env.OPERATOR_API_KEY) {
+            req.isOperator = true;
             return next();
         }
-    }
 
-    logger.warn('Unauthorized access attempt', {
-        path: req.path,
-        correlationId: req.correlationId
-    });
-    return res.status(401).json({ error: 'Unauthorized: Invalid API Key or Token' });
+        // 2. User Authentication (Session Token)
+        if (sessionToken) {
+            const user = await supabaseService.getUser(username, sessionToken);
+            if (user) {
+                req.user = user;
+                req.operatorId = user.operator_id || 'default';
+                return next();
+            }
+        }
+
+        logger.warn('Unauthorized access attempt', {
+            path: req.path,
+            correlationId
+        });
+        return res.status(401).json({ error: 'Unauthorized: Invalid API Key or Token' });
+    } catch (error) {
+        logger.error('Authentication Middleware Error', { correlationId, error: error.message });
+        return res.status(500).json({ error: 'Internal Server Error during Authentication' });
+    }
 };
 
 // --- ENDPOINTS ---

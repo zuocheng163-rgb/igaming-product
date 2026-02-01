@@ -49,7 +49,7 @@ const saveAuditLog = async (logEntry) => {
 };
 
 const getUser = async (username, token) => {
-    if (!supabase) return null;
+    if (!supabase || !token) return null;
 
     const { data, error } = await supabase
         .from('user_details')
