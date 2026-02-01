@@ -114,7 +114,8 @@ router.post('/debit', authenticateRequest, async (req, res) => {
         res.json(result);
     } catch (error) {
         const status = error.message === 'INSUFFICIENT_FUNDS' ? 402 : 500;
-        res.status(status).json({ error: error.message });
+        const errorMessage = typeof error === 'string' ? error : (error.message || 'Debit failed');
+        res.status(status).json({ error: errorMessage });
     }
 });
 
@@ -134,7 +135,8 @@ router.post('/credit', authenticateRequest, async (req, res) => {
         );
         res.json(result);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
+        res.status(500).json({ error: errorMessage });
     }
 });
 
@@ -180,7 +182,8 @@ router.post('/user/update', authenticateRequest, async (req, res) => {
 
         res.json({ user: { ...updatedUser, user_id: updatedUser.id } });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
+        res.status(500).json({ error: errorMessage });
     }
 });
 
@@ -200,7 +203,8 @@ router.put('/userconsents/:userid', authenticateRequest, async (req, res) => {
 
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
+        res.status(500).json({ error: errorMessage });
     }
 });
 
@@ -219,7 +223,8 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
 
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
+        res.status(500).json({ error: errorMessage });
     }
 });
 
@@ -232,7 +237,8 @@ router.post('/registration', authenticateRequest, async (req, res) => {
         }, { correlationId, operatorId: user.operator_id });
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
+        res.status(500).json({ error: errorMessage });
     }
 });
 
@@ -242,7 +248,8 @@ router.post('/logout', authenticateRequest, async (req, res) => {
         await ftService.pushEvent(user.id, 'logout', {}, { correlationId, operatorId: user.operator_id });
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
+        res.status(500).json({ error: errorMessage });
     }
 });
 

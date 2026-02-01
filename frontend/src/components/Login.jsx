@@ -41,7 +41,8 @@ function Login({ onLogin }) {
             // Automatic login after signup
             onLogin(data.token, data.user);
         } catch (err) {
-            setError(err.response?.data?.error || 'Registration failed');
+            const rawError = err.response?.data?.error || err.message || 'Registration failed';
+            setError(typeof rawError === 'string' ? rawError : JSON.stringify(rawError));
         } finally {
             setLoading(false);
         }
