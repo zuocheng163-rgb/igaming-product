@@ -13,7 +13,7 @@ const EVENT_CONFIG = {
     'blocks': { path: '/v2/integration/user/blocks', method: 'PUT' },
     'registration': { path: '/v2/integration/user', method: 'POST' },
     'user_update': { path: '/v2/integration/user', method: 'PUT' },
-    'logout': { path: '/v1/integration/logout', method: 'POST' },
+    'logout': { path: '/v2/integration/logout', method: 'POST' },
     'payment': { path: '/v1/integration/payment', method: 'POST' },
     'casino': { path: '/v1/integration/casino', method: 'POST' },
     'bonus': { path: '/v1/integration/bonus', method: 'POST' },
@@ -22,7 +22,9 @@ const EVENT_CONFIG = {
     // Aliases for internal events
     'deposit': { path: '/v1/integration/payment', method: 'POST' },
     'bet': { path: '/v1/integration/casino', method: 'POST' },
-    'win': { path: '/v1/integration/casino', method: 'POST' }
+    'win': { path: '/v1/integration/casino', method: 'POST' },
+    'block': { path: '/v2/integration/user/blocks', method: 'PUT' },
+    'consent': { path: '/v2/integration/user/consents', method: 'PUT' }
 };
 
 /**
@@ -58,6 +60,7 @@ const pushEvent = async (userId, eventType, payload, options = {}) => {
         let requestBody = {};
 
         // Event-specific data enrichment
+        // Event-specific data enrichment
         if (eventType === 'login') {
             requestBody = {
                 user_id: userId,
@@ -76,7 +79,7 @@ const pushEvent = async (userId, eventType, payload, options = {}) => {
                 timestamp: timestamp,
                 origin: origin
             };
-        } else if (eventType === 'user_update' || eventType === 'consents' || eventType === 'blocks' || eventType === 'logout') {
+        } else if (['user_update', 'consents', 'consent', 'blocks', 'block', 'logout'].includes(eventType)) {
             requestBody = {
                 user_id: userId,
                 timestamp: timestamp,
