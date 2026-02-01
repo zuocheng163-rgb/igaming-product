@@ -1,5 +1,5 @@
 const winston = require('winston');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 const logger = winston.createLogger({
     level: process.env.LOG_LEVEL || 'info',
@@ -30,7 +30,7 @@ const setDbLogHook = (hook) => {
  * prepares data for the audit log table.
  */
 const auditLog = async (data) => {
-    const correlationId = data.correlationId || uuidv4();
+    const correlationId = data.correlationId || crypto.randomUUID();
     const logEntry = {
         correlation_id: correlationId,
         timestamp: new Date().toISOString(),
@@ -65,5 +65,5 @@ module.exports = {
     logger,
     auditLog,
     setDbLogHook,
-    generateCorrelationId: uuidv4
+    generateCorrelationId: () => crypto.randomUUID()
 };
