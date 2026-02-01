@@ -257,6 +257,62 @@ router.post('/logout', authenticateRequest, async (req, res) => {
     }
 });
 
+// Wallet Operations
+router.post('/deposit', authenticateRequest, async (req, res) => {
+    const { correlationId, user } = req;
+    const { amount } = req.body;
+
+    if (!amount) return res.status(400).json({ error: 'Amount is required' });
+
+    try {
+        const result = await WalletService.deposit(
+            user.id, parseFloat(amount),
+            user.operator_id, correlationId
+        );
+        res.json(result);
+    } catch (error) {
+        const errorMessage = typeof error === 'string' ? error : (error.message || 'Deposit failed');
+        res.status(500).json({ error: errorMessage });
+    }
+});
+
+router.get('/activities', authenticateRequest, async (req, res) => {
+    try {
+        const logs = await supabaseService.getActivities(req.user.operator_id);
+        res.json(logs);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch activities' });
+    }
+});
+
+// Bonus Simulation (Product Ready)
+router.get('/bonus/list', authenticateRequest, async (req, res) => {
+    // Mocking for now, but scoped to operator if needed
+    res.json({
+        Data: [
+            { bonus_code: 'WELCOME100', name: 'Welcome 100%', amount: 100 },
+            { bonus_code: 'RELOAD50', name: 'Reload 50%', amount: 50 }
+        ]
+    });
+});
+
+router.post('/bonus/credit', authenticateRequest, async (req, res) => {
+    const { correlationId, user } = req;
+    const { bonus_code } = req.body;
+
+    try {
+        await ftService.pushEvent(user.id, 'bonus', {
+            bonus_code,
+            amount: 100, // Example
+            status: 'Approved'
+        }, { correlationId, operatorId: user.operator_id });
+
+        res.json({ success: true, message: `Bonus ${bonus_code} credited` });
+    } catch (error) {
+        res.status(500).json({ error: 'Bonus credit failed' });
+    }
+});
+
 // User Details (Used by FT)
 router.get('/userdetails/:userid', authenticateRequest, async (req, res) => {
     const { correlationId } = req;

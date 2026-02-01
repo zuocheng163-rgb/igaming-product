@@ -131,6 +131,36 @@ const updateBalance = async (userId, newBalance, operatorId) => {
     return updateUser(userId, { balance: newBalance });
 };
 
+const getActivities = async (operatorId, limit = 50) => {
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+        .from('platform_audit_logs')
+        .select('*')
+        .eq('operator_id', operatorId)
+        .order('timestamp', { ascending: false })
+        .limit(limit);
+
+    if (error) {
+        logger.error('[Supabase] Failed to fetch activities', { error: error.message });
+        return [];
+    }
+
+    // Map DB logs to Frontend Activity format
+    return data.map(log => {
+        const isInbound = log.action.startsWith('inbound:');
+        return {
+            id: log.id,
+            type: isInbound ? 'inbound' : 'outbound',
+            method: isInbound ? log.action.split(':')[1].toUpperCase() : 'POST',
+            endpoint: log.metadata?.targetUrl || log.message || log.action,
+            status: log.status === 'success' ? 200 : 500,
+            payload: log.metadata || {},
+            timestamp: log.timestamp
+        };
+    });
+};
+
 module.exports = {
     getTenantConfig,
     saveAuditLog,
@@ -138,5 +168,6 @@ module.exports = {
     getUserById,
     updateUser,
     createUser,
-    updateBalance
+    updateBalance,
+    getActivities
 };

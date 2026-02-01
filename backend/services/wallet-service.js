@@ -138,6 +138,53 @@ class WalletService {
             throw error;
         }
     }
+
+    /**
+     * Standardized Deposit (Payment) operation
+     */
+    static async deposit(userId, amount, operatorId, correlationId) {
+        logger.debug(`[Wallet SPI] Processing Deposit`, { userId, amount, correlationId });
+        const transactionId = `dep-${Date.now()}`;
+
+        try {
+            const user = await supabaseService.getUserById(userId);
+            if (!user) throw new Error('USER_NOT_FOUND');
+
+            const newBalance = (user.balance || 0) + amount;
+
+            await supabaseService.updateUser(userId, { balance: newBalance });
+
+            await auditLog({
+                correlationId,
+                operatorId,
+                actor_id: userId,
+                action: 'wallet:deposit',
+                entity_type: 'transaction',
+                entity_id: transactionId,
+                metadata: { amount, balance_after: newBalance },
+                message: `SPI Deposit Success: ${amount}`
+            });
+
+            // FT Integration: Push payment event
+            ftService.pushEvent(userId, 'deposit', {
+                amount,
+                transaction_id: transactionId,
+                currency: user.currency,
+                status: 'Approved',
+                provider: 'MockWallet'
+            }, { correlationId, operatorId });
+
+            return {
+                transaction_id: transactionId,
+                balance: newBalance,
+                bonus_amount: user.bonus_balance || 0,
+                currency: user.currency
+            };
+        } catch (error) {
+            logger.error(`[Wallet SPI] Deposit Failed`, { error: error.message, correlationId });
+            throw error;
+        }
+    }
 }
 
 module.exports = WalletService;
