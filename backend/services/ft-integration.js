@@ -13,7 +13,7 @@ const EVENT_CONFIG = {
     'blocks': { path: '/v2/integration/user/blocks', method: 'PUT' },
     'registration': { path: '/v2/integration/user', method: 'POST' },
     'user_update': { path: '/v2/integration/user', method: 'PUT' },
-    'logout': { path: '/v2/integration/logout', method: 'POST' },
+    'logout': { path: '/v1/integration/logout', method: 'POST' },
     'payment': { path: '/v1/integration/payment', method: 'POST' },
     'casino': { path: '/v1/integration/casino', method: 'POST' },
     'bonus': { path: '/v1/integration/bonus', method: 'POST' },
@@ -80,7 +80,8 @@ const pushEvent = async (userId, eventType, payload, options = {}) => {
             requestBody = {
                 user_id: userId,
                 timestamp: timestamp,
-                origin: origin
+                origin: origin,
+                ...payload // Spread the rest of the payload (consents, blocks, etc.)
             };
         } else if (eventType === 'deposit' || eventType === 'payment') {
             requestBody = {
@@ -176,7 +177,7 @@ const pushEvent = async (userId, eventType, payload, options = {}) => {
             correlationId,
             operatorId,
             actor_id: userId,
-            action: `push_event:${eventType}`,
+            action: `outbound:push_event:${eventType}`,
             entity_type: 'fasttrack_event',
             entity_id: userId,
             status: 'success',
@@ -197,7 +198,7 @@ const pushEvent = async (userId, eventType, payload, options = {}) => {
             correlationId,
             operatorId,
             actor_id: userId,
-            action: `push_event:${eventType}`,
+            action: `outbound:push_event:${eventType}`,
             entity_type: 'fasttrack_event',
             entity_id: userId,
             status: 'error',
