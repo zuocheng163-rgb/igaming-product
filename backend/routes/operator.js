@@ -301,15 +301,17 @@ router.post('/bonus/credit', authenticateRequest, async (req, res) => {
     const { bonus_code } = req.body;
 
     try {
-        await ftService.pushEvent(user.id, 'bonus', {
+        const result = await WalletService.creditBonus(
+            user.id,
+            100, // Hardcoded amount for this endpoint matching list
             bonus_code,
-            amount: 100, // Example
-            status: 'Completed'
-        }, { correlationId, operatorId: user.operator_id });
-
-        res.json({ success: true, message: `Bonus ${bonus_code} credited` });
+            user.operator_id,
+            correlationId
+        );
+        res.json({ success: true, message: `Bonus ${bonus_code} credited`, ...result });
     } catch (error) {
-        res.status(500).json({ error: 'Bonus credit failed' });
+        const errorMessage = typeof error === 'string' ? error : (error.message || 'Bonus credit failed');
+        res.status(500).json({ error: errorMessage });
     }
 });
 

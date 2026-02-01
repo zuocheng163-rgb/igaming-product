@@ -132,15 +132,46 @@ function Dashboard({ user: initialUser, token, onLogout }) {
         }
     };
 
-    const handleClaimBonus = async (code) => {
+    const handleClaimBonus = async (code, name) => {
         try {
             await creditBonus(token, user.user_id, code);
-            setStatus(`Bonus ${code} claimed!`);
+            setStatus(`Bonus ${name || code} claimed!`);
             fetchBalance();
         } catch (err) {
             setStatus('Bonus claim failed');
         }
     };
+
+    // ... (rest of code)
+
+    <section className="glass-panel">
+        <div className="section-header">
+            <h3>🎁 Active Bonuses</h3>
+        </div>
+        <div className="bonus-list">
+            {bonuses.length > 0 ? bonuses.map(b => (
+                <div key={b.bonus_code} className="bonus-card">
+                    <div style={{ flex: 1 }}>
+                        <h4>{b.name}</h4>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            {b.amount} {currency}
+                        </p>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                        onClick={() => handleClaimBonus(b.bonus_code, b.name)}
+                    >
+                        Claim
+                    </button>
+                </div>
+            )) : (
+                <div style={{ padding: '20px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                    No active bonuses
+                </div>
+            )}
+        </div>
+    </section>
 
     const handleToggleBlock = async () => {
         try {

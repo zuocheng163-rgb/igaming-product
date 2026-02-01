@@ -209,6 +209,61 @@ class WalletService {
             throw error;
         }
     }
+
+    /**
+     * Standardized Bonus Credit operation
+     */
+    static async creditBonus(userId, amount, bonusCode, operatorId, correlationId) {
+        logger.debug(`[Wallet SPI] Processing Bonus Credit`, { userId, amount, bonusCode, correlationId });
+        const transactionId = `bon-${Date.now()}`;
+
+        try {
+            const user = await supabaseService.getUserById(userId);
+            if (!user) throw new Error('USER_NOT_FOUND');
+
+            const newBonusBalance = (user.bonus_balance || 0) + amount;
+
+            await supabaseService.updateUser(userId, { bonus_balance: newBonusBalance });
+
+            await auditLog({
+                correlationId,
+                operatorId,
+                actor_id: userId,
+                action: 'wallet:bonus_credit',
+                entity_type: 'transaction',
+                entity_id: transactionId,
+                metadata: { amount, bonusCode, bonus_balance_after: newBonusBalance },
+                message: `SPI Bonus Credit Success: ${amount}`
+            });
+
+            // FT Integration: Push bonus event
+            await ftService.pushEvent(userId, 'bonus', {
+                bonus_code: bonusCode,
+                amount,
+                status: 'Completed',
+                transaction_id: transactionId,
+                currency: user.currency
+            }, { correlationId, operatorId });
+
+            // Balance Sync
+            ftService.pushEvent(userId, 'balance', {
+                balances: [
+                    { amount: user.balance || 0, currency: user.currency, key: 'real_money', exchange_rate: 1 },
+                    { amount: newBonusBalance, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
+                ]
+            }, { correlationId, operatorId });
+
+            return {
+                transaction_id: transactionId,
+                balance: user.balance,
+                bonus_balance: newBonusBalance,
+                currency: user.currency
+            };
+        } catch (error) {
+            logger.error(`[Wallet SPI] Bonus Credit Failed`, { error: error.message, correlationId });
+            throw error;
+        }
+    }
 }
 
 module.exports = WalletService;
