@@ -208,10 +208,6 @@ router.put('/userconsents/:userid', authenticateRequest, async (req, res) => {
         const user = await supabaseService.getUserById(userId);
         if (!user) return res.status(404).json({ error: 'User not found' });
 
-        await ftService.pushEvent(user.id, 'consent', {
-            consents
-        }, { correlationId, operatorId: user.operator_id });
-
         await auditLog({
             correlationId,
             operatorId: user.operator_id,
@@ -223,6 +219,10 @@ router.put('/userconsents/:userid', authenticateRequest, async (req, res) => {
             metadata: { consents },
             message: `User ${user.id} updated consents via simulation`
         });
+
+        await ftService.pushEvent(user.id, 'consent', {
+            consents
+        }, { correlationId, operatorId: user.operator_id });
 
         res.json({ success: true });
     } catch (error) {
@@ -240,10 +240,6 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
         const user = await supabaseService.getUserById(userId);
         if (!user) return res.status(404).json({ error: 'User not found' });
 
-        await ftService.pushEvent(user.id, 'block', {
-            blocks
-        }, { correlationId, operatorId: user.operator_id });
-
         await auditLog({
             correlationId,
             operatorId: user.operator_id,
@@ -255,6 +251,10 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
             metadata: { blocks },
             message: `User ${user.id} updated blocks via simulation`
         });
+
+        await ftService.pushEvent(user.id, 'block', {
+            blocks
+        }, { correlationId, operatorId: user.operator_id });
 
         res.json({ success: true });
     } catch (error) {
