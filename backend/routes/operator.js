@@ -216,7 +216,7 @@ router.put('/userconsents/:userid', authenticateRequest, async (req, res) => {
             entity_type: 'user',
             entity_id: user.id,
             status: 'success',
-            metadata: { consents },
+            metadata: { request: { consents } },
             message: `User ${user.id} updated consents via simulation`
         });
 
@@ -248,7 +248,7 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
             entity_type: 'user',
             entity_id: user.id,
             status: 'success',
-            metadata: { blocks },
+            metadata: { request: { blocks } },
             message: `User ${user.id} updated blocks via simulation`
         });
 
