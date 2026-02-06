@@ -27,6 +27,7 @@ const authenticateRequest = async (req, res, next) => {
         // 1. S2S Authentication (API Key)
         if (apiKey && apiKey === process.env.OPERATOR_API_KEY) {
             req.isOperator = true;
+            req.role = 'ADMIN'; // S2S is always Admin in PoC
             return next();
         }
 
@@ -36,6 +37,7 @@ const authenticateRequest = async (req, res, next) => {
             if (user) {
                 req.user = user;
                 req.operatorId = user.operator_id || 'default';
+                req.role = user.role || 'SUPPORT'; // Default to Support if not specified
                 return next();
             }
         }
@@ -49,6 +51,16 @@ const authenticateRequest = async (req, res, next) => {
         logger.error('Authentication Middleware Error', { correlationId, error: error.message });
         return res.status(500).json({ error: 'Internal Server Error during Authentication' });
     }
+};
+
+/**
+ * RBAC Helper Middleware
+ */
+const requireAdmin = (req, res, next) => {
+    if (req.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Forbidden: Admin access required' });
+    }
+    next();
 };
 
 // --- ENDPOINTS ---
@@ -376,6 +388,63 @@ router.get('/userdetails/:userid', authenticateRequest, async (req, res) => {
     });
 
     res.json(response);
+});
+
+const ReportingService = require('../services/reporting');
+
+router.get('/stats/summary', authenticateRequest, async (req, res) => {
+    const operatorId = req.user?.operator_id || req.operatorId || 'default';
+    try {
+        const summary = await ReportingService.getOperatorSummary(operatorId);
+        res.json(summary);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+    }
+});
+
+router.get('/stats/churn', authenticateRequest, async (req, res) => {
+    const operatorId = req.user?.operator_id || req.operatorId || 'default';
+    try {
+        const profiles = await ReportingService.getChurnRiskProfiles(operatorId);
+        res.json(profiles);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch churn risk data' });
+    }
+});
+
+router.get('/stats/live', authenticateRequest, async (req, res) => {
+    const operatorId = req.user?.operator_id || req.operatorId || 'default';
+    try {
+        const metrics = await ReportingService.getLiveMetrics(operatorId);
+        res.json(metrics);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch live metrics' });
+    }
+});
+
+const PaymentAnalyticsService = require('../services/payment-analytics');
+
+router.post('/keys/rotate', authenticateRequest, requireAdmin, async (req, res) => {
+    const { correlationId } = req;
+    logger.info('API Key Rotation Request', { correlationId });
+
+    // Logic: In production, generate new key in Supabase/Vault and invalidate old one
+    const newKey = `sk_live_${Math.random().toString(36).substr(2, 24)}`;
+
+    res.json({
+        success: true,
+        message: 'Master API Key rotated. Please update your environment variables.',
+        key_preview: `${newKey.substr(0, 8)}...`
+    });
+});
+
+router.get('/payment/health', authenticateRequest, async (req, res) => {
+    try {
+        const stats = PaymentAnalyticsService.getProviderStats();
+        res.json(stats);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch provider health' });
+    }
 });
 
 module.exports = router;

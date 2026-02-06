@@ -183,6 +183,60 @@ const getActivities = async (operatorId, limit = 20) => {
     });
 };
 
+/**
+ * Fetches transaction-level data for reporting.
+ */
+const getTransactionsByOperator = async (operatorId, filters = {}) => {
+    if (!supabase) return [];
+
+    let query = supabase
+        .from('platform_audit_logs')
+        .select('*')
+        .eq('operator_id', operatorId)
+        .in('action', ['wallet:debit', 'wallet:credit', 'wallet:deposit', 'wallet:bonus_credit']);
+
+    if (filters.startDate) query = query.gte('timestamp', filters.startDate);
+    if (filters.endDate) query = query.lte('timestamp', filters.endDate);
+
+    const { data, error } = await query.order('timestamp', { ascending: false });
+
+    if (error) {
+        logger.error('[Supabase] Failed to fetch transactions', { error: error.message });
+        return [];
+    }
+
+    return data;
+};
+
+/**
+ * Basic KPI Aggregation Mock (In production, this would be an RPC)
+ */
+const getAggregatedKPIs = async (operatorId) => {
+    if (!supabase) return { ggr: 0, ngr: 0, deposits: 0 };
+
+    // In PoC, we aggregate manually for demonstration
+    const transactions = await getTransactionsByOperator(operatorId);
+
+    let ggr = 0; // Tot Bets - Tot Wins
+    let deposits = 0;
+    let bonuses = 0;
+
+    transactions.forEach(tx => {
+        const amount = tx.metadata?.request?.amount || 0;
+        if (tx.action === 'wallet:debit') ggr += amount;
+        if (tx.action === 'wallet:credit') ggr -= amount;
+        if (tx.action === 'wallet:deposit') deposits += amount;
+        if (tx.action === 'wallet:bonus_credit') bonuses += amount;
+    });
+
+    return {
+        ggr,
+        ngr: ggr - bonuses, // Simplified NGR
+        deposits,
+        transaction_count: transactions.length
+    };
+};
+
 module.exports = {
     getTenantConfig,
     saveAuditLog,
@@ -191,5 +245,7 @@ module.exports = {
     updateUser,
     createUser,
     updateBalance,
-    getActivities
+    getActivities,
+    getTransactionsByOperator,
+    getAggregatedKPIs
 };

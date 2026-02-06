@@ -1,6 +1,12 @@
 const supabaseService = require('./supabase');
 const ftService = require('./ft-integration');
 const { logger, auditLog } = require('./logger');
+const { broadcastToUser } = require('./socket');
+const MonitoringService = require('./monitoring');
+const InterventionService = require('./intervention');
+const PaymentRoutingService = require('./payment-routing');
+const PaymentAdapters = require('./payment-adapters');
+const PaymentAnalyticsService = require('./payment-analytics');
 
 /**
  * WalletService standardizes all balance-related operations.
@@ -67,6 +73,13 @@ class WalletService {
                 message: `SPI Debit Success: ${amount}`
             });
 
+            // WebSocket Broadcast (Real-time balance)
+            broadcastToUser(userId, 'balance_update', {
+                balance: newBalance,
+                bonus_balance: newBonusBalance,
+                currency: user.currency
+            });
+
             // FT Integration (Async)
             ftService.pushEvent(userId, 'bet', {
                 amount,
@@ -81,13 +94,11 @@ class WalletService {
                 currency: user.currency
             }, { correlationId, operatorId });
 
-            // Balance Sync
-            ftService.pushEvent(userId, 'balance', {
-                balances: [
-                    { amount: newBalance, currency: user.currency, key: 'real_money', exchange_rate: 1 },
-                    { amount: newBonusBalance || 0, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
-                ]
-            }, { correlationId, operatorId });
+            // AI Duty of Care: Evaluate Risk after transaction
+            const riskData = await MonitoringService.evaluateRisk(userId);
+            if (riskData) {
+                await InterventionService.handleRiskDetected(userId, riskData);
+            }
 
             return {
                 transaction_id: transactionId,
@@ -135,13 +146,11 @@ class WalletService {
                 currency: user.currency
             }, { correlationId, operatorId });
 
-            // Balance Sync
-            ftService.pushEvent(userId, 'balance', {
-                balances: [
-                    { amount: newBalance, currency: user.currency, key: 'real_money', exchange_rate: 1 },
-                    { amount: user.bonus_balance || 0, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
-                ]
-            }, { correlationId, operatorId });
+            // AI Duty of Care: Evaluate Risk after transaction
+            const riskData = await MonitoringService.evaluateRisk(userId);
+            if (riskData) {
+                await InterventionService.handleRiskDetected(userId, riskData);
+            }
 
             return {
                 transaction_id: transactionId,
@@ -156,18 +165,24 @@ class WalletService {
     }
 
     /**
-     * Standardized Deposit (Payment) operation
+     * Standardized Deposit (Payment) operation with Auto-Retry and Failover
      */
-    static async deposit(userId, amount, operatorId, correlationId) {
-        logger.debug(`[Wallet SPI] Processing Deposit`, { userId, amount, correlationId });
+    static async deposit(userId, amount, method, operatorId, correlationId) {
+        logger.debug(`[Wallet SPI] Processing Deposit`, { userId, amount, method, correlationId });
         const transactionId = `dep-${Date.now()}`;
 
         try {
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
 
-            const newBalance = (user.balance || 0) + amount;
+            // 1. External Payment Orchestration (Adyen -> Stripe)
+            const paymentResult = await this._orchestrateExternalPayment(userId, amount, method, correlationId);
 
+            if (paymentResult.status !== 'Approved') {
+                throw new Error(`PAYMENT_REJECTED: ${paymentResult.reason}`);
+            }
+
+            const newBalance = (user.balance || 0) + amount;
             await supabaseService.updateUser(userId, { balance: newBalance });
 
             await auditLog({
@@ -177,8 +192,8 @@ class WalletService {
                 action: 'wallet:deposit',
                 entity_type: 'transaction',
                 entity_id: transactionId,
-                metadata: { request: { amount, balance_after: newBalance } },
-                message: `SPI Deposit Success: ${amount}`
+                metadata: { request: { amount, balance_after: newBalance, provider: paymentResult.provider } },
+                message: `SPI Deposit Success: ${amount} via ${paymentResult.provider}`
             });
 
             // FT Integration: Push payment event
@@ -187,27 +202,83 @@ class WalletService {
                 transaction_id: transactionId,
                 currency: user.currency,
                 status: 'Approved',
-                provider: 'MockWallet'
+                provider: paymentResult.provider
             }, { correlationId, operatorId });
 
-            // Balance Sync
-            ftService.pushEvent(userId, 'balance', {
-                balances: [
-                    { amount: newBalance, currency: user.currency, key: 'real_money', exchange_rate: 1 },
-                    { amount: user.bonus_balance || 0, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
-                ]
-            }, { correlationId, operatorId });
+            // WebSocket Broadcast
+            broadcastToUser(userId, 'balance_update', {
+                balance: newBalance,
+                bonus_balance: user.bonus_balance || 0,
+                currency: user.currency
+            });
+
+            broadcastToUser(userId, 'payment_status', {
+                status: 'success',
+                amount,
+                method,
+                provider: paymentResult.provider
+            });
+
+            // AI Duty of Care: Evaluate Risk after transaction (Chasing losses detection)
+            const riskData = await MonitoringService.evaluateRisk(userId);
+            if (riskData) {
+                await InterventionService.handleRiskDetected(userId, riskData);
+            }
 
             return {
                 transaction_id: transactionId,
                 balance: newBalance,
                 bonus_amount: user.bonus_balance || 0,
-                currency: user.currency
+                currency: user.currency,
+                provider: paymentResult.provider
             };
         } catch (error) {
             logger.error(`[Wallet SPI] Deposit Failed`, { error: error.message, correlationId });
+
+            // Notify frontend of failure
+            broadcastToUser(userId, 'payment_status', {
+                status: 'failed',
+                amount,
+                reason: error.message
+            });
+
             throw error;
         }
+    }
+
+    /**
+     * Internal orchestration with retry and failover
+     */
+    static async _orchestrateExternalPayment(userId, amount, method, correlationId) {
+        const user = await supabaseService.getUserById(userId);
+        const country = user?.country || 'MT';
+
+        const providers = PaymentRoutingService.getProviderSequence(country, amount);
+        const retryDelays = [1000, 3000]; // Faster retries for orchestration v2
+
+        for (const provider of providers) {
+            logger.info(`Attempting payment via ${provider}`, { userId, amount, provider, country });
+
+            for (let i = 0; i <= retryDelays.length; i++) {
+                const startTime = Date.now();
+                try {
+                    const result = await PaymentAdapters.call(provider, amount, userId);
+                    await PaymentAnalyticsService.logAttempt(provider, 'Approved', amount, Date.now() - startTime, userId, country);
+                    return result;
+                } catch (err) {
+                    const latency = Date.now() - startTime;
+                    logger.warn(`Payment attempt ${i + 1} failed for ${provider}: ${err.message}`);
+                    await PaymentAnalyticsService.logAttempt(provider, 'Failed', amount, latency, userId, country);
+
+                    if (i < retryDelays.length) {
+                        await new Promise(r => setTimeout(r, retryDelays[i]));
+                    }
+                }
+            }
+            logger.warn(`Provider ${provider} failed. Switching to next in sequence...`);
+        }
+
+        throw new Error('ALL_PAYMENT_PROVIDERS_FAILED');
     }
 
     /**

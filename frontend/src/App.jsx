@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
+import TenantPortal from './components/TenantPortal';
 import { login } from './services/api';
 import './index.css';
 
@@ -20,15 +21,21 @@ function App() {
     setToken(null);
   };
 
+  const renderContent = () => {
+    if (!user) return <Login onLogin={handleLogin} />;
+
+    // In PoC, anyone with 'admin' in their username or explicit role is redirected to Portal
+    if (user.role === 'ADMIN' || user.username.toLowerCase().includes('admin')) {
+      return <TenantPortal token={token} onLogout={handleLogout} />;
+    }
+
+    return <Dashboard user={user} token={token} onLogout={handleLogout} />;
+  };
+
   return (
     <div className="app-container">
       {error && <div className="error-banner">{error}</div>}
-
-      {!user ? (
-        <Login onLogin={handleLogin} />
-      ) : (
-        <Dashboard user={user} token={token} onLogout={handleLogout} />
-      )}
+      {renderContent()}
     </div>
   );
 }

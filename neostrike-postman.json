@@ -1,0 +1,113 @@
+{
+    "info": {
+        "_postman_id": "c6a1e5d7-7b89-4e2b-9c1a-1a2b3c4d5e6f",
+        "name": "NeoStrike Integration Gateway v2.1",
+        "description": "Standardized collection for iGaming Integration. Includes Wallet SPI, Reporting, and Responsible Gaming.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Wallet SPI",
+            "item": [
+                {
+                    "name": "Debit (Bet)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "x-api-key",
+                                "value": "{{apiKey}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"user_id\": \"user123\",\n  \"amount\": 10.00,\n  \"transaction_id\": \"tx-{{$timestamp}}\",\n  \"game_id\": \"starburst\",\n  \"operator_id\": \"op_alpha\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/debit",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "debit"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Credit (Win)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "x-api-key",
+                                "value": "{{apiKey}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"user_id\": \"user123\",\n  \"amount\": 50.00,\n  \"transaction_id\": \"tx-win-{{$timestamp}}\",\n  \"game_id\": \"starburst\",\n  \"operator_id\": \"op_alpha\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/api/credit",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "credit"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Operator Reporting",
+            "item": [
+                {
+                    "name": "GGR/NGR Summary",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "x-api-key",
+                                "value": "{{apiKey}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/api/stats/summary",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "api",
+                                "stats",
+                                "summary"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:5000"
+        },
+        {
+            "key": "apiKey",
+            "value": "sk_test_neostrike_2026"
+        }
+    ]
+}
