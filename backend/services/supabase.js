@@ -221,12 +221,32 @@ const getAggregatedKPIs = async (operatorId) => {
     };
 };
 
+const getUserConsents = async (userId) => {
+    // In production, fetch from 'user_consents' table.
+    // For now, return safe defaults as the schema is being prioritized.
+    return {
+        consents: [
+            { id: 'marketing', status: true },
+            { id: 'behavioral_analysis', status: true }
+        ]
+    };
+};
+
+const getUserBlocks = async (userId) => {
+    // In production, fetch from 'user_blocks' table.
+    return {
+        blocks: []
+    };
+};
+
 module.exports = {
     client: supabase,
     getTenantConfig,
     saveAuditLog,
     getUser,
     getUserById,
+    getUserConsents,
+    getUserBlocks,
     updateUser,
     createUser,
     updateBalance,

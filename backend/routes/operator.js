@@ -285,6 +285,26 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
     }
 });
 
+router.get('/userconsents/:userid', authenticateRequest, async (req, res) => {
+    const { correlationId } = req;
+    try {
+        const consents = await supabaseService.getUserConsents(req.params.userid);
+        res.json(consents);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch consents' });
+    }
+});
+
+router.get('/userblocks/:userid', authenticateRequest, async (req, res) => {
+    const { correlationId } = req;
+    try {
+        const blocks = await supabaseService.getUserBlocks(req.params.userid);
+        res.json(blocks);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch blocks' });
+    }
+});
+
 router.post('/registration', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
     try {
