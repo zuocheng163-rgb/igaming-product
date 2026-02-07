@@ -82,13 +82,13 @@ router.post('/authenticate', async (req, res) => {
         const operatorId = user.operator_id || 'default';
         const sessionId = `sid-${user.id}-${Date.now()}`;
 
-        await ftService.pushEvent(user.id, 'login', {
+        await ftService.pushEvent(user.username, 'login', {
             session_id: sessionId,
             ip_address: req.ip,
             user_agent: req.headers['user-agent']
         }, { correlationId, operatorId });
 
-        await ftService.pushEvent(user.id, 'balance', {
+        await ftService.pushEvent(user.username, 'balance', {
             amount: user.balance,
             bonus_amount: user.bonus_balance || 0,
             currency: user.currency
@@ -96,12 +96,12 @@ router.post('/authenticate', async (req, res) => {
 
         res.json({
             sid: sessionId,
-            user_id: user.id,
+            user_id: user.username,
             currency: user.currency,
             operator_id: operatorId,
             user: {
                 id: user.id,
-                user_id: user.id,
+                user_id: user.username,
                 username: user.username,
                 balance: user.balance,
                 bonus_balance: user.bonus_balance,
@@ -184,7 +184,7 @@ router.post('/register', async (req, res) => {
             token, operator_id: currentOperatorId
         });
 
-        await ftService.pushEvent(newUser.id, 'registration', {
+        await ftService.pushEvent(newUser.username, 'registration', {
             ip_address: req.ip,
             user_agent: req.headers['user-agent']
         }, { correlationId, operatorId: currentOperatorId });
@@ -194,9 +194,9 @@ router.post('/register', async (req, res) => {
         }
 
         res.json({
-            user_id: newUser.id,
+            user_id: newUser.username,
             token,
-            user: { ...newUser, user_id: newUser.id }
+            user: { ...newUser, user_id: newUser.username }
         });
     } catch (error) {
         logger.error('Registration failed', { correlationId, error: error.message });
@@ -209,11 +209,11 @@ router.post('/user/update', authenticateRequest, async (req, res) => {
     try {
         const updatedUser = await supabaseService.updateUser(user.id, req.body);
 
-        await ftService.pushEvent(user.id, 'user_update', {
+        await ftService.pushEvent(user.username, 'user_update', {
             ...req.body
         }, { correlationId, operatorId: user.operator_id });
 
-        res.json({ user: { ...updatedUser, user_id: updatedUser.id } });
+        res.json({ user: { ...updatedUser, user_id: updatedUser.username } });
     } catch (error) {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
         res.status(500).json({ error: errorMessage });
@@ -242,7 +242,7 @@ router.put('/userconsents/:userid', authenticateRequest, async (req, res) => {
             message: `User ${user.id} updated consents via simulation`
         });
 
-        await ftService.pushEvent(user.id, 'consent', {
+        await ftService.pushEvent(user.username, 'consent', {
             consents
         }, { correlationId, operatorId: user.operator_id });
 
@@ -274,7 +274,7 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
             message: `User ${user.id} updated blocks via simulation`
         });
 
-        await ftService.pushEvent(user.id, 'block', {
+        await ftService.pushEvent(user.username, 'block', {
             blocks
         }, { correlationId, operatorId: user.operator_id });
 
@@ -288,7 +288,7 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
 router.post('/registration', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
     try {
-        await ftService.pushEvent(user.id, 'registration', {
+        await ftService.pushEvent(user.username, 'registration', {
             ip_address: req.ip,
             user_agent: req.headers['user-agent']
         }, { correlationId, operatorId: user.operator_id });
@@ -377,7 +377,7 @@ router.get('/userdetails/:userid', authenticateRequest, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const response = {
-        user_id: user.id,
+        user_id: user.username,
         username: user.username,
         first_name: user.first_name,
         last_name: user.last_name,

@@ -69,8 +69,8 @@ const getUserById = async (userId) => {
     if (!supabase) {
         if (process.env.DEMO_MODE === 'true') {
             return {
-                id: userId,
-                username: `demo_user_${userId}`,
+                id: userId, // Use the provided string as the ID in demo mode
+                username: userId, // Use the provided string as the username
                 email: 'demo@neostrike.io',
                 balance: 1000,
                 bonus_balance: 500,
