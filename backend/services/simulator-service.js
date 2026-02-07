@@ -246,8 +246,45 @@ class SimulatorService {
             return true;
         }
 
-        // 8. Mock Credit: (POST) /api/credit
-        if (method === 'POST' && (path.endsWith('/credit') || path.includes('/credit'))) {
+        // 8. Mock Bonus Credit: (POST) /api/bonus/credit
+        if (method === 'POST' && path.includes('/bonus/credit')) {
+            const { user_id, bonus_code, amount } = req.body;
+            const bonusAmount = parseFloat(amount || 100);
+            logger.info(`[Simulator] Match: POST Bonus Credit for ${user_id}, bonus: ${bonus_code}, amount: ${bonusAmount}`);
+
+            const bal = getBalance(user_id);
+            bal.bonus += bonusAmount;
+
+            // Push FT Bonus Event
+            await ftService.pushEvent(user_id, 'bonus', {
+                bonus_id: '9821',
+                user_bonus_id: `${user_id}-${bonus_code}-${Date.now()}`,
+                type: 'WelcomeBonus',
+                status: 'Created',
+                amount: bonusAmount,
+                bonus_code: bonus_code || 'WELCOME100',
+                currency: 'EUR',
+                product: 'Casino'
+            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Bonus Push Failed', e));
+
+            // Push Balance Update
+            await ftService.pushEvent(user_id, 'balance', {
+                amount: bal.amount,
+                bonus_amount: bal.bonus,
+                currency: 'EUR'
+            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Balance Push Failed', e));
+
+            res.json({
+                success: true,
+                bonus_balance: bal.bonus,
+                balance: bal.amount,
+                currency: 'EUR'
+            });
+            return true;
+        }
+
+        // 9. Mock Credit (Slot Win): (POST) /api/credit
+        if (method === 'POST' && path.endsWith('/credit')) {
             const { user_id, amount } = req.body;
             logger.info(`[Simulator] Match: POST Credit`);
 
