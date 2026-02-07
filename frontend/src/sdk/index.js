@@ -15,6 +15,9 @@ class NeoStrikeClient {
                 auth: {
                     token: this.token
                 },
+                extraHeaders: {
+                    'x-sandbox-mode': 'true'
+                },
                 reconnection: true,
                 reconnectionAttempts: 10,
                 reconnectionDelay: 1000,
