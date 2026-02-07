@@ -1,9 +1,10 @@
-const { logger } = require('./logger');
-
 const InterventionService = require('./intervention');
+const ftService = require('./ft-integration');
+const { generateCorrelationId, logger } = require('./logger');
 
 // In-memory store for sandbox activity (Velocity Spike tracking)
 const sandboxLogs = [];
+const sandboxBalances = new Map(); // Store balances keyed by user_id
 
 /**
  * SimulatorService
@@ -110,6 +111,16 @@ class SimulatorService {
      */
     static handleSandboxRequest(req, res) {
         const { method, path: reqPath } = req;
+        const correlationId = generateCorrelationId();
+        const brandId = 1; // Default for demo
+
+        // Helper to get/init balance
+        const getBalance = (uid) => {
+            if (!sandboxBalances.has(uid)) {
+                sandboxBalances.set(uid, { amount: 1000, bonus: 100 });
+            }
+            return sandboxBalances.get(uid);
+        };
 
         // Normalize path for matching
         const path = reqPath.startsWith('/') ? reqPath : '/' + reqPath;
@@ -190,6 +201,10 @@ class SimulatorService {
             const { user_id, amount } = req.body;
             logger.info(`[Simulator] Match: POST Debit for ${user_id}`);
 
+            const bal = getBalance(user_id);
+            const balanceBefore = bal.amount;
+            bal.amount -= amount;
+
             // Track for Velocity Spike
             sandboxLogs.push({ user_id, action: 'debit', timestamp: Date.now() });
             const lastMinute = Date.now() - 60000;
@@ -203,30 +218,78 @@ class SimulatorService {
                 });
             }
 
+            // Push to FT
+            ftService.pushEvent(user_id, 'casino', {
+                transaction_id: `sb-tx-${Date.now()}`,
+                amount: amount,
+                type: 'Bet',
+                balance_before: balanceBefore,
+                balance_after: bal.amount,
+                game_id: 'slot-game-1',
+                currency: 'EUR'
+            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Casino Push Failed', e));
+
+            ftService.pushEvent(user_id, 'balance', {
+                amount: bal.amount,
+                bonus_amount: bal.bonus,
+                currency: 'EUR'
+            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Balance Push Failed', e));
+
             res.json({
                 transaction_id: `sandbox-tx-${Date.now()}`,
-                balance: 990, // Mock fixed balance
-                bonus_balance: 100,
+                balance: bal.amount,
+                bonus_balance: bal.bonus,
                 currency: 'EUR'
             });
             return true;
         }
 
         // 8. Mock Credit: (POST) /api/credit
-        if (method === 'POST' && path.endsWith('/credit')) {
+        if (method === 'POST' && (path.endsWith('/credit') || path.includes('/credit'))) {
+            const { user_id, amount } = req.body;
             logger.info(`[Simulator] Match: POST Credit`);
+
+            const bal = getBalance(user_id);
+            const balanceBefore = bal.amount;
+            bal.amount += amount;
+
+            // Push to FT
+            ftService.pushEvent(user_id, 'casino', {
+                transaction_id: `sb-win-${Date.now()}`,
+                amount: amount,
+                type: 'Win',
+                balance_before: balanceBefore,
+                balance_after: bal.amount,
+                game_id: 'slot-game-1',
+                currency: 'EUR'
+            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Win Push Failed', e));
+
+            ftService.pushEvent(user_id, 'balance', {
+                amount: bal.amount,
+                bonus_amount: bal.bonus,
+                currency: 'EUR'
+            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Balance Push Failed', e));
+
             res.json({
                 transaction_id: `sandbox-win-${Date.now()}`,
-                balance: 1010,
-                bonus_balance: 100,
+                balance: bal.amount,
+                bonus_balance: bal.bonus,
                 currency: 'EUR'
             });
             return true;
         }
 
         // 9. Mock Balance: (GET) /api/balance
-        if (method === 'GET' && path.endsWith('/balance')) {
-            res.json({ balance: 1000, bonus_balance: 100, currency: 'EUR' });
+        if (method === 'GET' && (path.endsWith('/balance') || path.includes('/balance'))) {
+            const userId = req.query?.user_id || req.user?.username || 'demo_user';
+            const bal = getBalance(userId);
+            res.json({
+                amount: bal.amount,
+                bonus_amount: bal.bonus,
+                currency: 'EUR',
+                balance: bal.amount,
+                bonus_balance: bal.bonus
+            });
             return true;
         }
 

@@ -33,6 +33,23 @@ const authenticateRequest = async (req, res, next) => {
 
         // 2. User Authentication (Session Token)
         if (sessionToken) {
+            // Demo Token Bypass (for Sandbox/PoC)
+            const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
+            if (isSandbox && sessionToken.startsWith('token-')) {
+                const usernameFromToken = sessionToken.replace('token-', '');
+                req.user = {
+                    user_id: usernameFromToken,
+                    username: usernameFromToken,
+                    brand_id: 1,
+                    role: 'PLAYER',
+                    balance: 1000,
+                    currency: 'EUR'
+                };
+                req.brandId = 1;
+                req.role = 'PLAYER';
+                return next();
+            }
+
             const user = await supabaseService.getUser(username, sessionToken);
             if (user) {
                 req.user = user;
