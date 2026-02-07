@@ -82,13 +82,13 @@ router.post('/authenticate', async (req, res) => {
         const operatorId = user.operator_id || 'default';
         const sessionId = `sid-${user.id}-${Date.now()}`;
 
-        await ftService.pushEvent(user.username, 'login', {
+        await ftService.pushEvent(user.user_id, 'login', {
             session_id: sessionId,
             ip_address: req.ip,
             user_agent: req.headers['user-agent']
         }, { correlationId, operatorId });
 
-        await ftService.pushEvent(user.username, 'balance', {
+        await ftService.pushEvent(user.user_id, 'balance', {
             amount: user.balance,
             bonus_amount: user.bonus_balance || 0,
             currency: user.currency
@@ -209,9 +209,9 @@ router.post('/user/update', authenticateRequest, async (req, res) => {
     try {
         const updatedUser = await supabaseService.updateUser(user.id, req.body);
 
-        await ftService.pushEvent(user.username, 'user_update', {
+        await ftService.pushEvent(user.user_id, 'user_update', {
             ...req.body
-        }, { correlationId, operatorId: user.operator_id });
+        }, { correlationId, operatorId: user.operator_id || user.brand_id });
 
         res.json({ user: { ...updatedUser, user_id: updatedUser.username } });
     } catch (error) {
@@ -242,9 +242,9 @@ router.put('/userconsents/:userid', authenticateRequest, async (req, res) => {
             message: `User ${user.id} updated consents via simulation`
         });
 
-        await ftService.pushEvent(user.username, 'consent', {
+        await ftService.pushEvent(user.user_id, 'consent', {
             consents
-        }, { correlationId, operatorId: user.operator_id });
+        }, { correlationId, operatorId: user.operator_id || user.brand_id });
 
         res.json({ success: true });
     } catch (error) {
@@ -274,9 +274,9 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
             message: `User ${user.id} updated blocks via simulation`
         });
 
-        await ftService.pushEvent(user.username, 'block', {
+        await ftService.pushEvent(user.user_id, 'block', {
             blocks
-        }, { correlationId, operatorId: user.operator_id });
+        }, { correlationId, operatorId: user.operator_id || user.brand_id });
 
         res.json({ success: true });
     } catch (error) {
@@ -288,9 +288,21 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
 router.get('/userconsents/:userid', authenticateRequest, async (req, res) => {
     const { correlationId } = req;
     try {
-        const consents = await supabaseService.getUserConsents(req.params.userid);
-        res.json(consents);
+        const data = await supabaseService.getUserConsents(req.params.userid);
+
+        // Transform the DB record into the FT-required array structure
+        const response = [
+            { type: 'email', opted_in: !!data.email },
+            { type: 'sms', opted_in: !!data.sms },
+            { type: 'telephone', opted_in: !!data.telephone },
+            { type: 'postMail', opted_in: !!data.post_mail },
+            { type: 'siteNotification', opted_in: !!data.site_notification },
+            { type: 'pushNotification', opted_in: !!data.push_notification }
+        ];
+
+        res.json(response);
     } catch (error) {
+        logger.error('Failed to fetch consents', { correlationId, error: error.message });
         res.status(500).json({ error: 'Failed to fetch consents' });
     }
 });
@@ -298,9 +310,18 @@ router.get('/userconsents/:userid', authenticateRequest, async (req, res) => {
 router.get('/userblocks/:userid', authenticateRequest, async (req, res) => {
     const { correlationId } = req;
     try {
-        const blocks = await supabaseService.getUserBlocks(req.params.userid);
-        res.json(blocks);
+        const data = await supabaseService.getUserBlocks(req.params.userid);
+
+        // FT Compliance: Return specific block/exclusion payload
+        const response = {
+            blocked: !!data.blocked,
+            excluded: !!data.excluded,
+            last_modified: data.last_modified
+        };
+
+        res.json(response);
     } catch (error) {
+        logger.error('Failed to fetch blocks', { correlationId, error: error.message });
         res.status(500).json({ error: 'Failed to fetch blocks' });
     }
 });
@@ -308,10 +329,10 @@ router.get('/userblocks/:userid', authenticateRequest, async (req, res) => {
 router.post('/registration', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
     try {
-        await ftService.pushEvent(user.username, 'registration', {
+        await ftService.pushEvent(user.user_id, 'registration', {
             ip_address: req.ip,
             user_agent: req.headers['user-agent']
-        }, { correlationId, operatorId: user.operator_id });
+        }, { correlationId, operatorId: user.operator_id || user.brand_id });
         res.json({ success: true });
     } catch (error) {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
@@ -391,20 +412,41 @@ router.get('/userdetails/:userid', authenticateRequest, async (req, res) => {
     const user = await supabaseService.getUserById(req.params.userid);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    // 100% FT Compliance: Include all 18+ required fields
     const response = {
-        user_id: user.username,
+        user_id: user.user_id, // Important: Use the public user_id
         username: user.username,
         first_name: user.first_name,
         last_name: user.last_name,
         email: user.email,
-        currency: user.currency || 'EUR',
+        language: user.language || 'en',
         country: user.country || 'MT',
-        operator_id: user.operator_id
+        currency: user.currency || 'EUR',
+        balance: user.balance,
+        bonus_balance: user.bonus_balance,
+        registration_date: user.registration_date,
+        verified_at: user.verified_at,
+        birth_date: user.birth_date,
+        sex: user.sex,
+        title: user.title,
+        address: user.address,
+        city: user.city,
+        postal_code: user.postal_code,
+        mobile: user.mobile,
+        mobile_prefix: user.mobile_prefix,
+        origin: user.origin || 'Web',
+        market: user.market || 'International',
+        registration_code: user.registration_code,
+        affiliate_reference: user.affiliate_reference,
+        is_blocked: !!user.is_blocked,
+        is_excluded: !!user.is_excluded,
+        roles: Array.isArray(user.roles) ? user.roles : ['PLAYER'],
+        operator_id: user.brand_id ? user.brand_id.toString() : '1'
     };
 
     await auditLog({
         correlationId,
-        operatorId: user.operator_id,
+        operatorId: user.brand_id ? user.brand_id.toString() : '1',
         action: 'inbound:userdetails',
         entity_type: 'user',
         entity_id: user.id,

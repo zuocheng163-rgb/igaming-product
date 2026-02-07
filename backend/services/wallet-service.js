@@ -81,7 +81,7 @@ class WalletService {
             });
 
             // FT Integration (Async)
-            ftService.pushEvent(user.username, 'bet', {
+            ftService.pushEvent(user.user_id, 'bet', {
                 amount,
                 bonus_wager_amount: bonusWager,
                 wager_amount: realWager,
@@ -137,7 +137,7 @@ class WalletService {
                 message: `SPI Credit Success: ${amount}`
             });
 
-            ftService.pushEvent(user.username, 'win', {
+            ftService.pushEvent(user.user_id, 'win', {
                 amount,
                 transaction_id: transactionId,
                 game_id: gameId,
@@ -197,7 +197,7 @@ class WalletService {
             });
 
             // FT Integration: Push payment event
-            ftService.pushEvent(user.username, 'deposit', {
+            ftService.pushEvent(user.user_id, 'deposit', {
                 amount,
                 transaction_id: transactionId,
                 currency: user.currency,
@@ -308,7 +308,7 @@ class WalletService {
             });
 
             // FT Integration: Push bonus event
-            await ftService.pushEvent(user.username, 'bonus', {
+            await ftService.pushEvent(user.user_id, 'bonus', {
                 bonus_code: bonusCode,
                 amount,
                 status: 'Completed',
@@ -317,7 +317,7 @@ class WalletService {
             }, { correlationId, operatorId });
 
             // Balance Sync
-            ftService.pushEvent(user.username, 'balance', {
+            ftService.pushEvent(user.user_id, 'balance', {
                 balances: [
                     { amount: user.balance || 0, currency: user.currency, key: 'real_money', exchange_rate: 1 },
                     { amount: newBonusBalance, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }

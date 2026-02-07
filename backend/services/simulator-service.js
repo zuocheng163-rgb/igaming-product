@@ -8,53 +8,90 @@ const { logger } = require('./logger');
 class SimulatorService {
 
     /**
-     * Mock User Data for Demo Mode
+     * Mock User Data for Demo Mode (FT Compliant)
      */
     static getDemoUser(userIdOrUsername) {
+        const username = userIdOrUsername || 'demo_user';
         return {
-            id: userIdOrUsername || 'demo-uuid',
-            username: userIdOrUsername || 'demo_user',
+            // Database IDs
+            id: '550e8400-e29b-41d4-a716-446655440000', // Example fixed UUID
+            brand_id: 1,
+            user_id: username,
+
+            // Core Identity
+            username: username,
+            first_name: 'Jane',
+            last_name: 'Doe',
             email: 'demo@neostrike.io',
+            title: 'Ms',
+            sex: 'female',
+            birth_date: '1992-05-15',
+
+            // Financials
             balance: 1000,
             bonus_balance: 500,
             currency: 'EUR',
+
+            // Localization & Contact
+            language: 'en',
             country: 'MT',
-            operator_id: 'default'
+            city: 'Sliema',
+            address: 'Triq It-Torri 123',
+            postal_code: 'SLM 1010',
+            mobile: '79123456',
+            mobile_prefix: '356',
+            full_mobile_number: '35679123456',
+
+            // Operational Metadata
+            registration_date: '2026-01-01T12:00:00Z',
+            verified_at: '2026-01-01T14:00:00Z',
+            origin: 'Web/Direct',
+            market: 'International',
+            registration_code: 'FASTTRACK2026',
+            affiliate_reference: 'AFF_001',
+            is_blocked: false,
+            is_excluded: false,
+            is_enabled: true,
+            roles: ['PLAYER'],
+            operator_id: 'sandbox'
         };
     }
 
     /**
-     * Mock Consents
+     * Mock Consents (FT Compliant Array Format)
      */
     static getDemoConsents() {
-        return {
-            consents: [
-                { id: 'marketing', status: true },
-                { id: 'behavioral_analysis', status: true }
-            ]
-        };
+        return [
+            { type: 'email', opted_in: true },
+            { type: 'sms', opted_in: true },
+            { type: 'telephone', opted_in: false },
+            { type: 'postMail', opted_in: false },
+            { type: 'siteNotification', opted_in: true },
+            { type: 'pushNotification', opted_in: true }
+        ];
     }
 
     /**
-     * Mock Blocks
+     * Mock Blocks (FT Compliant Format)
      */
     static getDemoBlocks() {
         return {
-            blocks: []
+            blocked: false,
+            excluded: false,
+            last_modified: '2026-02-07T10:00:00Z'
         };
     }
 
     /**
      * Intercepts and handles demo-specific logic for middleware
-     * Robust regex parsing that handles optional /api prefix and different path formats.
      */
     static handleSandboxRequest(req, res) {
         const { method, path: reqPath } = req;
 
-        // Normalize path for matching (ensure leading slash, remove trailing)
+        // Normalize path for matching
         const path = reqPath.startsWith('/') ? reqPath : '/' + reqPath;
 
-        // 1. Mock User Details: (GET) /api/userdetails/:userid OR /userdetails/:userid
+        // 1. Mock User Details: (GET) /api/userdetails/:userid
         const userDetailsMatch = path.match(/\/(?:api\/)?userdetails\/([^\/?#]+)/i);
         if (method === 'GET' && userDetailsMatch) {
             const userId = userDetailsMatch[1];
@@ -63,7 +100,7 @@ class SimulatorService {
             return true;
         }
 
-        // 2. Mock Registration: (POST) /api/register OR /register
+        // 2. Mock Registration: (POST) /api/register
         if (method === 'POST' && (path.endsWith('/register') || path.includes('/register'))) {
             const username = req.body.username || 'demo_user';
             const user = this.getDemoUser(username);
@@ -76,7 +113,7 @@ class SimulatorService {
             return true;
         }
 
-        // 3. Mock Profile Update: (POST) /api/user/update OR /user/update
+        // 3. Mock Profile Update
         if (method === 'POST' && (path.endsWith('/user/update') || path.includes('/user/update'))) {
             logger.info(`[Simulator] Match: User Update`);
             res.json({
@@ -90,7 +127,7 @@ class SimulatorService {
             return true;
         }
 
-        // 4. Mock Consents: (GET/PUT) /api/userconsents/:userid OR /userconsents/:userid
+        // 4. Mock Consents: (GET/PUT) /api/userconsents/:userid
         const consentsMatch = path.match(/\/(?:api\/)?userconsents\/([^\/?#]+)/i);
         if (consentsMatch) {
             const userId = consentsMatch[1];
@@ -104,7 +141,7 @@ class SimulatorService {
             return true;
         }
 
-        // 5. Mock Blocks: (GET/PUT) /api/userblocks/:userid OR /userblocks/:userid
+        // 5. Mock Blocks: (GET/PUT) /api/userblocks/:userid
         const blocksMatch = path.match(/\/(?:api\/)?userblocks\/([^\/?#]+)/i);
         if (blocksMatch) {
             const userId = blocksMatch[1];

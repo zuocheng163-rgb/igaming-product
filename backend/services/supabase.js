@@ -14,6 +14,13 @@ if (supabaseUrl && (supabaseServiceKey || supabaseKey)) {
 }
 
 /**
+ * Helper to map operator_id (string) to brand_id (int)
+ */
+const getBrandId = (operatorId) => {
+    return (operatorId === 'sandbox' || operatorId === 'default') ? 1 : 1; // Default to 1 for PoC
+};
+
+/**
  * Fetches dynamic configuration for a specific operator.
  */
 const getTenantConfig = async (operatorId) => {
@@ -68,14 +75,16 @@ const getUser = async (username, token) => {
 const getUserById = async (userId) => {
     if (!supabase) return null;
 
-    // Basic UUID validation regex
+    // Fast Track often uses username as user_id or a unique string
+    // We try to match by internal id (uuid), username, or the public user_id field
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
 
     let query = supabase.from('users').select('*');
     if (isUuid) {
         query = query.eq('id', userId);
     } else {
-        query = query.eq('username', userId);
+        // Try matching both username and the specific user_id column
+        query = query.or(`username.eq.${userId},user_id.eq.${userId}`);
     }
 
     const { data, error } = await query.single();
@@ -102,42 +111,80 @@ const updateUser = async (userId, updates) => {
 const createUser = async (userData) => {
     if (!supabase) throw new Error('Supabase not initialized');
 
-    // Enhanced registration with professional mock data for product readiness
+    const brandId = getBrandId(userData.operator_id || 'default');
+    const publicUserId = userData.username || `user_${Date.now()}`;
+
+    // 1. Create User Profile
     const newUser = {
-        id: userData.id || `u-${Math.random().toString(36).substr(2, 9)}`,
+        brand_id: brandId,
+        user_id: publicUserId,
+        username: userData.username,
+        email: userData.email,
+        first_name: userData.first_name || 'Demo',
+        last_name: userData.last_name || 'User',
         balance: 1000,
         bonus_balance: 500,
         currency: 'EUR',
         registration_date: new Date().toISOString(),
-        operator_id: userData.operator_id || 'default',
-        // Mock data for new required fields
-        address: '123 Casino Way',
-        city: 'Valletta',
-        country: 'MT',
-        postal_code: 'VLT 1234',
-        language: 'en',
-        mobile: '35699' + Math.floor(100000 + Math.random() * 900000),
-        mobile_prefix: '356',
-        sex: Math.random() > 0.5 ? 'M' : 'F',
-        birth_date: '1990-01-01',
-        market: 'INT',
+        birth_date: userData.birth_date || '1990-01-01',
+        sex: userData.sex || 'male',
+        title: userData.title || 'Mr',
+        language: userData.language || 'en',
+        country: userData.country || 'MT',
+        city: userData.city || 'Valletta',
+        address: userData.address || '123 Casino Way',
+        postal_code: userData.postal_code || 'VLT 1234',
+        mobile: userData.mobile || '35699123456',
+        mobile_prefix: userData.mobile_prefix || '356',
+        full_mobile_number: userData.full_mobile_number || '35699123456',
+        origin: userData.origin || 'Direct',
+        market: userData.market || 'INT',
+        registration_code: userData.registration_code || 'WELCOME2026',
+        is_blocked: false,
+        is_excluded: false,
+        is_enabled: true,
         roles: ['PLAYER'],
-        ft_brand_name: 'NeoStrike',
-        ft_origin: 'Web',
-        ...userData,
-        user_id: userData.username // Ensure user_id field matches FT expectations
+        token: userData.token,
+        ...userData
     };
 
-    const { data, error } = await supabase
+    const { data: userRecord, error: userError } = await supabase
         .from('users')
         .insert([newUser])
-        .select();
+        .select()
+        .single();
 
-    if (error) {
-        logger.error('[Supabase] User creation failed', { error: error.message });
-        throw error;
+    if (userError) {
+        logger.error('[Supabase] User creation failed', { error: userError.message });
+        throw userError;
     }
-    return data[0];
+
+    // 2. Initialize Consents
+    const initialConsents = {
+        brand_id: brandId,
+        user_id: publicUserId,
+        allow_marketing_communication: true,
+        email: true,
+        sms: true,
+        telephone: true,
+        post_mail: true,
+        site_notification: true,
+        push_notification: true
+    };
+
+    await supabase.from('user_consents').insert([initialConsents]);
+
+    // 3. Initialize Blocks
+    const initialBlocks = {
+        brand_id: brandId,
+        user_id: publicUserId,
+        blocked: false,
+        excluded: false
+    };
+
+    await supabase.from('user_blocks').insert([initialBlocks]);
+
+    return userRecord;
 };
 
 const updateBalance = async (userId, newBalance, operatorId) => {
@@ -240,21 +287,51 @@ const getAggregatedKPIs = async (operatorId) => {
 };
 
 const getUserConsents = async (userId) => {
-    // In production, fetch from 'user_consents' table.
-    // For now, return safe defaults as the schema is being prioritized.
-    return {
-        consents: [
-            { id: 'marketing', status: true },
-            { id: 'behavioral_analysis', status: true }
-        ]
-    };
+    if (!supabase) return null;
+
+    // Fetch from the new normalized table
+    const { data, error } = await supabase
+        .from('user_consents')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+    if (error || !data) {
+        // Fallback to defaults if not found
+        return {
+            brand_id: 1,
+            user_id: userId,
+            email: true,
+            sms: true,
+            telephone: true,
+            post_mail: true,
+            site_notification: true,
+            push_notification: true
+        };
+    }
+
+    return data;
 };
 
 const getUserBlocks = async (userId) => {
-    // In production, fetch from 'user_blocks' table.
-    return {
-        blocks: []
-    };
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('user_blocks')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+    if (error || !data) {
+        return {
+            brand_id: 1,
+            user_id: userId,
+            blocked: false,
+            excluded: false
+        };
+    }
+
+    return data;
 };
 
 module.exports = {
