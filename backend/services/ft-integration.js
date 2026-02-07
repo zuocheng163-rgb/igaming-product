@@ -103,7 +103,7 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
                 timestamp
             };
         } else if (eventType === 'bonus') {
-            requestBody = { user_id: userId, bonus_id: payload.bonus_id || '9821', user_bonus_id: payload.user_bonus_id || `${userId}-${Date.now()}`, type: payload.type || 'WelcomeBonus', status: payload.status || 'Created', amount: parseFloat(payload.amount || 0), currency: payload.currency || 'EUR', exchange_rate: 1.0, origin, timestamp };
+            requestBody = { user_id: userId, bonus_id: payload.bonus_id || '9821', user_bonus_id: payload.user_bonus_id || `${userId}-${Date.now()}`, type: payload.type || 'WelcomeBonus', status: payload.status || 'Created', amount: parseFloat(payload.amount || 0), bonus_code: payload.bonus_code || 'WELCOME100', product: payload.product || 'Casino', currency: payload.currency || 'EUR', exchange_rate: 1.0, origin, timestamp };
         }
 
         const response = await axios({
