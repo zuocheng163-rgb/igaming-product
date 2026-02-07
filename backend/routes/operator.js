@@ -285,41 +285,6 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
     }
 });
 
-router.get('/userconsents/:userid', authenticateRequest, async (req, res) => {
-    const { correlationId } = req;
-    const userId = req.params.userid;
-
-    try {
-        const user = await supabaseService.getUserById(userId);
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
-        res.json({
-            consents: [
-                { id: 'marketing', status: true },
-                { id: 'behavioral_analysis', status: true }
-            ]
-        });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch consents' });
-    }
-});
-
-router.get('/userblocks/:userid', authenticateRequest, async (req, res) => {
-    const { correlationId } = req;
-    const userId = req.params.userid;
-
-    try {
-        const user = await supabaseService.getUserById(userId);
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
-        res.json({
-            blocks: []
-        });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch blocks' });
-    }
-});
-
 router.post('/registration', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
     try {
@@ -332,6 +297,18 @@ router.post('/registration', authenticateRequest, async (req, res) => {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
         res.status(500).json({ error: errorMessage });
     }
+});
+const { correlationId, user } = req;
+try {
+    await ftService.pushEvent(user.username, 'registration', {
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+    }, { correlationId, operatorId: user.operator_id });
+    res.json({ success: true });
+} catch (error) {
+    const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
+    res.status(500).json({ error: errorMessage });
+}
 });
 
 router.post('/logout', authenticateRequest, async (req, res) => {
@@ -375,15 +352,10 @@ router.get('/activities', authenticateRequest, async (req, res) => {
     }
 });
 
-// Bonus Simulation (Product Ready)
+// Bonus Operations
 router.get('/bonus/list', authenticateRequest, async (req, res) => {
-    // Mocking for now, but scoped to operator if needed
-    res.json({
-        Data: [
-            { bonus_code: 'WELCOME100', name: 'Welcome 100%', amount: 100 },
-            { bonus_code: 'RELOAD50', name: 'Reload 50%', amount: 50 }
-        ]
-    });
+    // In production, fetch available bonuses from DB or Bonus Engine
+    res.json({ Data: [] });
 });
 
 router.post('/bonus/credit', authenticateRequest, async (req, res) => {

@@ -28,9 +28,7 @@ class PaymentAdapters {
     }
 
     static mockGeneric(provider) {
-        // High stability for demo/sandbox
-        const isDemo = process.env.DEMO_MODE === 'true';
-        const failureChance = (provider === 'Adyen' && !isDemo) ? 0.3 : 0.05;
+        const failureChance = 0.05;
         if (Math.random() < failureChance) throw new Error(`${provider}_NETWORK_TIMEOUT`);
         return { status: 'Approved', provider };
     }

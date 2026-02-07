@@ -3,8 +3,6 @@ const http = require('http');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
-// Enable Demo Mode by default for seamless presentation
-process.env.DEMO_MODE = process.env.DEMO_MODE || 'true';
 const { logger, setDbLogHook } = require('./services/logger');
 const supabaseService = require('./services/supabase');
 const operatorRoutes = require('./routes/operator');
