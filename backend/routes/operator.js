@@ -65,11 +65,21 @@ const requireAdmin = (req, res, next) => {
 
 // --- ENDPOINTS ---
 
-router.post('/authenticate', authenticateRequest, async (req, res) => {
-    const { correlationId, user } = req;
-    const operatorId = user.operator_id || 'default';
-
+router.post('/authenticate', async (req, res) => {
+    const correlationId = req.headers['x-correlation-id'] || generateCorrelationId();
     try {
+        const { username } = req.body;
+        const sessionToken = req.headers['authorization']?.startsWith('Bearer ')
+            ? req.headers['authorization'].slice(7)
+            : req.headers['authorization'];
+
+        const user = await supabaseService.getUser(username, sessionToken);
+
+        if (!user) {
+            return res.status(401).json({ error: 'Unauthorized: Invalid API Token or Username' });
+        }
+
+        const operatorId = user.operator_id || 'default';
         const sessionId = `sid-${user.id}-${Date.now()}`;
 
         await ftService.pushEvent(user.id, 'login', {

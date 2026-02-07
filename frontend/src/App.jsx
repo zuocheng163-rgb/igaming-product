@@ -11,7 +11,7 @@ function App() {
   const [error, setError] = useState('');
 
   const handleLogin = (token, userData) => {
-    setUser(userData);
+    setUser(userData.user || userData); // Store the inner user object if available
     setToken(token);
     setError('');
   };
