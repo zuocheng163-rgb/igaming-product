@@ -285,6 +285,41 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
     }
 });
 
+router.get('/userconsents/:userid', authenticateRequest, async (req, res) => {
+    const { correlationId } = req;
+    const userId = req.params.userid;
+
+    try {
+        const user = await supabaseService.getUserById(userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        res.json({
+            consents: [
+                { id: 'marketing', status: true },
+                { id: 'behavioral_analysis', status: true }
+            ]
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch consents' });
+    }
+});
+
+router.get('/userblocks/:userid', authenticateRequest, async (req, res) => {
+    const { correlationId } = req;
+    const userId = req.params.userid;
+
+    try {
+        const user = await supabaseService.getUserById(userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        res.json({
+            blocks: []
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch blocks' });
+    }
+});
+
 router.post('/registration', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
     try {
