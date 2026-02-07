@@ -214,12 +214,19 @@ class SimulatorService {
         if (method === 'GET' && (path.endsWith('/bonus/list') || path.includes('/bonus/list'))) {
             logger.info(`[Simulator] Match: GET Bonus List`);
 
-            // Prevent caching to ensure fresh bonus data
-            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            // Aggressively prevent caching
+            res.removeHeader('ETag');
+            res.setHeader('Surrogate-Control', 'no-store');
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
             res.setHeader('Pragma', 'no-cache');
             res.setHeader('Expires', '0');
 
-            res.json({ Data: this.getDemoBonuses() });
+            // Include timestamp to force uniqueness
+            const bonuses = this.getDemoBonuses();
+            res.json({
+                Data: bonuses,
+                timestamp: Date.now()
+            });
             return true;
         }
 
