@@ -61,7 +61,9 @@ app.use(sandboxMiddleware);
 
 
 // Routes
-app.use('/api', authLimiter, operatorRoutes);
+app.use('/api/authenticate', authLimiter);
+app.use('/api/register', authLimiter);
+app.use('/api', operatorRoutes);
 app.use('/api/webhooks', require('./routes/webhooks'));
 
 app.get('/', (req, res) => {
