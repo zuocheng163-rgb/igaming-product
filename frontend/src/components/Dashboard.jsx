@@ -10,7 +10,6 @@ import {
     logout as apiLogout
 } from '../services/api';
 import axios from 'axios';
-import ActivitySidebar from './ActivitySidebar';
 
 function Dashboard({ user: initialUser, token, onLogout }) {
     const [user, setUser] = useState(initialUser);
@@ -20,8 +19,6 @@ function Dashboard({ user: initialUser, token, onLogout }) {
     const [status, setStatus] = useState('System ready');
     const [bonuses, setBonuses] = useState([]);
     const [marketingOpted, setMarketingOpted] = useState(true);
-    const [inboundLogs, setInboundLogs] = useState([]);
-    const [outboundLogs, setOutboundLogs] = useState([]);
 
     const [firstName, setFirstName] = useState(user.first_name || '');
     const [lastName, setLastName] = useState(user.last_name || '');
@@ -29,46 +26,6 @@ function Dashboard({ user: initialUser, token, onLogout }) {
     useEffect(() => {
         fetchBalance();
         loadBonuses();
-
-        const fetchActivities = async () => {
-            try {
-                const response = await axios.get('/api/activities', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                const activities = response.data;
-
-                const inbound = activities
-                    .filter(a => a.type === 'inbound')
-                    .map(a => ({
-                        id: a.id,
-                        method: a.method,
-                        endpoint: a.endpoint,
-                        status: a.status,
-                        payload: a.payload,
-                        timestamp: a.timestamp
-                    }));
-
-                const outbound = activities
-                    .filter(a => a.type === 'outbound')
-                    .map(a => ({
-                        id: a.id,
-                        method: a.method,
-                        endpoint: a.endpoint,
-                        status: a.status,
-                        payload: a.payload,
-                        timestamp: a.timestamp
-                    }));
-
-                setInboundLogs(inbound);
-                setOutboundLogs(outbound);
-            } catch (error) {
-                console.error('Failed to fetch activity logs:', error);
-            }
-        };
-
-        fetchActivities();
-        const interval = setInterval(fetchActivities, 3000);
-        return () => clearInterval(interval);
     }, [token]);
 
     const fetchBalance = async () => {
@@ -275,7 +232,7 @@ function Dashboard({ user: initialUser, token, onLogout }) {
                 {status}
             </div>
 
-            <div className="grid-layout">
+            <div className="grid-layout single-column">
                 <div className="main-column">
                     <section className="glass-panel">
                         <div className="section-header">
@@ -342,7 +299,6 @@ function Dashboard({ user: initialUser, token, onLogout }) {
                     </section>
                 </div>
             </div>
-            <ActivitySidebar inboundLogs={inboundLogs} outboundLogs={outboundLogs} />
         </div>
     );
 }
