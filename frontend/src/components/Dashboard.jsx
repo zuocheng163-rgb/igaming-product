@@ -7,6 +7,9 @@ import {
     creditBonus,
     triggerRegistration,
     updateUser,
+    creditWin,
+    updateUserConsents,
+    updateUserBlocks,
     logout as apiLogout
 } from '../services/api';
 import { useAlerts } from '../sdk/hooks';
@@ -81,12 +84,11 @@ function Dashboard({ user: initialUser, token, onLogout }) {
         try {
             const newVal = !marketingOpted;
             setMarketingOpted(newVal);
-            await axios.put('/api/userconsents/' + user.user_id, {
-                consents: [
-                    { opted_in: newVal, type: 'email' },
-                    { opted_in: newVal, type: 'sms' }
-                ]
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            const consents = [
+                { opted_in: newVal, type: 'email' },
+                { opted_in: newVal, type: 'sms' }
+            ];
+            await updateUserConsents(token, user.user_id, consents);
             setStatus(`Consent [FT Consents] updated: ${newVal ? 'Opted-In' : 'Opted-Out'}`);
         } catch (err) {
             setStatus('Consent update failed');
@@ -136,11 +138,7 @@ function Dashboard({ user: initialUser, token, onLogout }) {
 
     const handleToggleBlock = async () => {
         try {
-            await axios.put('/api/userblocks/' + user.user_id, {
-                blocks: [
-                    { active: true, type: 'Blocked', note: 'PoC Simulation' }
-                ]
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            await updateUserBlocks(token, user.user_id, true, false);
             setStatus('Block [FT Blocks] Event Sent');
         } catch (err) {
             setStatus('Block simulation failed');
@@ -179,16 +177,11 @@ function Dashboard({ user: initialUser, token, onLogout }) {
                 const isWin = Math.random() > 0.7;
                 if (isWin) {
                     const winAmount = 20;
-                    const winRes = await axios.post('/api/credit', {
-                        user_id: user.user_id,
-                        amount: winAmount,
-                        transaction_id: `ctx-${Date.now()}`,
-                        game_id: 'slot-game-1'
-                    }, { headers: { Authorization: `Bearer ${token}` } });
+                    const winRes = await creditWin(token, user.user_id, winAmount);
 
                     // Sync balances from server response after win
-                    setBalance(winRes.data.balance);
-                    setBonusBalance(winRes.data.bonus_balance || 0);
+                    setBalance(winRes.balance);
+                    setBonusBalance(winRes.bonus_balance || 0);
                     setStatus('BIG WIN: 20!');
                 } else {
                     setStatus('No Win');

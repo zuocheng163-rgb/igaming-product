@@ -197,7 +197,7 @@ class SimulatorService {
         }
 
         // 7. Mock Debit (Slot Play): (POST) /api/debit
-        if (method === 'POST' && path.endsWith('/debit')) {
+        if (method === 'POST' && (path.endsWith('/debit') || path.includes('/debit'))) {
             const { user_id, amount } = req.body;
             logger.info(`[Simulator] Match: POST Debit for ${user_id}`);
 
