@@ -25,9 +25,24 @@ const initSocket = (server) => {
     // Authentication Middleware
     io.use((socket, next) => {
         const token = socket.handshake.auth.token || socket.handshake.query.token;
-        const isSandbox = socket.handshake.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
+        const headers = socket.handshake.headers;
+        const auth = socket.handshake.auth;
+
+        // Check for sandbox flag in auth object (preferred) or headers
+        const isSandbox = (auth && (auth.sandbox === true || auth.sandbox === 'true')) ||
+            headers['x-sandbox-mode'] === 'true' ||
+            process.env.DEMO_MODE === 'true';
+
+        logger.info('[Socket] Handshake Debug', {
+            token: token ? (token.substring(0, 10) + '...') : 'MISSING',
+            isSandbox,
+            authSandbox: auth?.sandbox,
+            sandboxHeader: headers['x-sandbox-mode'],
+            demoEnv: process.env.DEMO_MODE
+        });
 
         if (!token) {
+            logger.warn('[Socket] Token missing in handshake');
             return next(new Error('Authentication error: Token missing'));
         }
 

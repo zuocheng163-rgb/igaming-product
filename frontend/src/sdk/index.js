@@ -13,7 +13,8 @@ class NeoStrikeClient {
         return new Promise((resolve, reject) => {
             this.socket = io(this.wsUrl, {
                 auth: {
-                    token: this.token
+                    token: this.token,
+                    sandbox: true // Explicitly send sandbox flag in auth payload
                 },
                 extraHeaders: {
                     'x-sandbox-mode': 'true'
