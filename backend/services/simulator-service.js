@@ -1,5 +1,10 @@
 const { logger } = require('./logger');
 
+const InterventionService = require('./intervention');
+
+// In-memory store for sandbox activity (Velocity Spike tracking)
+const sandboxLogs = [];
+
 /**
  * SimulatorService
  * Isolated home for all demo-specific logic and mock data.
@@ -177,6 +182,51 @@ class SimulatorService {
         if (method === 'GET' && (path.endsWith('/bonus/list') || path.includes('/bonus/list'))) {
             logger.info(`[Simulator] Match: GET Bonus List`);
             res.json({ Data: this.getDemoBonuses() });
+            return true;
+        }
+
+        // 7. Mock Debit (Slot Play): (POST) /api/debit
+        if (method === 'POST' && path.endsWith('/debit')) {
+            const { user_id, amount } = req.body;
+            logger.info(`[Simulator] Match: POST Debit for ${user_id}`);
+
+            // Track for Velocity Spike
+            sandboxLogs.push({ user_id, action: 'debit', timestamp: Date.now() });
+            const lastMinute = Date.now() - 60000;
+            const recentBets = sandboxLogs.filter(l => l.user_id === user_id && l.action === 'debit' && l.timestamp > lastMinute);
+
+            if (recentBets.length >= 5) {
+                logger.warn(`[Simulator] Velocity Spike Detected for ${user_id}`);
+                InterventionService.handleRiskDetected(user_id, {
+                    riskLevel: 'MEDIUM',
+                    reasons: ['isVelocitySpike']
+                });
+            }
+
+            res.json({
+                transaction_id: `sandbox-tx-${Date.now()}`,
+                balance: 990, // Mock fixed balance
+                bonus_balance: 100,
+                currency: 'EUR'
+            });
+            return true;
+        }
+
+        // 8. Mock Credit: (POST) /api/credit
+        if (method === 'POST' && path.endsWith('/credit')) {
+            logger.info(`[Simulator] Match: POST Credit`);
+            res.json({
+                transaction_id: `sandbox-win-${Date.now()}`,
+                balance: 1010,
+                bonus_balance: 100,
+                currency: 'EUR'
+            });
+            return true;
+        }
+
+        // 9. Mock Balance: (GET) /api/balance
+        if (method === 'GET' && path.endsWith('/balance')) {
+            res.json({ balance: 1000, bonus_balance: 100, currency: 'EUR' });
             return true;
         }
 

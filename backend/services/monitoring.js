@@ -49,7 +49,7 @@ class MonitoringService {
 
         if (error) return false;
 
-        if (count >= 10) {
+        if (count >= 5) {
             logger.warn(`Velocity spike detected`, { userId, betsPerMinute: count });
             return true;
         }
