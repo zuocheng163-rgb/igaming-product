@@ -314,7 +314,7 @@ class WalletService {
                 status: 'Completed',
                 transaction_id: transactionId,
                 currency: user.currency
-            }, { correlationId, operatorId });
+            }, { correlationId, brandId });
 
             // Balance Sync
             ftService.pushEvent(user.user_id, 'balance', {

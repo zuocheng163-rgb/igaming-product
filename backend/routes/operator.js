@@ -409,7 +409,7 @@ router.post('/bonus/credit', authenticateRequest, async (req, res) => {
             user.id,
             100, // Hardcoded amount for this endpoint matching list
             bonus_code,
-            user.operator_id,
+            user.brand_id,
             correlationId
         );
         res.json({ success: true, message: `Bonus ${bonus_code} credited`, ...result });
