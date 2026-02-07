@@ -95,11 +95,16 @@ const getUserById = async (userId) => {
 const updateUser = async (userId, updates) => {
     if (!supabase) throw new Error('Supabase not initialized');
 
-    const { data, error } = await supabase
-        .from('users')
-        .update(updates)
-        .eq('id', userId)
-        .select();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+
+    let query = supabase.from('users').update(updates);
+    if (isUuid) {
+        query = query.eq('id', userId);
+    } else {
+        query = query.or(`username.eq.${userId},user_id.eq.${userId}`);
+    }
+
+    const { data, error } = await query.select();
 
     if (error) {
         logger.error(`[Supabase] Update failed for user ${userId}`, { error: error.message });

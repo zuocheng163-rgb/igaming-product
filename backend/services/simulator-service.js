@@ -90,6 +90,17 @@ class SimulatorService {
     }
 
     /**
+     * Mock Bonuses (FT Compliant Format)
+     */
+    static getDemoBonuses() {
+        return [
+            { bonus_code: 'WELCOME100', name: 'Welcome Bonus 100%', amount: 100 },
+            { bonus_code: 'RELOAD50', name: 'Weekend Reload', amount: 50 },
+            { bonus_code: 'FREESPIN10', name: '10 Free Spins', amount: 10 }
+        ];
+    }
+
+    /**
      * Intercepts and handles demo-specific logic for middleware
      */
     static handleSandboxRequest(req, res) {
@@ -159,6 +170,13 @@ class SimulatorService {
                 logger.info(`[Simulator] Match: PUT UserBlocks for ${userId}`);
                 res.json({ success: true });
             }
+            return true;
+        }
+
+        // 6. Mock Bonus List: (GET) /api/bonus/list
+        if (method === 'GET' && (path.endsWith('/bonus/list') || path.includes('/bonus/list'))) {
+            logger.info(`[Simulator] Match: GET Bonus List`);
+            res.json({ Data: this.getDemoBonuses() });
             return true;
         }
 

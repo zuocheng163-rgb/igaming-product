@@ -392,7 +392,12 @@ router.get('/activities', authenticateRequest, async (req, res) => {
 // Bonus Operations
 router.get('/bonus/list', authenticateRequest, async (req, res) => {
     // In production, fetch available bonuses from DB or Bonus Engine
-    res.json({ Data: [] });
+    const mockBonuses = [
+        { bonus_code: 'WELCOME100', name: 'Welcome Bonus 100%', amount: 100 },
+        { bonus_code: 'RELOAD50', name: 'Weekend Reload', amount: 50 },
+        { bonus_code: 'FREESPIN10', name: '10 Free Spins', amount: 10 }
+    ];
+    res.json({ Data: mockBonuses });
 });
 
 router.post('/bonus/credit', authenticateRequest, async (req, res) => {

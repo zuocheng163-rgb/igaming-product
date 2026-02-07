@@ -56,7 +56,7 @@ class WalletService {
             }
 
             // Perform Update
-            const updatedUser = await supabaseService.updateUser(userId, {
+            const updatedUser = await supabaseService.updateUser(user.id, {
                 balance: newBalance,
                 bonus_balance: newBonusBalance
             });
@@ -124,7 +124,7 @@ class WalletService {
 
             const newBalance = user.balance + amount;
 
-            await supabaseService.updateUser(userId, { balance: newBalance });
+            await supabaseService.updateUser(user.id, { balance: newBalance });
 
             await auditLog({
                 correlationId,
@@ -183,7 +183,7 @@ class WalletService {
             }
 
             const newBalance = (user.balance || 0) + amount;
-            await supabaseService.updateUser(userId, { balance: newBalance });
+            await supabaseService.updateUser(user.id, { balance: newBalance });
 
             await auditLog({
                 correlationId,
@@ -294,7 +294,7 @@ class WalletService {
 
             const newBonusBalance = (user.bonus_balance || 0) + amount;
 
-            await supabaseService.updateUser(userId, { bonus_balance: newBonusBalance });
+            await supabaseService.updateUser(user.id, { bonus_balance: newBonusBalance });
 
             await auditLog({
                 correlationId,
