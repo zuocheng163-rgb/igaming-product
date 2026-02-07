@@ -312,11 +312,20 @@ router.get('/userblocks/:userid', authenticateRequest, async (req, res) => {
     try {
         const data = await supabaseService.getUserBlocks(req.params.userid);
 
-        // FT Compliance: Return specific block/exclusion payload
+        // FT Compliance: Return array-based blocks format
         const response = {
-            blocked: !!data.blocked,
-            excluded: !!data.excluded,
-            last_modified: data.last_modified
+            blocks: [
+                {
+                    active: !!data.blocked,
+                    type: 'blocked',
+                    note: 'Account status'
+                },
+                {
+                    active: !!data.excluded,
+                    type: 'excluded',
+                    note: 'Self-exclusion status'
+                }
+            ]
         };
 
         res.json(response);
@@ -436,11 +445,10 @@ router.get('/userdetails/:userid', authenticateRequest, async (req, res) => {
         origin: user.origin || 'Web',
         market: user.market || 'International',
         registration_code: user.registration_code,
-        affiliate_reference: user.affiliate_reference,
+        affiliate_reference: user.affiliate_reference || 'FT_DEMO_REF', // Mandatory field
         is_blocked: !!user.is_blocked,
         is_excluded: !!user.is_excluded,
-        roles: Array.isArray(user.roles) ? user.roles : ['PLAYER'],
-        brand_id: user.brand_id ? user.brand_id.toString() : '1'
+        roles: Array.isArray(user.roles) ? user.roles : ['PLAYER']
     };
 
     await auditLog({

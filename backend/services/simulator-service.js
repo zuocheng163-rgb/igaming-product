@@ -52,8 +52,7 @@ class SimulatorService {
             is_blocked: false,
             is_excluded: false,
             is_enabled: true,
-            roles: ['PLAYER'],
-            brand_id: 1
+            roles: ['PLAYER']
         };
     }
 
@@ -76,9 +75,18 @@ class SimulatorService {
      */
     static getDemoBlocks() {
         return {
-            blocked: false,
-            excluded: false,
-            last_modified: '2026-02-07T10:00:00Z'
+            blocks: [
+                {
+                    active: false,
+                    type: 'blocked',
+                    note: 'Account status'
+                },
+                {
+                    active: false,
+                    type: 'excluded',
+                    note: 'Self-exclusion status'
+                }
+            ]
         };
     }
 
