@@ -181,13 +181,13 @@ router.post('/register', async (req, res) => {
         const token = `token-${username}-${Date.now()}`;
         const newUser = await supabaseService.createUser({
             username, email, first_name, last_name,
-            token, operator_id: currentOperatorId
+            token, brand_id: currentOperatorId === 'default' ? 1 : parseInt(currentOperatorId) || 1
         });
 
-        await ftService.pushEvent(newUser.username, 'registration', {
+        await ftService.pushEvent(newUser.user_id, 'registration', {
             ip_address: req.ip,
             user_agent: req.headers['user-agent']
-        }, { correlationId, operatorId: currentOperatorId });
+        }, { correlationId, brandId: newUser.brand_id });
 
         if (!newUser) {
             throw new Error('User creation succeeded but no data was returned');
@@ -342,7 +342,6 @@ router.post('/registration', authenticateRequest, async (req, res) => {
 
 router.post('/logout', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
-    console.log(`[Operator Debug] Processing Logout for user ${user.id}`, { correlationId, operatorId: user.operator_id });
     try {
         // FT logout event is not required/supported by current integration version
         logger.info(`User ${user.id} logged out successfully`, { correlationId });
@@ -363,7 +362,7 @@ router.post('/deposit', authenticateRequest, async (req, res) => {
     try {
         const result = await WalletService.deposit(
             user.id, parseFloat(amount),
-            user.operator_id, correlationId
+            user.brand_id, correlationId
         );
         res.json(result);
     } catch (error) {

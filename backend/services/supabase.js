@@ -145,6 +145,10 @@ const createUser = async (userData) => {
         ...userData
     };
 
+    // Sanitize the object to ensure no legacy fields (like operator_id) hit the DB
+    delete newUser.operator_id;
+    delete newUser.operatorId;
+
     const { data: userRecord, error: userError } = await supabase
         .from('users')
         .insert([newUser])
