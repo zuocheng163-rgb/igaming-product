@@ -46,30 +46,37 @@ class SimulatorService {
 
     /**
      * Intercepts and handles demo-specific logic for middleware
+     * Manually parses userId from path because req.params is not populated in global middleware.
      */
     static handleSandboxRequest(req, res) {
         const { method, path } = req;
 
-        // 1. Mock User Details
-        if (method === 'GET' && path.startsWith('/api/userdetails/')) {
-            const userId = req.params.userid;
-            return res.json(this.getDemoUser(userId));
+        // 1. Mock User Details: GET /api/userdetails/:userid
+        const userDetailsMatch = path.match(/\/api\/userdetails\/([^\/?#]+)/);
+        if (method === 'GET' && userDetailsMatch) {
+            const userId = userDetailsMatch[1];
+            logger.info(`[Simulator] Mocking UserDetails for ${userId}`);
+            res.json(this.getDemoUser(userId));
+            return true;
         }
 
-        // 2. Mock Registration
+        // 2. Mock Registration: POST /api/register
         if (method === 'POST' && path.includes('/register')) {
             const username = req.body.username || 'demo_user';
             const user = this.getDemoUser(username);
-            return res.json({
+            logger.info(`[Simulator] Mocking Registration for ${username}`);
+            res.json({
                 user_id: user.username,
                 token: `token-${username}`,
                 user: user
             });
+            return true;
         }
 
-        // 3. Mock Profile Update
+        // 3. Mock Profile Update: POST /api/user/update
         if (method === 'POST' && path.includes('/user/update')) {
-            return res.json({
+            logger.info(`[Simulator] Mocking User Update`);
+            res.json({
                 success: true,
                 user: {
                     ...req.body,
@@ -77,17 +84,36 @@ class SimulatorService {
                     id: req.user?.id || 'demo-uuid'
                 }
             });
+            return true;
         }
 
-        // 4. Mock Consents & Blocks
-        if (method === 'GET' && path.includes('/userconsents')) return res.json(this.getDemoConsents());
-        if (method === 'GET' && path.includes('/userblocks')) return res.json(this.getDemoBlocks());
-
-        if (method === 'PUT' && (path.includes('/userconsents') || path.includes('/userblocks'))) {
-            return res.json({ success: true });
+        // 4. Mock Consents: GET/PUT /api/userconsents/:userid
+        const consentsMatch = path.match(/\/api\/userconsents\/([^\/?#]+)/);
+        if (consentsMatch) {
+            if (method === 'GET') {
+                logger.info(`[Simulator] Mocking GET UserConsents for ${consentsMatch[1]}`);
+                res.json(this.getDemoConsents());
+            } else if (method === 'PUT') {
+                logger.info(`[Simulator] Mocking PUT UserConsents for ${consentsMatch[1]}`);
+                res.json({ success: true });
+            }
+            return true;
         }
 
-        return null;
+        // 5. Mock Blocks: GET/PUT /api/userblocks/:userid
+        const blocksMatch = path.match(/\/api\/userblocks\/([^\/?#]+)/);
+        if (blocksMatch) {
+            if (method === 'GET') {
+                logger.info(`[Simulator] Mocking GET UserBlocks for ${blocksMatch[1]}`);
+                res.json(this.getDemoBlocks());
+            } else if (method === 'PUT') {
+                logger.info(`[Simulator] Mocking PUT UserBlocks for ${blocksMatch[1]}`);
+                res.json({ success: true });
+            }
+            return true;
+        }
+
+        return false;
     }
 }
 

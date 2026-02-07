@@ -19,7 +19,7 @@ const sandboxMiddleware = (req, res, next) => {
 
         // Delegate all mock handling to SimulatorService
         const handled = SimulatorService.handleSandboxRequest(req, res);
-        if (handled) return; // Response already sent by simulator
+        if (handled === true) return;
 
         // If not handled by simulator (like wallet actions), flag for service-level mocking
         if (req.method === 'POST' && (req.path.includes('/debit') || req.path.includes('/credit') || req.path.includes('/deposit'))) {
