@@ -114,10 +114,30 @@ class SimulatorService {
         const correlationId = generateCorrelationId();
         const brandId = 1; // Default for demo
 
-        // Helper to get/init balance
-        const getBalance = (uid) => {
+        // Helper to get/init balance (fetch from DB if not in memory)
+        const getBalance = async (uid) => {
             if (!sandboxBalances.has(uid)) {
-                sandboxBalances.set(uid, { amount: 1000, bonus: 100 });
+                // Try to fetch from database first
+                try {
+                    const { data: userData, error } = await supabase
+                        .from('users')
+                        .select('balance, bonus_balance')
+                        .eq('username', uid)
+                        .single();
+
+                    if (!error && userData) {
+                        sandboxBalances.set(uid, {
+                            amount: parseFloat(userData.balance || 1000),
+                            bonus: parseFloat(userData.bonus_balance || 100)
+                        });
+                    } else {
+                        // Fallback to defaults if user not found
+                        sandboxBalances.set(uid, { amount: 1000, bonus: 100 });
+                    }
+                } catch (err) {
+                    logger.error('[Simulator] Failed to fetch balance from DB', err);
+                    sandboxBalances.set(uid, { amount: 1000, bonus: 100 });
+                }
             }
             return sandboxBalances.get(uid);
         };
@@ -201,7 +221,7 @@ class SimulatorService {
             const { user_id, amount } = req.body;
             logger.info(`[Simulator] Match: POST Debit for ${user_id}`);
 
-            const bal = getBalance(user_id);
+            const bal = await getBalance(user_id);
             const balanceBefore = bal.amount;
             bal.amount -= amount;
 
@@ -252,7 +272,7 @@ class SimulatorService {
             const bonusAmount = parseFloat(amount || 100);
             logger.info(`[Simulator] Match: POST Bonus Credit for ${user_id}, bonus: ${bonus_code}, amount: ${bonusAmount}`);
 
-            const bal = getBalance(user_id);
+            const bal = await getBalance(user_id);
             bal.bonus += bonusAmount;
 
             // Push FT Bonus Event
@@ -288,7 +308,7 @@ class SimulatorService {
             const { user_id, amount } = req.body;
             logger.info(`[Simulator] Match: POST Credit`);
 
-            const bal = getBalance(user_id);
+            const bal = await getBalance(user_id);
             const balanceBefore = bal.amount;
             bal.amount += amount;
 
@@ -326,7 +346,7 @@ class SimulatorService {
             const depositAmount = parseFloat(amount || 100);
             logger.info(`[Simulator] Match: POST Deposit for ${user_id}, amount: ${depositAmount}`);
 
-            const bal = getBalance(user_id);
+            const bal = await getBalance(user_id);
             const balanceBefore = bal.amount;
             bal.amount += depositAmount;
 
@@ -357,7 +377,13 @@ class SimulatorService {
         // 10. Mock Balance: (GET) /api/balance
         if (method === 'GET' && (path.endsWith('/balance') || path.includes('/balance'))) {
             const userId = req.query?.user_id || req.user?.username || 'demo_user';
-            const bal = getBalance(userId);
+            const bal = await getBalance(userId);
+
+            // Prevent caching to ensure fresh balance data
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+
             res.json({
                 amount: bal.amount,
                 bonus_amount: bal.bonus,
