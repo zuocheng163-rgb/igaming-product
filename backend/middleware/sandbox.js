@@ -2,18 +2,22 @@ const { logger } = require('../services/logger');
 
 /**
  * SandboxMode Middleware
- * Bypasses real database/CRM calls when 'x-sandbox-mode' header is present.
- * Useful for frontend developers and third-party integrators.
+ * Bypasses real database/CRM calls when 'x-sandbox-mode' header is present
+ * or when process.env.DEMO_MODE is enabled.
  */
 const sandboxMiddleware = (req, res, next) => {
-    const isSandbox = req.headers['x-sandbox-mode'] === 'true';
+    const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
 
     if (isSandbox) {
         req.isSandbox = true;
-        logger.info(`[Sandbox] Intercepting request: ${req.method} ${req.path}`);
 
-        // Example: Mocking user details for GET /userdetails/:userid
-        if (req.method === 'GET' && req.path.startsWith('/userdetails/')) {
+        // Don't log every single heartbeat/poll in demo mode to keep logs clean
+        if (!req.path.includes('/stats/') && !req.path.includes('/balance')) {
+            logger.info(`[Sandbox] Intercepting request: ${req.method} ${req.path}`);
+        }
+
+        // 1. Mock User Details
+        if (req.method === 'GET' && req.path.startsWith('/api/userdetails/')) {
             return res.json({
                 user_id: req.params.userid,
                 username: `sandbox_user_${req.params.userid}`,
@@ -25,13 +29,45 @@ const sandboxMiddleware = (req, res, next) => {
             });
         }
 
-        // Example: Mocking wallet success
+        // 2. Mock Wallet Actions (Debit/Credit)
         if (req.method === 'POST' && (req.path.includes('/debit') || req.path.includes('/credit'))) {
             return res.json({
                 transaction_id: req.body.transaction_id || `sbx-${Date.now()}`,
                 balance: 4900,
                 currency: 'EUR'
             });
+        }
+
+        // 3. Mock Registration
+        if (req.method === 'POST' && req.path.includes('/register')) {
+            const username = req.body.username || 'demo_user';
+            return res.json({
+                user_id: `u-${Date.now()}`,
+                token: `token-${username}`,
+                user: {
+                    id: `u-${Date.now()}`,
+                    username: username,
+                    balance: 1000,
+                    currency: 'EUR'
+                }
+            });
+        }
+
+        // 4. Mock Profile Update
+        if (req.method === 'POST' && req.path.includes('/user/update')) {
+            return res.json({
+                success: true,
+                user: {
+                    ...req.body,
+                    user_id: req.user?.id || 'demo_id',
+                    id: req.user?.id || 'demo_id'
+                }
+            });
+        }
+
+        // 5. Mock Consents & Blocks
+        if (req.method === 'PUT' && (req.path.includes('/userconsents') || req.path.includes('/userblocks'))) {
+            return res.json({ success: true });
         }
     }
 
