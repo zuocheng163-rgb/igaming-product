@@ -24,45 +24,58 @@ const initSocket = (server) => {
 
     // Authentication Middleware
     io.use((socket, next) => {
-        const token = socket.handshake.auth.token || socket.handshake.query.token;
-        const headers = socket.handshake.headers;
-        const auth = socket.handshake.auth;
+        try {
+            const token = socket.handshake.auth.token || socket.handshake.query.token;
+            const headers = socket.handshake.headers;
+            const auth = socket.handshake.auth;
 
-        // Check for sandbox flag in auth object (preferred) or headers
-        const isSandbox = (auth && (auth.sandbox === true || auth.sandbox === 'true')) ||
-            headers['x-sandbox-mode'] === 'true' ||
-            process.env.DEMO_MODE === 'true';
+            // Check for sandbox flag in auth object (preferred) or headers
+            const isSandbox = (auth && (auth.sandbox === true || auth.sandbox === 'true')) ||
+                headers['x-sandbox-mode'] === 'true' ||
+                process.env.DEMO_MODE === 'true';
 
-        logger.info('[Socket] Handshake Debug', {
-            token: token ? (token.substring(0, 10) + '...') : 'MISSING',
-            isSandbox,
-            authSandbox: auth?.sandbox,
-            sandboxHeader: headers['x-sandbox-mode'],
-            demoEnv: process.env.DEMO_MODE
-        });
+            // FORCE LOGGING to console to ensure visibility
+            console.log('--- SOCKET HANDSHAKE START ---');
+            console.log('Token:', token ? 'Assuming Valid' : 'MISSING');
+            console.log('Sandbox Mode:', isSandbox);
 
-        if (!token) {
-            logger.warn('[Socket] Token missing in handshake');
-            return next(new Error('Authentication error: Token missing'));
-        }
+            logger.info('[Socket] Handshake Debug', {
+                token: token ? (token.substring(0, 10) + '...') : 'MISSING',
+                isSandbox,
+                authSandbox: auth?.sandbox,
+                sandboxHeader: headers['x-sandbox-mode'],
+                demoEnv: process.env.DEMO_MODE
+            });
 
-        // 1. Sandbox/Demo Bypass: Allow tokens starting with 'token-' 
-        // We auto-detect sandbox mode if the token uses the demo prefix, or if explicitly flagged.
-        if (token.startsWith('token-') || (isSandbox && token.startsWith('token-'))) {
-            const username = token.replace('token-', '');
-            socket.user = { userId: username, username: username }; // Map to user_id for rooms
-            return next();
-        }
-
-        // 2. Production JWT Verification
-        jwt.verify(token, process.env.JWT_SECRET || 'neostrike-local-secret-key-123', (err, decoded) => {
-            if (err) {
-                logger.warn(`Socket Auth Failed: ${err.message}`, { token });
-                return next(new Error('Authentication error: Invalid token'));
+            if (!token) {
+                logger.warn('[Socket] Token missing in handshake');
+                return next(new Error('Authentication error: Token missing'));
             }
-            socket.user = decoded;
-            next();
-        });
+
+            // 1. Sandbox/Demo Bypass: Allow tokens starting with 'token-' 
+            // We auto-detect sandbox mode if the token uses the demo prefix, or if explicitly flagged.
+            if (token.startsWith('token-') || (isSandbox && token.startsWith('token-'))) {
+                const username = token.replace('token-', '');
+                socket.user = { userId: username, username: username }; // Map to user_id for rooms
+                return next();
+            }
+
+            // 2. Production JWT Verification
+            jwt.verify(token, process.env.JWT_SECRET || 'neostrike-local-secret-key-123', (err, decoded) => {
+                if (err) {
+                    logger.warn(`Socket Auth Failed: ${err.message}`, { token });
+                    return next(new Error('Authentication error: Invalid token'));
+                }
+                socket.user = decoded;
+                next();
+            });
+        } catch (error) {
+            logger.error('[Socket] Unexpected Middleware Error:', {
+                message: error.message,
+                stack: error.stack
+            });
+            next(new Error('server error'));
+        }
     });
 
     io.on('connection', (socket) => {

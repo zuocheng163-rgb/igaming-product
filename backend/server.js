@@ -46,6 +46,18 @@ const authLimiter = rateLimit({
 // Initialize WebSocket
 initSocket(server);
 
+// DEBUG: Log all upgrade requests to see if WS handshake hits server
+server.on('upgrade', (req, socket, head) => {
+  console.log(`[HTTP Upgrade] ${req.method} ${req.url}`);
+});
+
+// DEBUG: Log all requests to see traffic
+server.on('request', (req, res) => {
+  if (req.url.startsWith('/socket.io/')) {
+    console.log(`[HTTP/WS Handshake Attempt] ${req.method} ${req.url}`);
+  }
+});
+
 // 1. Request logging middleware (MOVE TO TOP)
 app.use((req, res, next) => {
   logger.info(`[Incoming] ${req.method} ${req.path}`, {
