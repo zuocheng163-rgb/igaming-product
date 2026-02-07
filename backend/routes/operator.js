@@ -298,18 +298,6 @@ router.post('/registration', authenticateRequest, async (req, res) => {
         res.status(500).json({ error: errorMessage });
     }
 });
-const { correlationId, user } = req;
-try {
-    await ftService.pushEvent(user.username, 'registration', {
-        ip_address: req.ip,
-        user_agent: req.headers['user-agent']
-    }, { correlationId, operatorId: user.operator_id });
-    res.json({ success: true });
-} catch (error) {
-    const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
-    res.status(500).json({ error: errorMessage });
-}
-});
 
 router.post('/logout', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
