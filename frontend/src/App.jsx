@@ -3,6 +3,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import TenantPortal from './components/TenantPortal';
 import { login } from './services/api';
+import { NeoStrikeProvider } from './sdk/hooks';
 import './index.css';
 
 function App() {
@@ -33,10 +34,12 @@ function App() {
   };
 
   return (
-    <div className="app-container">
-      {error && <div className="error-banner">{error}</div>}
-      {renderContent()}
-    </div>
+    <NeoStrikeProvider config={{ token, wsUrl: window.location.origin }}>
+      <div className="app-container">
+        {error && <div className="error-banner">{error}</div>}
+        {renderContent()}
+      </div>
+    </NeoStrikeProvider>
   );
 }
 

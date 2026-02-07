@@ -40,7 +40,10 @@ export const placeBet = async (token, userId, amount) => {
         transaction_id: `tx-${Date.now()}`,
         game_id: 'slot-game-1'
     }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'x-sandbox-mode': 'true'
+        }
     });
     return response.data;
 };

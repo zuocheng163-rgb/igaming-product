@@ -9,6 +9,7 @@ import {
     updateUser,
     logout as apiLogout
 } from '../services/api';
+import { useAlerts } from '../sdk/hooks';
 import axios from 'axios';
 
 function Dashboard({ user: initialUser, token, onLogout }) {
@@ -22,6 +23,9 @@ function Dashboard({ user: initialUser, token, onLogout }) {
 
     const [firstName, setFirstName] = useState(user.first_name || '');
     const [lastName, setLastName] = useState(user.last_name || '');
+
+    // RG Alert Hook
+    const { lastAlert, clearAlert } = useAlerts();
 
     useEffect(() => {
         fetchBalance();
@@ -206,6 +210,28 @@ function Dashboard({ user: initialUser, token, onLogout }) {
                         ID: <span style={{ color: 'var(--accent-blue)' }}>{user.user_id}</span>
                     </p>
                 </div>
+
+                {/* RG Alert Modal */}
+                {lastAlert && (
+                    <div className="rg-alert-overlay" style={{
+                        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+                        backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        zIndex: 9999, backdropFilter: 'blur(10px)'
+                    }}>
+                        <div className="rg-modal glass-panel" style={{
+                            width: '450px', padding: '40px', textAlign: 'center', border: '2px solid var(--accent-gold, #ffd700)',
+                            boxShadow: '0 0 30px rgba(255, 215, 0, 0.3)'
+                        }}>
+                            <div style={{ fontSize: '4rem', marginBottom: '20px' }}>⚠️</div>
+                            <h2 style={{ color: 'var(--accent-gold, #ffd700)', marginBottom: '16px' }}>{lastAlert.type === 'REALITY_CHECK' ? 'REALITY CHECK' : 'RG INTERVENTION'}</h2>
+                            <p style={{ fontSize: '1.2rem', marginBottom: '32px', lineHeight: '1.6' }}>{lastAlert.message}</p>
+                            <button className="btn-primary" style={{ width: '100%', padding: '16px' }} onClick={clearAlert}>
+                                I UNDERSTAND, CONTINUE
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
                     <div style={{ textAlign: 'right' }}>
                         <p style={{ fontWeight: 700 }}>{user.username}</p>
