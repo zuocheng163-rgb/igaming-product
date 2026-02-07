@@ -283,7 +283,41 @@ class SimulatorService {
             return true;
         }
 
-        // 9. Mock Balance: (GET) /api/balance
+        // 9. Mock Deposit: (POST) /api/deposit
+        if (method === 'POST' && (path.endsWith('/deposit') || path.includes('/deposit'))) {
+            const { user_id, amount } = req.body;
+            const depositAmount = parseFloat(amount || 100);
+            logger.info(`[Simulator] Match: POST Deposit for ${user_id}, amount: ${depositAmount}`);
+
+            const bal = getBalance(user_id);
+            const balanceBefore = bal.amount;
+            bal.amount += depositAmount;
+
+            // Push to FT (Awaited for stability)
+            await ftService.pushEvent(user_id, 'payment', {
+                transaction_id: `sb-deposit-${Date.now()}`,
+                amount: depositAmount,
+                status: 'Approved',
+                currency: 'EUR'
+            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Payment Push Failed', e));
+
+            await ftService.pushEvent(user_id, 'balance', {
+                amount: bal.amount,
+                bonus_amount: bal.bonus,
+                currency: 'EUR'
+            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Balance Push Failed', e));
+
+            res.json({
+                success: true,
+                transaction_id: `sandbox-deposit-${Date.now()}`,
+                balance: bal.amount,
+                bonus_balance: bal.bonus,
+                currency: 'EUR'
+            });
+            return true;
+        }
+
+        // 10. Mock Balance: (GET) /api/balance
         if (method === 'GET' && (path.endsWith('/balance') || path.includes('/balance'))) {
             const userId = req.query?.user_id || req.user?.username || 'demo_user';
             const bal = getBalance(userId);
