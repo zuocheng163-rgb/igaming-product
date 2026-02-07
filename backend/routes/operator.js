@@ -317,12 +317,12 @@ router.get('/userblocks/:userid', authenticateRequest, async (req, res) => {
             blocks: [
                 {
                     active: !!data.blocked,
-                    type: 'blocked',
+                    type: 'Blocked',
                     note: 'Account status'
                 },
                 {
                     active: !!data.excluded,
-                    type: 'excluded',
+                    type: 'Excluded',
                     note: 'Self-exclusion status'
                 }
             ]
@@ -431,9 +431,8 @@ router.get('/userdetails/:userid', authenticateRequest, async (req, res) => {
         country: user.country || 'MT',
         currency: user.currency || 'EUR',
         balance: user.balance,
-        bonus_balance: user.bonus_balance,
         registration_date: user.registration_date,
-        verified_at: user.verified_at,
+        verified_at: user.verified_at || new Date().toISOString(), // RFC3339 format
         birth_date: user.birth_date,
         sex: user.sex,
         title: user.title,

@@ -29,7 +29,6 @@ class SimulatorService {
 
             // Financials
             balance: 1000,
-            bonus_balance: 500,
             currency: 'EUR',
 
             // Localization & Contact
@@ -78,12 +77,12 @@ class SimulatorService {
             blocks: [
                 {
                     active: false,
-                    type: 'blocked',
+                    type: 'Blocked',
                     note: 'Account status'
                 },
                 {
                     active: false,
-                    type: 'excluded',
+                    type: 'Excluded',
                     note: 'Self-exclusion status'
                 }
             ]
