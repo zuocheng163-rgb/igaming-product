@@ -108,9 +108,6 @@ const pushEvent = async (userId, eventType, payload, options = {}) => {
             const real_balance_before = parseFloat(payload.balance_before || 0);
             const bonus_balance_before = parseFloat(payload.bonus_balance_before || 0);
 
-            const total_balance_before = real_balance_before + bonus_balance_before;
-            const total_balance_after = real_balance_after + bonus_balance_after;
-
             requestBody = {
                 user_id: userId,
                 activity_id: payload.transaction_id || `ctx-${Date.now()}`,
@@ -119,8 +116,8 @@ const pushEvent = async (userId, eventType, payload, options = {}) => {
                 amount: parseFloat(payload.amount),
                 bonus_wager_amount: parseFloat(payload.bonus_wager_amount || 0),
                 wager_amount: parseFloat(payload.wager_amount || 0),
-                balance_after: total_balance_after,
-                balance_before: total_balance_before,
+                balance_after: real_balance_after,
+                balance_before: real_balance_before,
                 bonus_balance_after: bonus_balance_after,
                 bonus_balance_before: bonus_balance_before,
                 currency: payload.currency || 'EUR',

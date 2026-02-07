@@ -225,6 +225,8 @@ class SimulatorService {
                 type: 'Bet',
                 balance_before: balanceBefore,
                 balance_after: bal.amount,
+                bonus_balance_before: bal.bonus,
+                bonus_balance_after: bal.bonus,
                 game_id: 'slot-game-1',
                 currency: 'EUR'
             }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Casino Push Failed', e));
@@ -260,6 +262,8 @@ class SimulatorService {
                 type: 'Win',
                 balance_before: balanceBefore,
                 balance_after: bal.amount,
+                bonus_balance_before: bal.bonus,
+                bonus_balance_after: bal.bonus,
                 game_id: 'slot-game-1',
                 currency: 'EUR'
             }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Win Push Failed', e));
