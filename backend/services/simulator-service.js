@@ -109,7 +109,7 @@ class SimulatorService {
     /**
      * Intercepts and handles demo-specific logic for middleware
      */
-    static handleSandboxRequest(req, res) {
+    static async handleSandboxRequest(req, res) {
         const { method, path: reqPath } = req;
         const correlationId = generateCorrelationId();
         const brandId = 1; // Default for demo
@@ -218,8 +218,8 @@ class SimulatorService {
                 });
             }
 
-            // Push to FT
-            ftService.pushEvent(user_id, 'casino', {
+            // Push to FT (Awaited for stability)
+            await ftService.pushEvent(user_id, 'casino', {
                 transaction_id: `sb-tx-${Date.now()}`,
                 amount: amount,
                 type: 'Bet',
@@ -231,7 +231,7 @@ class SimulatorService {
                 currency: 'EUR'
             }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Casino Push Failed', e));
 
-            ftService.pushEvent(user_id, 'balance', {
+            await ftService.pushEvent(user_id, 'balance', {
                 amount: bal.amount,
                 bonus_amount: bal.bonus,
                 currency: 'EUR'
@@ -255,8 +255,8 @@ class SimulatorService {
             const balanceBefore = bal.amount;
             bal.amount += amount;
 
-            // Push to FT
-            ftService.pushEvent(user_id, 'casino', {
+            // Push to FT (Awaited for stability)
+            await ftService.pushEvent(user_id, 'casino', {
                 transaction_id: `sb-win-${Date.now()}`,
                 amount: amount,
                 type: 'Win',
@@ -268,7 +268,7 @@ class SimulatorService {
                 currency: 'EUR'
             }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Win Push Failed', e));
 
-            ftService.pushEvent(user_id, 'balance', {
+            await ftService.pushEvent(user_id, 'balance', {
                 amount: bal.amount,
                 bonus_amount: bal.bonus,
                 currency: 'EUR'
