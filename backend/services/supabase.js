@@ -52,7 +52,7 @@ const getUser = async (username, token) => {
     if (!supabase || !token) return null;
 
     const { data, error } = await supabase
-        .from('user_details')
+        .from('users')
         .select('*')
         .eq('token', token)
         .single();
@@ -71,7 +71,7 @@ const getUserById = async (userId) => {
     // Basic UUID validation regex
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
 
-    let query = supabase.from('user_details').select('*');
+    let query = supabase.from('users').select('*');
     if (isUuid) {
         query = query.eq('id', userId);
     } else {
@@ -87,7 +87,7 @@ const updateUser = async (userId, updates) => {
     if (!supabase) throw new Error('Supabase not initialized');
 
     const { data, error } = await supabase
-        .from('user_details')
+        .from('users')
         .update(updates)
         .eq('id', userId)
         .select();
@@ -102,16 +102,34 @@ const updateUser = async (userId, updates) => {
 const createUser = async (userData) => {
     if (!supabase) throw new Error('Supabase not initialized');
 
+    // Enhanced registration with professional mock data for product readiness
     const newUser = {
+        id: userData.id || `u-${Math.random().toString(36).substr(2, 9)}`,
         balance: 1000,
+        bonus_balance: 500,
         currency: 'EUR',
         registration_date: new Date().toISOString(),
         operator_id: userData.operator_id || 'default',
-        ...userData
+        // Mock data for new required fields
+        address: '123 Casino Way',
+        city: 'Valletta',
+        country: 'MT',
+        postal_code: 'VLT 1234',
+        language: 'en',
+        mobile: '35699' + Math.floor(100000 + Math.random() * 900000),
+        mobile_prefix: '356',
+        sex: Math.random() > 0.5 ? 'M' : 'F',
+        birth_date: '1990-01-01',
+        market: 'INT',
+        roles: ['PLAYER'],
+        ft_brand_name: 'NeoStrike',
+        ft_origin: 'Web',
+        ...userData,
+        user_id: userData.username // Ensure user_id field matches FT expectations
     };
 
     const { data, error } = await supabase
-        .from('user_details')
+        .from('users')
         .insert([newUser])
         .select();
 
