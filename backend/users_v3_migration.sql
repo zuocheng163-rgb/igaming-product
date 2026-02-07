@@ -1,11 +1,11 @@
 -- migration: dismantle users into users, user_consents, user_blocks
 -- This script creates the new enterprise-grade schema for Fast Track integration.
--- 0. Cleanup old tables if necessary
--- DROP TABLE IF EXISTS public.user_blocks CASCADE;
--- DROP TABLE IF EXISTS public.user_consents CASCADE;
--- DROP TABLE IF EXISTS public.users CASCADE;
+-- 0. Cleanup old tables to ensure fresh schema (REQUIRED for brand_id column sync)
+DROP TABLE IF EXISTS public.user_blocks CASCADE;
+DROP TABLE IF EXISTS public.user_consents CASCADE;
+DROP TABLE IF EXISTS public.users CASCADE;
 -- 1. Create Users Table
-CREATE TABLE IF NOT EXISTS public.users (
+CREATE TABLE public.users (
     brand_id integer NOT NULL,
     user_id text NOT NULL,
     id uuid DEFAULT gen_random_uuid(),
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     CONSTRAINT users_id_key UNIQUE (id)
 );
 -- 2. Create User Consents Table
-CREATE TABLE IF NOT EXISTS public.user_consents (
+CREATE TABLE public.user_consents (
     brand_id integer NOT NULL,
     user_id text NOT NULL,
     allow_marketing_communication boolean DEFAULT true,
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS public.user_consents (
     CONSTRAINT fk_user FOREIGN KEY (brand_id, user_id) REFERENCES public.users(brand_id, user_id) ON DELETE CASCADE
 );
 -- 3. Create User Blocks Table
-CREATE TABLE IF NOT EXISTS public.user_blocks (
+CREATE TABLE public.user_blocks (
     brand_id integer NOT NULL,
     user_id text NOT NULL,
     blocked boolean DEFAULT false,

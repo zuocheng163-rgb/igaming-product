@@ -20,7 +20,7 @@ class WalletService {
     /**
      * Standardized Debit (Bet) operation
      */
-    static async debit(userId, amount, transactionId, gameId, operatorId, correlationId) {
+    static async debit(userId, amount, transactionId, gameId, brandId, correlationId) {
         logger.debug(`[Wallet SPI] Processing Debit`, { userId, amount, transactionId, correlationId });
 
         // 1. Check Idempotency
@@ -64,7 +64,7 @@ class WalletService {
             // Audit
             await auditLog({
                 correlationId,
-                operatorId,
+                brandId,
                 actor_id: userId,
                 action: 'wallet:debit',
                 entity_type: 'transaction',
@@ -92,7 +92,7 @@ class WalletService {
                 balance_after: newBalance,
                 bonus_balance_after: newBonusBalance,
                 currency: user.currency
-            }, { correlationId, operatorId });
+            }, { correlationId, brandId });
 
             // AI Duty of Care: Evaluate Risk after transaction
             const riskData = await MonitoringService.evaluateRisk(userId);
@@ -115,7 +115,7 @@ class WalletService {
     /**
      * Standardized Credit (Win) operation
      */
-    static async credit(userId, amount, transactionId, gameId, operatorId, correlationId) {
+    static async credit(userId, amount, transactionId, gameId, brandId, correlationId) {
         logger.debug(`[Wallet SPI] Processing Credit`, { userId, amount, transactionId, correlationId });
 
         try {
@@ -128,7 +128,7 @@ class WalletService {
 
             await auditLog({
                 correlationId,
-                operatorId,
+                brandId,
                 actor_id: userId,
                 action: 'wallet:credit',
                 entity_type: 'transaction',
@@ -144,7 +144,7 @@ class WalletService {
                 balance_before: user.balance,
                 balance_after: newBalance,
                 currency: user.currency
-            }, { correlationId, operatorId });
+            }, { correlationId, brandId });
 
             // AI Duty of Care: Evaluate Risk after transaction
             const riskData = await MonitoringService.evaluateRisk(userId);
@@ -167,7 +167,7 @@ class WalletService {
     /**
      * Standardized Deposit (Payment) operation with Auto-Retry and Failover
      */
-    static async deposit(userId, amount, method, operatorId, correlationId) {
+    static async deposit(userId, amount, method, brandId, correlationId) {
         logger.debug(`[Wallet SPI] Processing Deposit`, { userId, amount, method, correlationId });
         const transactionId = `dep-${Date.now()}`;
 
@@ -187,7 +187,7 @@ class WalletService {
 
             await auditLog({
                 correlationId,
-                operatorId,
+                brandId,
                 actor_id: userId,
                 action: 'wallet:deposit',
                 entity_type: 'transaction',
@@ -203,7 +203,7 @@ class WalletService {
                 currency: user.currency,
                 status: 'Approved',
                 provider: paymentResult.provider
-            }, { correlationId, operatorId });
+            }, { correlationId, brandId });
 
             // WebSocket Broadcast
             broadcastToUser(userId, 'balance_update', {
@@ -284,7 +284,7 @@ class WalletService {
     /**
      * Standardized Bonus Credit operation
      */
-    static async creditBonus(userId, amount, bonusCode, operatorId, correlationId) {
+    static async creditBonus(userId, amount, bonusCode, brandId, correlationId) {
         logger.debug(`[Wallet SPI] Processing Bonus Credit`, { userId, amount, bonusCode, correlationId });
         const transactionId = `bon-${Date.now()}`;
 
@@ -298,7 +298,7 @@ class WalletService {
 
             await auditLog({
                 correlationId,
-                operatorId,
+                brandId,
                 actor_id: userId,
                 action: 'wallet:bonus_credit',
                 entity_type: 'transaction',
@@ -322,7 +322,7 @@ class WalletService {
                     { amount: user.balance || 0, currency: user.currency, key: 'real_money', exchange_rate: 1 },
                     { amount: newBonusBalance, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
                 ]
-            }, { correlationId, operatorId });
+            }, { correlationId, brandId });
 
             return {
                 transaction_id: transactionId,

@@ -6,26 +6,30 @@ const { logger } = require('./logger');
  * Manages operator-provider relationships and credentials.
  */
 class ProviderConfigService {
+    // Initialize a cache for configurations
+    static configs = {};
 
     /**
      * Get provider configuration for an operator
-     * @param {string} operatorId 
-     * @param {string} providerSlug (evolution, pragmatic, etc.)
+     * @param {string} brandId
+     * @param {string} provider (evolution, pragmatic, etc.)
      */
-    static async getConfig(operatorId, providerSlug) {
+    static async getConfig(brandId, provider) {
+        if (!this.configs[brandId]) {
+            await this.loadConfigs(brandId);
+        }
+        return this.configs[brandId]?.[provider] || null;
+    }
+
+    static async loadConfigs(brandId) {
         try {
-            const { data, error } = await supabaseService.client
-                .from('operator_providers')
-                .select('*')
-                .eq('operator_id', operatorId)
-                .eq('provider_slug', providerSlug)
-                .single();
-
-            if (error || !data) {
-                logger.warn(`Provider config not found`, { operatorId, providerSlug });
-                return null;
+            const config = await supabaseService.getTenantConfig(brandId); // Assuming getTenantConfig exists and returns tenant config including provider_settings
+            if (config && config.provider_settings) {
+                this.configs[brandId] = config.provider_settings;
+            } else {
+                logger.warn(`Tenant config or provider settings not found for brandId`, { brandId });
+                this.configs[brandId] = {}; // Initialize as empty to avoid repeated loading attempts
             }
-
             return data;
         } catch (err) {
             logger.error(`Error fetching provider config`, { err: err.message });
@@ -36,26 +40,26 @@ class ProviderConfigService {
     /**
      * Enable or disable a provider for an operator
      */
-    static async setStatus(operatorId, providerSlug, isActive) {
+    static async setStatus(brandId, providerSlug, isActive) {
         const { error } = await supabaseService.client
             .from('operator_providers')
             .update({ is_active: isActive, updated_at: new Date() })
-            .eq('operator_id', operatorId)
+            .eq('brand_id', brandId)
             .eq('provider_slug', providerSlug);
 
         if (error) throw error;
-        logger.info(`Provider status updated`, { operatorId, providerSlug, isActive });
+        logger.info(`Provider status updated`, { brandId, providerSlug, isActive });
     }
 
     /**
      * Upsert provider credentials
      */
-    static async saveCredentials(operatorId, providerSlug, credentials) {
+    static async saveCredentials(brandId, providerSlug, credentials) {
         // In production, credentials should be encrypted before storage
         const { error } = await supabaseService.client
             .from('operator_providers')
             .upsert({
-                operator_id: operatorId,
+                brand_id: brandId,
                 provider_slug: providerSlug,
                 credentials: credentials,
                 is_active: true,
@@ -63,17 +67,17 @@ class ProviderConfigService {
             });
 
         if (error) throw error;
-        logger.info(`Provider credentials saved`, { operatorId, providerSlug });
+        logger.info(`Provider credentials saved`, { brandId, providerSlug });
     }
 
     /**
      * Check health of all providers for an operator
      */
-    static async healthCheck(operatorId) {
+    static async healthCheck(brandId) {
         const { data, error } = await supabaseService.client
             .from('operator_providers')
             .select('provider_slug, is_active, last_success_at')
-            .eq('operator_id', operatorId);
+            .eq('brand_id', brandId);
 
         if (error) throw error;
         return data.map(p => ({

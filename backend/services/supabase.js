@@ -16,24 +16,24 @@ if (supabaseUrl && (supabaseServiceKey || supabaseKey)) {
 /**
  * Helper to map operator_id (string) to brand_id (int)
  */
-const getBrandId = (operatorId) => {
-    return (operatorId === 'sandbox' || operatorId === 'default') ? 1 : 1; // Default to 1 for PoC
+const getBrandId = (brandId) => {
+    return brandId || 1;
 };
 
 /**
  * Fetches dynamic configuration for a specific operator.
  */
-const getTenantConfig = async (operatorId) => {
+const getTenantConfig = async (brandId) => {
     if (!supabase) return null;
 
     const { data, error } = await supabase
         .from('tenant_configs')
         .select('*')
-        .eq('operator_id', operatorId)
+        .eq('brand_id', brandId)
         .single();
 
     if (error) {
-        logger.error(`[Supabase] Failed to fetch tenant config for ${operatorId}`, { error: error.message });
+        logger.error(`[Supabase] Failed to fetch tenant config for ${brandId}`, { error: error.message });
         return null;
     }
 
@@ -111,7 +111,7 @@ const updateUser = async (userId, updates) => {
 const createUser = async (userData) => {
     if (!supabase) throw new Error('Supabase not initialized');
 
-    const brandId = getBrandId(userData.operator_id || 'default');
+    const brandId = userData.brand_id || 1;
     const publicUserId = userData.username || `user_${Date.now()}`;
 
     // 1. Create User Profile
@@ -140,9 +140,6 @@ const createUser = async (userData) => {
         origin: userData.origin || 'Direct',
         market: userData.market || 'INT',
         registration_code: userData.registration_code || 'WELCOME2026',
-        is_blocked: false,
-        is_excluded: false,
-        is_enabled: true,
         roles: ['PLAYER'],
         token: userData.token,
         ...userData
@@ -187,17 +184,17 @@ const createUser = async (userData) => {
     return userRecord;
 };
 
-const updateBalance = async (userId, newBalance, operatorId) => {
+const updateBalance = async (userId, newBalance, brandId) => {
     return updateUser(userId, { balance: newBalance });
 };
 
-const getActivities = async (operatorId, limit = 20) => {
+const getActivities = async (brandId, limit = 20) => {
     if (!supabase) return [];
 
     const { data, error } = await supabase
         .from('platform_audit_logs')
         .select('*')
-        .or(`operator_id.eq.${operatorId},operator_id.eq.default`)
+        .or(`brand_id.eq.${brandId},brand_id.eq.1`)
         .order('timestamp', { ascending: false })
         .limit(limit);
 
@@ -239,13 +236,13 @@ const getActivities = async (operatorId, limit = 20) => {
     });
 };
 
-const getTransactionsByOperator = async (operatorId, filters = {}) => {
+const getTransactionsByOperator = async (brandId, filters = {}) => {
     if (!supabase) return [];
 
     let query = supabase
         .from('platform_audit_logs')
         .select('*')
-        .eq('operator_id', operatorId)
+        .eq('brand_id', brandId)
         .in('action', ['wallet:debit', 'wallet:credit', 'wallet:deposit', 'wallet:bonus_credit']);
 
     if (filters.startDate) query = query.gte('timestamp', filters.startDate);
@@ -261,10 +258,10 @@ const getTransactionsByOperator = async (operatorId, filters = {}) => {
     return data;
 };
 
-const getAggregatedKPIs = async (operatorId) => {
+const getAggregatedKPIs = async (brandId) => {
     if (!supabase) return { ggr: 0, ngr: 0, deposits: 0 };
 
-    const transactions = await getTransactionsByOperator(operatorId);
+    const transactions = await getTransactionsByOperator(brandId);
 
     let ggr = 0;
     let deposits = 0;

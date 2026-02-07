@@ -36,7 +36,7 @@ const authenticateRequest = async (req, res, next) => {
             const user = await supabaseService.getUser(username, sessionToken);
             if (user) {
                 req.user = user;
-                req.operatorId = user.operator_id || 'default';
+                req.brandId = user.brand_id || 1;
                 req.role = user.role || 'SUPPORT'; // Default to Support if not specified
                 return next();
             }
@@ -79,29 +79,29 @@ router.post('/authenticate', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized: Invalid API Token or Username' });
         }
 
-        const operatorId = user.operator_id || 'default';
+        const brandId = user.brand_id || 1;
         const sessionId = `sid-${user.id}-${Date.now()}`;
 
         await ftService.pushEvent(user.user_id, 'login', {
             session_id: sessionId,
             ip_address: req.ip,
             user_agent: req.headers['user-agent']
-        }, { correlationId, operatorId });
+        }, { correlationId, brandId });
 
         await ftService.pushEvent(user.user_id, 'balance', {
             amount: user.balance,
             bonus_amount: user.bonus_balance || 0,
             currency: user.currency
-        }, { correlationId, operatorId });
+        }, { correlationId, brandId });
 
         res.json({
             sid: sessionId,
-            user_id: user.username,
+            user_id: user.user_id,
             currency: user.currency,
-            operator_id: operatorId,
+            brand_id: brandId,
             user: {
                 id: user.id,
-                user_id: user.username,
+                user_id: user.user_id,
                 username: user.username,
                 balance: user.balance,
                 bonus_balance: user.bonus_balance,
@@ -211,7 +211,7 @@ router.post('/user/update', authenticateRequest, async (req, res) => {
 
         await ftService.pushEvent(user.user_id, 'user_update', {
             ...req.body
-        }, { correlationId, operatorId: user.operator_id || user.brand_id });
+        }, { correlationId, brandId: user.brand_id });
 
         res.json({ user: { ...updatedUser, user_id: updatedUser.username } });
     } catch (error) {
@@ -244,7 +244,7 @@ router.put('/userconsents/:userid', authenticateRequest, async (req, res) => {
 
         await ftService.pushEvent(user.user_id, 'consent', {
             consents
-        }, { correlationId, operatorId: user.operator_id || user.brand_id });
+        }, { correlationId, brandId: user.brand_id });
 
         res.json({ success: true });
     } catch (error) {
@@ -276,7 +276,7 @@ router.put('/userblocks/:userid', authenticateRequest, async (req, res) => {
 
         await ftService.pushEvent(user.user_id, 'block', {
             blocks
-        }, { correlationId, operatorId: user.operator_id || user.brand_id });
+        }, { correlationId, brandId: user.brand_id });
 
         res.json({ success: true });
     } catch (error) {
@@ -332,7 +332,7 @@ router.post('/registration', authenticateRequest, async (req, res) => {
         await ftService.pushEvent(user.user_id, 'registration', {
             ip_address: req.ip,
             user_agent: req.headers['user-agent']
-        }, { correlationId, operatorId: user.operator_id || user.brand_id });
+        }, { correlationId, brandId: user.brand_id });
         res.json({ success: true });
     } catch (error) {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
@@ -441,12 +441,12 @@ router.get('/userdetails/:userid', authenticateRequest, async (req, res) => {
         is_blocked: !!user.is_blocked,
         is_excluded: !!user.is_excluded,
         roles: Array.isArray(user.roles) ? user.roles : ['PLAYER'],
-        operator_id: user.brand_id ? user.brand_id.toString() : '1'
+        brand_id: user.brand_id ? user.brand_id.toString() : '1'
     };
 
     await auditLog({
         correlationId,
-        operatorId: user.brand_id ? user.brand_id.toString() : '1',
+        brandId: user.brand_id ? user.brand_id.toString() : '1',
         action: 'inbound:userdetails',
         entity_type: 'user',
         entity_id: user.id,

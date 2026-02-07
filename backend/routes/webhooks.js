@@ -20,7 +20,7 @@ router.post('/fasttrack', async (req, res) => {
     try {
         await auditLog({
             correlationId,
-            operatorId: operator_id || 'default',
+            brandId: brand_id || 1,
             actor_id: 'FAST_TRACK_CRM',
             action: `inbound:crm_restriction:${action}`,
             entity_type: 'user',

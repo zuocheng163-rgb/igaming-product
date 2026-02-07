@@ -53,7 +53,7 @@ class SimulatorService {
             is_excluded: false,
             is_enabled: true,
             roles: ['PLAYER'],
-            operator_id: 'sandbox'
+            brand_id: 1
         };
     }
 
