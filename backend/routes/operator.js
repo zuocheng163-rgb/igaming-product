@@ -300,7 +300,7 @@ router.get('/userconsents/:userid', authenticateRequest, async (req, res) => {
             { type: 'pushNotification', opted_in: !!data.push_notification }
         ];
 
-        res.json(response);
+        res.json({ consents: response });
     } catch (error) {
         logger.error('Failed to fetch consents', { correlationId, error: error.message });
         res.status(500).json({ error: 'Failed to fetch consents' });

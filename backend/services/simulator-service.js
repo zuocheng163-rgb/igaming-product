@@ -133,7 +133,7 @@ class SimulatorService {
             const userId = consentsMatch[1];
             if (method === 'GET') {
                 logger.info(`[Simulator] Match: GET UserConsents for ${userId}`);
-                res.json(this.getDemoConsents());
+                res.json({ consents: this.getDemoConsents() });
             } else if (method === 'PUT') {
                 logger.info(`[Simulator] Match: PUT UserConsents for ${userId}`);
                 res.json({ success: true });
