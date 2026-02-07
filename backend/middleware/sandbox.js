@@ -7,6 +7,11 @@ const SimulatorService = require('../services/simulator-service');
  * or when process.env.DEMO_MODE is enabled.
  */
 const sandboxMiddleware = async (req, res, next) => {
+    // Skip sandbox logic for Socket.IO connections
+    if (req.path.startsWith('/socket.io')) {
+        return next();
+    }
+
     const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
 
     if (isSandbox) {
