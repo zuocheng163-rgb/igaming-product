@@ -14,7 +14,7 @@ const sandboxMiddleware = (req, res, next) => {
 
         // Skip noisy logs for heartbeats
         if (!req.path.includes('/stats/') && !req.path.includes('/balance')) {
-            logger.info(`[Sandbox] Intercepting request: ${req.method} ${req.path}`);
+            logger.info(`[Sandbox] Intercepting request: ${req.method} ${req.path}`, { url: req.url });
         }
 
         // Delegate all mock handling to SimulatorService

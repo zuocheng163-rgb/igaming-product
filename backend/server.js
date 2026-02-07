@@ -46,18 +46,19 @@ const authLimiter = rateLimit({
 // Initialize WebSocket
 initSocket(server);
 
-// Sandbox Switch
-app.use(sandboxMiddleware);
-
-// Request logging middleware
+// 1. Request logging middleware (MOVE TO TOP)
 app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.path}`, {
+  logger.info(`[Incoming] ${req.method} ${req.path}`, {
+    url: req.url,
     ip: req.ip,
-    userAgent: req.headers['user-agent'],
-    isSandbox: req.isSandbox
+    userAgent: req.headers['user-agent']
   });
   next();
 });
+
+// 2. Sandbox Switch
+app.use(sandboxMiddleware);
+
 
 // Routes
 app.use('/api', authLimiter, operatorRoutes);

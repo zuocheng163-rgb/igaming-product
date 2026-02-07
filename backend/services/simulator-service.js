@@ -46,25 +46,28 @@ class SimulatorService {
 
     /**
      * Intercepts and handles demo-specific logic for middleware
-     * Manually parses userId from path because req.params is not populated in global middleware.
+     * Robust regex parsing that handles optional /api prefix and different path formats.
      */
     static handleSandboxRequest(req, res) {
-        const { method, path } = req;
+        const { method, path: reqPath } = req;
 
-        // 1. Mock User Details: GET /api/userdetails/:userid
-        const userDetailsMatch = path.match(/\/api\/userdetails\/([^\/?#]+)/);
+        // Normalize path for matching (ensure leading slash, remove trailing)
+        const path = reqPath.startsWith('/') ? reqPath : '/' + reqPath;
+
+        // 1. Mock User Details: (GET) /api/userdetails/:userid OR /userdetails/:userid
+        const userDetailsMatch = path.match(/\/(?:api\/)?userdetails\/([^\/?#]+)/i);
         if (method === 'GET' && userDetailsMatch) {
             const userId = userDetailsMatch[1];
-            logger.info(`[Simulator] Mocking UserDetails for ${userId}`);
+            logger.info(`[Simulator] Match: UserDetails for ${userId}`);
             res.json(this.getDemoUser(userId));
             return true;
         }
 
-        // 2. Mock Registration: POST /api/register
-        if (method === 'POST' && path.includes('/register')) {
+        // 2. Mock Registration: (POST) /api/register OR /register
+        if (method === 'POST' && (path.endsWith('/register') || path.includes('/register'))) {
             const username = req.body.username || 'demo_user';
             const user = this.getDemoUser(username);
-            logger.info(`[Simulator] Mocking Registration for ${username}`);
+            logger.info(`[Simulator] Match: Registration for ${username}`);
             res.json({
                 user_id: user.username,
                 token: `token-${username}`,
@@ -73,9 +76,9 @@ class SimulatorService {
             return true;
         }
 
-        // 3. Mock Profile Update: POST /api/user/update
-        if (method === 'POST' && path.includes('/user/update')) {
-            logger.info(`[Simulator] Mocking User Update`);
+        // 3. Mock Profile Update: (POST) /api/user/update OR /user/update
+        if (method === 'POST' && (path.endsWith('/user/update') || path.includes('/user/update'))) {
+            logger.info(`[Simulator] Match: User Update`);
             res.json({
                 success: true,
                 user: {
@@ -87,27 +90,29 @@ class SimulatorService {
             return true;
         }
 
-        // 4. Mock Consents: GET/PUT /api/userconsents/:userid
-        const consentsMatch = path.match(/\/api\/userconsents\/([^\/?#]+)/);
+        // 4. Mock Consents: (GET/PUT) /api/userconsents/:userid OR /userconsents/:userid
+        const consentsMatch = path.match(/\/(?:api\/)?userconsents\/([^\/?#]+)/i);
         if (consentsMatch) {
+            const userId = consentsMatch[1];
             if (method === 'GET') {
-                logger.info(`[Simulator] Mocking GET UserConsents for ${consentsMatch[1]}`);
+                logger.info(`[Simulator] Match: GET UserConsents for ${userId}`);
                 res.json(this.getDemoConsents());
             } else if (method === 'PUT') {
-                logger.info(`[Simulator] Mocking PUT UserConsents for ${consentsMatch[1]}`);
+                logger.info(`[Simulator] Match: PUT UserConsents for ${userId}`);
                 res.json({ success: true });
             }
             return true;
         }
 
-        // 5. Mock Blocks: GET/PUT /api/userblocks/:userid
-        const blocksMatch = path.match(/\/api\/userblocks\/([^\/?#]+)/);
+        // 5. Mock Blocks: (GET/PUT) /api/userblocks/:userid OR /userblocks/:userid
+        const blocksMatch = path.match(/\/(?:api\/)?userblocks\/([^\/?#]+)/i);
         if (blocksMatch) {
+            const userId = blocksMatch[1];
             if (method === 'GET') {
-                logger.info(`[Simulator] Mocking GET UserBlocks for ${blocksMatch[1]}`);
+                logger.info(`[Simulator] Match: GET UserBlocks for ${userId}`);
                 res.json(this.getDemoBlocks());
             } else if (method === 'PUT') {
-                logger.info(`[Simulator] Mocking PUT UserBlocks for ${blocksMatch[1]}`);
+                logger.info(`[Simulator] Match: PUT UserBlocks for ${userId}`);
                 res.json({ success: true });
             }
             return true;
