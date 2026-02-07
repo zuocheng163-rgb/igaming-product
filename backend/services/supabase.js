@@ -66,7 +66,21 @@ const getUser = async (username, token) => {
 };
 
 const getUserById = async (userId) => {
-    if (!supabase) return null;
+    if (!supabase) {
+        if (process.env.DEMO_MODE === 'true') {
+            return {
+                id: userId,
+                username: `demo_user_${userId}`,
+                email: 'demo@neostrike.io',
+                balance: 1000,
+                bonus_balance: 500,
+                currency: 'EUR',
+                country: 'MT',
+                operator_id: 'default'
+            };
+        }
+        return null;
+    }
 
     // Basic UUID validation regex
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
@@ -75,7 +89,6 @@ const getUserById = async (userId) => {
     if (isUuid) {
         query = query.eq('id', userId);
     } else {
-        // Adaptation: If NOT a UUID, we assume it might be a username (common in PoC simulators)
         query = query.eq('username', userId);
     }
 
@@ -85,7 +98,12 @@ const getUserById = async (userId) => {
 };
 
 const updateUser = async (userId, updates) => {
-    if (!supabase) throw new Error('Supabase not initialized');
+    if (!supabase) {
+        if (process.env.DEMO_MODE === 'true') {
+            return { id: userId, ...updates };
+        }
+        throw new Error('Supabase not initialized');
+    }
 
     const { data, error } = await supabase
         .from('user_details')
@@ -238,6 +256,7 @@ const getAggregatedKPIs = async (operatorId) => {
 };
 
 module.exports = {
+    client: supabase, // Export the client for services like Monitoring
     getTenantConfig,
     saveAuditLog,
     getUser,

@@ -29,13 +29,12 @@ const sandboxMiddleware = (req, res, next) => {
             });
         }
 
-        // 2. Mock Wallet Actions (Debit/Credit)
-        if (req.method === 'POST' && (req.path.includes('/debit') || req.path.includes('/credit'))) {
-            return res.json({
-                transaction_id: req.body.transaction_id || `sbx-${Date.now()}`,
-                balance: 4900,
-                currency: 'EUR'
-            });
+        // 2. Mock Wallet Actions - We NO LONGER return early here!
+        // We let next() continue to the route handler so WalletService can push events to FT.
+        // The services themselves will handle the DB fallback if DEMO_MODE is on.
+        if (req.method === 'POST' && (req.path.includes('/debit') || req.path.includes('/credit') || req.path.includes('/deposit'))) {
+            req.useMockData = true;
+            logger.info(`[Sandbox] Flagging request for service-level mocking: ${req.path}`);
         }
 
         // 3. Mock Registration
