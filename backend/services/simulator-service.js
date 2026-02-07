@@ -1,5 +1,6 @@
 const InterventionService = require('./intervention');
 const ftService = require('./ft-integration');
+const { client: supabase } = require('./supabase');
 const { generateCorrelationId, logger } = require('./logger');
 
 // In-memory store for sandbox activity (Velocity Spike tracking)
@@ -212,6 +213,12 @@ class SimulatorService {
         // 6. Mock Bonus List: (GET) /api/bonus/list
         if (method === 'GET' && (path.endsWith('/bonus/list') || path.includes('/bonus/list'))) {
             logger.info(`[Simulator] Match: GET Bonus List`);
+
+            // Prevent caching to ensure fresh bonus data
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+
             res.json({ Data: this.getDemoBonuses() });
             return true;
         }
