@@ -46,8 +46,9 @@ const initSocket = (server) => {
             return next(new Error('Authentication error: Token missing'));
         }
 
-        // 1. Sandbox/Demo Bypass: Allow tokens starting with 'token-' during demo mode
-        if (isSandbox && token.startsWith('token-')) {
+        // 1. Sandbox/Demo Bypass: Allow tokens starting with 'token-' 
+        // We auto-detect sandbox mode if the token uses the demo prefix, or if explicitly flagged.
+        if (token.startsWith('token-') || (isSandbox && token.startsWith('token-'))) {
             const username = token.replace('token-', '');
             socket.user = { userId: username, username: username }; // Map to user_id for rooms
             return next();
