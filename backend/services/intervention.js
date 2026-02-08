@@ -1,4 +1,4 @@
-const { broadcastToUser } = require('./socket');
+const rabbitmq = require('./rabbitmq');
 const ftService = require('./ft-integration');
 const { logger } = require('./logger');
 
@@ -18,7 +18,7 @@ class InterventionService {
             ? 'We need to verify your affordability to continue. Please connect your bank.'
             : 'You have been playing for a while. Would you like to take a break?';
 
-        broadcastToUser(userId, 'rg_alert', {
+        rabbitmq.publishEvent(`user.${userId}.alert`, {
             type,
             message,
             reason,
