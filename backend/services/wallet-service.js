@@ -316,7 +316,7 @@ class WalletService {
     /**
      * Standardized Bonus Credit operation
      */
-    static async creditBonus(userId, amount, bonusCode, brandId, correlationId) {
+    static async creditBonus(userId, amount, bonusCode, brandId, correlationId, fasttrackReferences = null) {
         logger.debug(`[Wallet SPI] Processing Bonus Credit`, { userId, amount, bonusCode, correlationId });
         const transactionId = `bon-${Date.now()}`;
 
@@ -324,7 +324,7 @@ class WalletService {
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
 
-            const newBonusBalance = (user.bonus_balance || 0) + amount;
+            const newBonusBalance = (user.bonus_balance || 0) + (parseFloat(amount) || 0);
 
             await supabaseService.updateUser(user.id, { bonus_balance: newBonusBalance });
 
@@ -342,10 +342,11 @@ class WalletService {
             // FT Integration: Push bonus event
             await ftService.pushEvent(user.user_id, 'bonus', {
                 bonus_code: bonusCode,
-                amount,
+                amount: parseFloat(amount) || 0,
                 status: 'Completed',
                 transaction_id: transactionId,
-                currency: user.currency
+                currency: user.currency,
+                fasttrack_references: fasttrackReferences || { source: 'backend' }
             }, { correlationId, brandId });
 
             // Balance Sync

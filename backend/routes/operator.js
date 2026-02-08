@@ -438,17 +438,28 @@ router.get('/bonus/list', authenticateRequest, async (req, res) => {
 
 router.post('/bonus/credit', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
-    const { bonus_code } = req.body;
+    const {
+        bonus_code,
+        bonus_contract_id,
+        amount,
+        currency,
+        fasttrack_references
+    } = req.body;
+
+    // FT Documentation: bonus_contract_id is used to identify the reward
+    const targetBonusCode = bonus_contract_id || bonus_code;
+    const creditAmount = amount !== undefined ? parseFloat(amount) : 100;
 
     try {
         const result = await WalletService.creditBonus(
             user.id,
-            100, // Hardcoded amount for this endpoint matching list
-            bonus_code,
+            creditAmount,
+            targetBonusCode,
             user.brand_id,
-            correlationId
+            correlationId,
+            fasttrack_references
         );
-        res.json({ success: true, message: `Bonus ${bonus_code} credited`, ...result });
+        res.json({ success: true, message: `Bonus ${targetBonusCode} credited`, ...result });
     } catch (error) {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Bonus credit failed');
         res.status(500).json({ error: errorMessage });
