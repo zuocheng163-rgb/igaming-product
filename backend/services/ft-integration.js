@@ -169,6 +169,7 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
                 type: payload.type || 'WelcomeBonus', // NoDeposit, WelcomeBonus, CashbackBonus, ReloadBonus, WagerFree, FreeSpins, RiskFreeBet, Undefined
                 user_bonus_id: payload.user_bonus_id || `${userId}-${Date.now()}`,
                 user_id: userId,
+                timestamp,
                 fasttrack_references: payload.fasttrack_references || { source: 'backend' }
             };
         }
