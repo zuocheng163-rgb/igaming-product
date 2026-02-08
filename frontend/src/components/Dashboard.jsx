@@ -17,8 +17,8 @@ import axios from 'axios';
 
 function Dashboard({ user: initialUser, token, onLogout }) {
     const [user, setUser] = useState(initialUser);
-    const [balance, setBalance] = useState(0);
-    const [bonusBalance, setBonusBalance] = useState(0);
+    // const [balance, setBalance] = useState(0); // Managed by hook
+    // const [bonusBalance, setBonusBalance] = useState(0); // Managed by hook
     const [currency, setCurrency] = useState('EUR');
     const [status, setStatus] = useState('System ready');
     const [bonuses, setBonuses] = useState([]);
@@ -30,21 +30,17 @@ function Dashboard({ user: initialUser, token, onLogout }) {
     // RG Alert Hook
     const { lastAlert, clearAlert } = useAlerts();
 
+    // Use built-in polling hook for balance
+    const { balance, bonusBalance, updateBalance } = useBalance();
+
     useEffect(() => {
-        fetchBalance();
+        // fetchBalance(); // Handled by useBalance now
         loadBonuses();
     }, [token]);
 
-    const fetchBalance = async () => {
-        try {
-            const data = await getBalance(token);
-            setBalance(data.amount);
-            setBonusBalance(data.bonus_amount || 0);
-            setCurrency(data.currency);
-        } catch (err) {
-            console.error(err);
-        }
-    };
+    // Use values from hook instead of local state
+    // const [balance, setBalance] = useState(0); 
+    // const [bonusBalance, setBonusBalance] = useState(0);
 
     const loadBonuses = async () => {
         try {
@@ -58,9 +54,8 @@ function Dashboard({ user: initialUser, token, onLogout }) {
     const handleDeposit = async () => {
         try {
             const data = await deposit(token, 100);
-            setBalance(data.balance);
-            setBonusBalance(data.bonus_amount || 0);
-            setStatus('Deposit Success: +100 ' + data.currency);
+            updateBalance(data.balance, data.bonus_amount || 0);
+            setStatus('Deposit Success: +100 ' + (data.currency || currency));
         } catch (err) {
             setStatus('Deposit failed');
         }
@@ -99,7 +94,7 @@ function Dashboard({ user: initialUser, token, onLogout }) {
         try {
             await creditBonus(token, user.user_id, code);
             setStatus(`Bonus ${name || code} claimed!`);
-            fetchBalance();
+            // Balance update will happen on next poll
         } catch (err) {
             setStatus('Bonus claim failed');
         }
@@ -170,8 +165,7 @@ function Dashboard({ user: initialUser, token, onLogout }) {
             const betRes = await placeBet(token, user.user_id, 10);
 
             // Sync balances from server response immediately after bet
-            setBalance(betRes.balance);
-            setBonusBalance(betRes.bonus_balance || 0);
+            updateBalance(betRes.balance, betRes.bonus_balance || 0);
 
             setTimeout(async () => {
                 const isWin = Math.random() > 0.7;
@@ -180,12 +174,11 @@ function Dashboard({ user: initialUser, token, onLogout }) {
                     const winRes = await creditWin(token, user.user_id, winAmount);
 
                     // Sync balances from server response after win
-                    setBalance(winRes.balance);
-                    setBonusBalance(winRes.bonus_balance || 0);
+                    updateBalance(winRes.balance, winRes.bonus_balance || 0);
                     setStatus('BIG WIN: 20!');
                 } else {
                     setStatus('No Win');
-                    fetchBalance(); // Final sync
+                    // updateBalance will happen on next poll, or we can trigger a refresh if we exposed it
                 }
             }, 800);
         } catch (err) {

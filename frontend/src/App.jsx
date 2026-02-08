@@ -34,7 +34,7 @@ function App() {
   };
 
   return (
-    <NeoStrikeProvider config={{ token, wsUrl: window.location.origin }}>
+    <NeoStrikeProvider config={{ token, apiUrl: window.location.origin }}>
       <div className="app-container">
         {error && <div className="error-banner">{error}</div>}
         {renderContent()}

@@ -1,75 +1,67 @@
-import { io } from 'socket.io-client';
+import axios from 'axios';
 
 class NeoStrikeClient {
     constructor(config) {
         this.apiUrl = config.apiUrl || 'http://localhost:5000';
-        this.wsUrl = config.wsUrl || 'ws://localhost:5000';
         this.token = config.token;
-        this.socket = null;
-        this.eventHandlers = new Map();
-    }
-
-    async connect() {
-        return new Promise((resolve, reject) => {
-            this.socket = io(this.wsUrl, {
-                auth: {
-                    token: this.token,
-                    sandbox: true // Explicitly send sandbox flag in auth payload
-                },
-                extraHeaders: {
-                    'x-sandbox-mode': 'true'
-                },
-                reconnection: true,
-                reconnectionAttempts: 10,
-                reconnectionDelay: 1000,
-                reconnectionDelayMax: 5000
-            });
-
-            this.socket.on('connect', () => {
-                console.log('NeoStrike WebSocket Connected');
-                resolve(this.socket);
-            });
-
-            this.socket.on('connect_error', (error) => {
-                console.error('NeoStrike WebSocket connection error:', error.message);
-                reject(error);
-            });
-
-            this.socket.on('disconnect', (reason) => {
-                console.warn('NeoStrike WebSocket disconnected:', reason);
-            });
-
-            // Direct event proxy to mapped handlers
-            this.socket.onAny((event, ...args) => {
-                if (this.eventHandlers.has(event)) {
-                    this.eventHandlers.get(event).forEach(handler => handler(...args));
-                }
-            });
+        this.client = axios.create({
+            baseURL: this.apiUrl,
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                'Content-Type': 'application/json',
+                'x-sandbox-mode': 'true' // Default to sandbox for now
+            }
         });
     }
 
+    async connect() {
+        // No persistent connection needed for REST
+        // We verify the token by fetching the balance/user details
+        try {
+            const response = await this.client.get('/api/balance');
+            return response.data;
+        } catch (error) {
+            console.error('NeoStrike Client Connection Failed:', error.message);
+            throw error;
+        }
+    }
+
+    // Standard Wallet Operations
+    async debit(amount, gameId, transactionId) {
+        const response = await this.client.post('/api/debit', {
+            amount,
+            game_id: gameId,
+            transaction_id: transactionId || `tx-${Date.now()}`,
+            user_id: this.token.replace('token-', '') // Simplified for demo
+        });
+        return response.data; // Returns { balance, bonus_balance, currency }
+    }
+
+    async credit(amount, gameId, transactionId) {
+        const response = await this.client.post('/api/credit', {
+            amount,
+            game_id: gameId,
+            transaction_id: transactionId || `tx-${Date.now()}`,
+            user_id: this.token.replace('token-', '')
+        });
+        return response.data;
+    }
+
+    async deposit(amount) {
+        const response = await this.client.post('/api/deposit', {
+            amount
+        });
+        return response.data;
+    }
+
+    // Legacy support for event listeners (noop for now as we don't have WS)
     on(event, handler) {
-        if (!this.eventHandlers.has(event)) {
-            this.eventHandlers.set(event, []);
-        }
-        this.eventHandlers.get(event).push(handler);
+        console.warn(`[NeoStrikeClient] .on('${event}') called, but WebSockets are removed. State is updated via API responses.`);
     }
 
-    off(event, handler) {
-        if (this.eventHandlers.has(event)) {
-            const handlers = this.eventHandlers.get(event);
-            const index = handlers.indexOf(handler);
-            if (index !== -1) {
-                handlers.splice(index, 1);
-            }
-        }
-    }
+    off(event, handler) { }
 
-    disconnect() {
-        if (this.socket) {
-            this.socket.disconnect();
-        }
-    }
+    disconnect() { }
 }
 
 export { NeoStrikeClient };

@@ -7,7 +7,7 @@ const { logger, setDbLogHook } = require('./services/logger');
 const supabaseService = require('./services/supabase');
 const operatorRoutes = require('./routes/operator');
 const providerRoutes = require('./routes/providers');
-const { initSocket } = require('./services/socket');
+// const { initSocket } = require('./services/socket');
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -43,20 +43,8 @@ const authLimiter = rateLimit({
   message: 'Too many authentication attempts, please try again later'
 });
 
-// Initialize WebSocket
-initSocket(server);
-
-// DEBUG: Log all upgrade requests to see if WS handshake hits server
-server.on('upgrade', (req, socket, head) => {
-  console.log(`[HTTP Upgrade] ${req.method} ${req.url}`);
-});
-
-// DEBUG: Log all requests to see traffic
-server.on('request', (req, res) => {
-  if (req.url.startsWith('/socket.io/')) {
-    console.log(`[HTTP/WS Handshake Attempt] ${req.method} ${req.url}`);
-  }
-});
+// Initialize WebSocket - REMOVED for Serverless Architecture
+// initSocket(server);
 
 // 1. Request logging middleware (MOVE TO TOP)
 app.use((req, res, next) => {

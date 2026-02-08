@@ -1,7 +1,7 @@
 const supabaseService = require('./supabase');
 const ftService = require('./ft-integration');
 const { logger, auditLog } = require('./logger');
-const { broadcastToUser } = require('./socket');
+const rabbitmq = require('./rabbitmq');
 const MonitoringService = require('./monitoring');
 const InterventionService = require('./intervention');
 const PaymentRoutingService = require('./payment-routing');
@@ -73,11 +73,13 @@ class WalletService {
                 message: `SPI Debit Success: ${amount}`
             });
 
-            // WebSocket Broadcast (Real-time balance)
-            broadcastToUser(userId, 'balance_update', {
+            // RabbitMQ Event Publish (Async - Fire & Forget)
+            rabbitmq.publishEvent(`user.${userId}.balance`, {
+                type: 'balance_update',
                 balance: newBalance,
                 bonus_balance: newBonusBalance,
-                currency: user.currency
+                currency: user.currency,
+                userId
             });
 
             // FT Integration (Async)
@@ -205,18 +207,22 @@ class WalletService {
                 provider: paymentResult.provider
             }, { correlationId, brandId });
 
-            // WebSocket Broadcast
-            broadcastToUser(userId, 'balance_update', {
+            // RabbitMQ Event
+            rabbitmq.publishEvent(`user.${userId}.balance`, {
+                type: 'balance_update',
                 balance: newBalance,
                 bonus_balance: user.bonus_balance || 0,
-                currency: user.currency
+                currency: user.currency,
+                userId
             });
 
-            broadcastToUser(userId, 'payment_status', {
+            rabbitmq.publishEvent(`user.${userId}.payment`, {
+                type: 'payment_status',
                 status: 'success',
                 amount,
                 method,
-                provider: paymentResult.provider
+                provider: paymentResult.provider,
+                userId
             });
 
             // AI Duty of Care: Evaluate Risk after transaction (Chasing losses detection)
@@ -235,11 +241,13 @@ class WalletService {
         } catch (error) {
             logger.error(`[Wallet SPI] Deposit Failed`, { error: error.message, correlationId });
 
-            // Notify frontend of failure
-            broadcastToUser(userId, 'payment_status', {
+            // Notify via RabbitMQ of failure
+            rabbitmq.publishEvent(`user.${userId}.payment`, {
+                type: 'payment_status',
                 status: 'failed',
                 amount,
-                reason: error.message
+                reason: error.message,
+                userId
             });
 
             throw error;
