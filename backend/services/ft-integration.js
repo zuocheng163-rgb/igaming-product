@@ -110,14 +110,14 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
                 note: payload.note || null,
                 origin,
                 payment_id: payload.transaction_id || `tx-${Date.now()}`,
-                status: payload.status || 'Approved', // Requested, Approved, Rejected, Rollback, Cancelled
+                status: payload.status || 'Approved', // ENUM: Requested, Approved, Rejected, Rollback, Cancelled
                 timestamp,
                 type: (payload.type === 'Debit' || eventType === 'withdrawal') ? 'Debit' : 'Credit',
                 user_id: userId,
                 vendor_id: payload.vendor_id || 'mock-vendor-1',
                 vendor_name: payload.vendor_name || 'MockProvider'
             };
-        } else if (eventType === 'bet' || eventType === 'win' || eventType === 'casino') {
+        } else if (eventType === 'bet' || eventType === 'win' || eventType === 'casino' || eventType === 'loss') {
             requestBody = {
                 activity_id: payload.transaction_id || `ctx-${Date.now()}`,
                 amount: parseFloat(payload.amount),
@@ -128,14 +128,14 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
                 exchange_rate: parseFloat(payload.exchange_rate || 1.0),
                 game_id: payload.game_id || 'unknown',
                 game_name: payload.game_name || 'Mock Slot Game',
-                game_type: payload.game_type || 'Slots', // Live Casino, Table, Slots
+                game_type: payload.game_type || 'Slots', // ENUM: Live Casino, Table, Slots
                 is_round_end: payload.is_round_end !== undefined ? payload.is_round_end : true,
                 locked_wager_amount: parseFloat(payload.locked_wager_amount || 0.0),
                 origin,
                 round_id: payload.round_id || `round-${Date.now()}`,
-                status: payload.status || 'Approved', // Approved, Rollback
+                status: payload.status || 'Approved', // ENUM: Approved, Rollback
                 timestamp,
-                type: (eventType === 'win' || payload.type === 'Win') ? 'Win' : (eventType === 'loss' ? 'Loss' : 'Bet'),
+                type: (eventType === 'win' || payload.type === 'Win') ? 'Win' : (eventType === 'loss' || payload.type === 'Loss' ? 'Loss' : 'Bet'), // ENUM: Bet, Win, Loss
                 user_id: userId,
                 vendor_id: payload.vendor_id || 'mock-vendor-1',
                 vendor_name: payload.game_provider || 'MockProvider',
@@ -165,8 +165,8 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
                 origin,
                 product: payload.product || 'Casino',
                 required_wagering_amount: parseFloat(payload.required_wagering_amount || 0.0),
-                status: payload.status || 'Created', // Completed, AutoCompleted, Forfeited, Expired, Lost
-                type: payload.type || 'WelcomeBonus', // NoDeposit, WelcomeBonus, CashbackBonus, ReloadBonus, WagerFree, FreeSpins, RiskFreeBet, Undefined
+                status: payload.status || 'Completed', // ENUM: Completed, AutoCompleted, Forfeited, Expired, Lost
+                type: payload.type || 'WelcomeBonus', // ENUM: NoDeposit, WelcomeBonus, CashbackBonus, ReloadBonus, WagerFree, FreeSpins, RiskFreeBet, Undefined
                 user_bonus_id: payload.user_bonus_id || `${userId}-${Date.now()}`,
                 user_id: userId,
                 timestamp,
