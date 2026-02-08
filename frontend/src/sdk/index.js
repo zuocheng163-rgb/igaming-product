@@ -8,8 +8,7 @@ class NeoStrikeClient {
             baseURL: this.apiUrl,
             headers: {
                 'Authorization': `Bearer ${this.token}`,
-                'Content-Type': 'application/json',
-                'x-sandbox-mode': 'true' // Default to sandbox for now
+                'Content-Type': 'application/json'
             }
         });
     }

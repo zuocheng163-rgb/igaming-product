@@ -1,5 +1,5 @@
-const axios = require('axios');
 const { logger, auditLog, generateCorrelationId } = require('./logger');
+const rabbitmq = require('./rabbitmq');
 
 // These will now be defaults if tenant-specific config is missing
 const DEFAULT_FT_API_URL = process.env.FT_API_URL || 'https://api.fasttrack-integration.com';
@@ -106,35 +106,33 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
             requestBody = { user_id: userId, bonus_id: payload.bonus_id || '9821', user_bonus_id: payload.user_bonus_id || `${userId}-${Date.now()}`, type: payload.type || 'WelcomeBonus', status: payload.status || 'Created', amount: parseFloat(payload.amount || 0), bonus_code: payload.bonus_code || 'WELCOME100', product: payload.product || 'Casino', currency: payload.currency || 'EUR', exchange_rate: 1.0, origin, timestamp };
         }
 
-        const response = await axios({
-            method: eventConfig.method,
-            url: targetUrl,
-            data: requestBody,
-            timeout: 5000,
-            headers: {
-                'X-API-Key': config_key,
-                'Content-Type': 'application/json',
-                'X-Correlation-ID': correlationId
-            }
+        // Publish to RabbitMQ instead of direct Axios call
+        const published = await rabbitmq.publishEvent(`ft.${eventType}`, {
+            userId,
+            eventType,
+            payload: requestBody,
+            config: {
+                url: targetUrl,
+                method: eventConfig.method,
+                apiKey: config_key
+            },
+            correlationId
         });
 
-        await auditLog({
-            correlationId, operatorId, actor_id: userId, action: `outbound:push_event:${eventType}`, entity_type: 'fasttrack_event', entity_id: userId, status: 'success', metadata: { targetUrl, request: requestBody, response: response.data }, message: `Successfully pushed ${eventType} event`
-        });
-
-        return response.data;
-    } catch (error) {
-        const isTransient = error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED';
-        if (isTransient && retries > 0) {
-            logger.warn(`[FT Integration] Transient error ${error.code}. Retrying... (${retries} left)`, { correlationId });
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return pushEventWithRetry(userId, eventType, payload, options, retries - 1, delay * 2);
+        if (!published) {
+            throw new Error('Failed to publish event to RabbitMQ');
         }
 
-        const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
-        logger.error(`[FT Integration] Failed to push event: ${eventType}`, { correlationId, error: errorMsg });
         await auditLog({
-            correlationId, operatorId, actor_id: userId, action: `outbound:push_event:${eventType}`, entity_type: 'fasttrack_event', entity_id: userId, status: 'error', level: 'error', metadata: { request: payload, error: errorMsg }, message: `Failed to push ${eventType} event`
+            correlationId, operatorId, actor_id: userId, action: `outbound:rabbitmq:publish:${eventType}`, entity_type: 'fasttrack_event', entity_id: userId, status: 'success', metadata: { request: requestBody }, message: `Successfully queued ${eventType} event via RabbitMQ`
+        });
+
+        return { status: 'queued', correlationId };
+    } catch (error) {
+        const errorMsg = error.message;
+        logger.error(`[FT Integration] Failed to queue event: ${eventType}`, { correlationId, error: errorMsg });
+        await auditLog({
+            correlationId, operatorId, actor_id: userId, action: `outbound:rabbitmq:publish:${eventType}`, entity_type: 'fasttrack_event', entity_id: userId, status: 'error', level: 'error', metadata: { request: payload, error: errorMsg }, message: `Failed to queue ${eventType} event`
         });
         throw error;
     }

@@ -34,7 +34,16 @@ const authenticateRequest = async (req, res, next) => {
 
         // 2. User Authentication (Session Token)
         if (sessionToken) {
-            // Demo Token Bypass (for Sandbox/PoC)
+            // ALWAYS try to find real user in database first
+            const user = await supabaseService.getUser(username, sessionToken);
+            if (user) {
+                req.user = user;
+                req.brandId = user.brand_id || 1;
+                req.role = user.role || 'PLAYER';
+                return next();
+            }
+
+            // Fallback to Demo Token ONLY if user not in DB and sandbox mode is enabled
             const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
             if (isSandbox && sessionToken.startsWith('token-')) {
                 const usernameFromToken = sessionToken.replace('token-', '');
@@ -48,14 +57,6 @@ const authenticateRequest = async (req, res, next) => {
                 };
                 req.brandId = 1;
                 req.role = 'PLAYER';
-                return next();
-            }
-
-            const user = await supabaseService.getUser(username, sessionToken);
-            if (user) {
-                req.user = user;
-                req.brandId = user.brand_id || 1;
-                req.role = user.role || 'SUPPORT'; // Default to Support if not specified
                 return next();
             }
         }
