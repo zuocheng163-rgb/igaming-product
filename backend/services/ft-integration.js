@@ -77,59 +77,99 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
         const utcTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC'; // Custom UTC for body
         let requestBody = {};
 
-        // Event enrichment logic - Pruned to bare minimum required by FT
+        // Event enrichment logic - STRICT ALIGNMENT with FT Schemas provided by User
         if (eventType === 'login') {
-            requestBody = { user_id: userId, timestamp };
-        } else if (eventType === 'registration') {
-            requestBody = { user_id: userId, timestamp, origin };
-        } else if (['user_update', 'consents', 'consent', 'blocks', 'block', 'logout'].includes(eventType)) {
-            // These events trigger a re-sync from FT side, minimal payload required
-            requestBody = { user_id: userId, timestamp, origin };
-        } else if (eventType === 'deposit' || eventType === 'payment') {
             requestBody = {
                 user_id: userId,
-                payment_id: payload.transaction_id || `tx-${Date.now()}`,
-                transaction_type: (payload.type === 'Debit' || eventType === 'withdrawal') ? 'Debit' : 'Credit',
-                status: payload.status || 'Approved',
+                is_impersonated: payload.is_impersonated || false,
+                ip_address: payload.ip_address || '127.0.0.1',
+                user_agent: payload.user_agent || 'Mozilla/5.0',
+                timestamp,
+                origin
+            };
+        } else if (eventType === 'registration') {
+            requestBody = {
+                user_id: userId,
+                note: payload.note || 'New registration',
+                user_agent: payload.user_agent || 'Mozilla/5.0',
+                ip_address: payload.ip_address || '127.0.0.1',
+                timestamp,
+                origin
+            };
+        } else if (['user_update', 'consents', 'consent', 'blocks', 'block'].includes(eventType)) {
+            requestBody = { user_id: userId, timestamp, origin };
+        } else if (eventType === 'logout') {
+            requestBody = { user_id: userId, timestamp, origin };
+        } else if (eventType === 'deposit' || eventType === 'payment' || eventType === 'withdrawal') {
+            requestBody = {
                 amount: parseFloat(payload.amount),
+                bonus_code: payload.bonus_code || null,
                 currency: payload.currency || 'EUR',
-                exchange_rate: 1.0,
-                fee_amount: 0,
+                exchange_rate: parseFloat(payload.exchange_rate || 1.0),
+                fee_amount: parseFloat(payload.fee_amount || 0.0),
+                note: payload.note || null,
                 origin,
-                timestamp
+                payment_id: payload.transaction_id || `tx-${Date.now()}`,
+                status: payload.status || 'Approved', // Requested, Approved, Rejected, Rollback, Cancelled
+                timestamp,
+                type: (payload.type === 'Debit' || eventType === 'withdrawal') ? 'Debit' : 'Credit',
+                user_id: userId,
+                vendor_id: payload.vendor_id || 'mock-vendor-1',
+                vendor_name: payload.vendor_name || 'MockProvider'
             };
         } else if (eventType === 'bet' || eventType === 'win' || eventType === 'casino') {
             requestBody = {
-                user_id: userId,
-                timestamp,
+                activity_id: payload.transaction_id || `ctx-${Date.now()}`,
+                amount: parseFloat(payload.amount),
+                balance_after: parseFloat(payload.balance_after || 0.0),
+                balance_before: parseFloat(payload.balance_before || 0.0),
+                bonus_wager_amount: parseFloat(payload.bonus_wager_amount || 0.0),
+                currency: payload.currency || 'EUR',
+                exchange_rate: parseFloat(payload.exchange_rate || 1.0),
                 game_id: payload.game_id || 'unknown',
                 game_name: payload.game_name || 'Mock Slot Game',
-                provider_id: payload.vendor_id || 'mock-vendor-1',
-                provider_name: payload.game_provider || 'MockProvider',
-                currency: payload.currency || 'EUR',
-                amount: parseFloat(payload.amount),
-                transaction_type: (eventType === 'win' || payload.type === 'Win') ? 'Win' : 'Bet',
-                is_bonus_payout: payload.is_bonus_payout || false
+                game_type: payload.game_type || 'Slots', // Live Casino, Table, Slots
+                is_round_end: payload.is_round_end !== undefined ? payload.is_round_end : true,
+                locked_wager_amount: parseFloat(payload.locked_wager_amount || 0.0),
+                origin,
+                round_id: payload.round_id || `round-${Date.now()}`,
+                status: payload.status || 'Approved', // Approved, Rollback
+                timestamp,
+                type: (eventType === 'win' || payload.type === 'Win') ? 'Win' : (eventType === 'loss' ? 'Loss' : 'Bet'),
+                user_id: userId,
+                vendor_id: payload.vendor_id || 'mock-vendor-1',
+                vendor_name: payload.game_provider || 'MockProvider',
+                wager_amount: parseFloat(payload.wager_amount || payload.amount || 0.0),
+                meta: payload.meta || { source: 'backend' }
             };
         } else if (eventType === 'balance') {
             requestBody = {
-                user_id: userId,
                 balances: payload.balances || [
                     { amount: parseFloat(payload.amount || 0), currency: payload.currency || 'EUR', key: 'real_money', exchange_rate: 1 },
                     { amount: parseFloat(payload.bonus_amount || 0), currency: payload.currency || 'EUR', key: 'bonus_money', exchange_rate: 1 }
                 ],
                 origin,
-                timestamp
+                timestamp,
+                user_id: userId
             };
         } else if (eventType === 'bonus') {
             requestBody = {
-                user_id: userId,
-                user_bonus_id: payload.user_bonus_id || `${userId}-${Date.now()}`,
-                bonus_contract_id: payload.bonus_id || '9821', // Mapping bonus_id to contract_id
-                amount: parseFloat(payload.amount || 0),
+                amount: parseFloat(payload.amount || 0.0),
+                bonus_code: payload.bonus_code || 'WELCOME100',
+                bonus_id: payload.bonus_id || '9821',
+                bonus_turned_real: payload.bonus_turned_real || 0,
                 currency: payload.currency || 'EUR',
-                status: payload.status || 'Created',
-                timestamp
+                exchange_rate: parseFloat(payload.exchange_rate || 1.0),
+                locked_amount: parseFloat(payload.locked_amount || 0.0),
+                meta: payload.meta || { source: 'backend' },
+                origin,
+                product: payload.product || 'Casino',
+                required_wagering_amount: parseFloat(payload.required_wagering_amount || 0.0),
+                status: payload.status || 'Created', // Completed, AutoCompleted, Forfeited, Expired, Lost
+                type: payload.type || 'WelcomeBonus', // NoDeposit, WelcomeBonus, CashbackBonus, ReloadBonus, WagerFree, FreeSpins, RiskFreeBet, Undefined
+                user_bonus_id: payload.user_bonus_id || `${userId}-${Date.now()}`,
+                user_id: userId,
+                fasttrack_references: payload.fasttrack_references || { source: 'backend' }
             };
         }
 
