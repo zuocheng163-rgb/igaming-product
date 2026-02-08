@@ -96,6 +96,14 @@ class WalletService {
                 currency: user.currency
             }, { correlationId, brandId });
 
+            // Balance Sync (Sync state after Bet)
+            await ftService.pushEvent(user.user_id, 'balance', {
+                balances: [
+                    { amount: newBalance, currency: user.currency, key: 'real_money', exchange_rate: 1 },
+                    { amount: newBonusBalance, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
+                ]
+            }, { correlationId, brandId });
+
             // AI Duty of Care: Evaluate Risk after transaction
             const riskData = await MonitoringService.evaluateRisk(userId);
             if (riskData) {
@@ -146,6 +154,14 @@ class WalletService {
                 balance_before: user.balance,
                 balance_after: newBalance,
                 currency: user.currency
+            }, { correlationId, brandId });
+
+            // Balance Sync (Sync state after Win)
+            await ftService.pushEvent(user.user_id, 'balance', {
+                balances: [
+                    { amount: newBalance, currency: user.currency, key: 'real_money', exchange_rate: 1 },
+                    { amount: user.bonus_balance || 0, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
+                ]
             }, { correlationId, brandId });
 
             // AI Duty of Care: Evaluate Risk after transaction
@@ -205,6 +221,14 @@ class WalletService {
                 currency: user.currency,
                 status: 'Approved',
                 provider: paymentResult.provider
+            }, { correlationId, brandId });
+
+            // Balance Sync (Sync state after Deposit)
+            await ftService.pushEvent(user.user_id, 'balance', {
+                balances: [
+                    { amount: newBalance, currency: user.currency, key: 'real_money', exchange_rate: 1 },
+                    { amount: user.bonus_balance || 0, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
+                ]
             }, { correlationId, brandId });
 
             // RabbitMQ Event
