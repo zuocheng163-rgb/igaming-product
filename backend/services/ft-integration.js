@@ -177,26 +177,24 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
 
         const ftType = FT_MESSAGE_TYPES[eventType] || "";
 
-        // Pruned message body: only include required fields to avoid "mess" in FT logs
-        const prunedMessage = {
-            type: ftType,
-            config: {
-                url: targetUrl,
-                method: eventConfig.method,
-                apiKey: config_key
-            },
-            payload: requestBody
-        };
-
-        // Publish to RabbitMQ with the 'type' property set for both JSON and AMQP headers
-        const published = await rabbitmq.publishEvent(null, prunedMessage, ftType);
+        // Send ONLY the domain payload required by FT as the message body
+        // Technical metadata moved to headers for the bridge to handle
+        const published = await rabbitmq.publishEvent(null, requestBody, ftType, {
+            headers: {
+                'x-ft-url': targetUrl,
+                'x-ft-method': eventConfig.method,
+                'x-ft-api-key': config_key,
+                'x-correlation-id': correlationId,
+                'x-timestamp': utcTimestamp
+            }
+        });
 
         if (!published) {
             throw new Error('Failed to publish event to RabbitMQ');
         }
 
         await auditLog({
-            correlationId, operatorId, actor_id: userId, action: `outbound:rabbitmq:publish:${eventType}`, entity_type: 'fasttrack_event', entity_id: userId, status: 'success', metadata: { request: prunedMessage }, message: `Successfully queued ${eventType} event via RabbitMQ`
+            correlationId, operatorId, actor_id: userId, action: `outbound:rabbitmq:publish:${eventType}`, entity_type: 'fasttrack_event', entity_id: userId, status: 'success', metadata: { request: requestBody }, message: `Successfully queued ${eventType} event via RabbitMQ`
         });
 
         return { status: 'queued', correlationId };
