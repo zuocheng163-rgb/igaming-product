@@ -148,14 +148,9 @@ router.post('/authenticate', async (req, res) => {
 });
 
 router.get('/balance', authenticateRequest, async (req, res) => {
-    logger.info('[API] Serving /balance request', {
-        userId: req.user.user_id,
-        balance: req.user.balance,
-        bonus: req.user.bonus_balance
-    });
     res.json({
-        amount: req.user.balance,
-        bonus_amount: req.user.bonus_balance || 0,
+        balance: req.user.balance,
+        bonus_balance: req.user.bonus_balance || 0,
         currency: req.user.currency
     });
 });

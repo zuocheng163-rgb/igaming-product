@@ -234,7 +234,7 @@ class WalletService {
             return {
                 transaction_id: transactionId,
                 balance: newBalance,
-                bonus_amount: user.bonus_balance || 0,
+                bonus_balance: user.bonus_balance || 0,
                 currency: user.currency,
                 provider: paymentResult.provider
             };

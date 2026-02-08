@@ -60,7 +60,7 @@ export const useBalance = (initialBalance = 0) => {
             try {
                 const data = await client.connect(); // Re-using connect as a fetcher
                 if (data.balance !== undefined) setBalance(data.balance);
-                if (data.bonus_amount !== undefined) setBonusBalance(data.bonus_amount);
+                if (data.bonus_balance !== undefined) setBonusBalance(data.bonus_balance);
             } catch (err) {
                 console.error('Failed to fetch balance', err);
             }

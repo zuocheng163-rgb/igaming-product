@@ -54,7 +54,7 @@ function Dashboard({ user: initialUser, token, onLogout }) {
     const handleDeposit = async () => {
         try {
             const data = await deposit(token, 100);
-            updateBalance(data.balance, data.bonus_amount || 0);
+            updateBalance(data.balance, data.bonus_balance || 0);
             setStatus('Deposit Success: +100 ' + (data.currency || currency));
         } catch (err) {
             setStatus('Deposit failed');
