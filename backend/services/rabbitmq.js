@@ -7,6 +7,7 @@ class RabbitMQService {
         // CloudAMQP HTTP API URL structure: https://[host]/api/exchanges/[vhost]/[exchange]/publish
         // Example CLOUDAMQP_URL: amqps://user:pass@host/vhost
         this.amqpUrl = process.env.CLOUDAMQP_URL;
+        this.defaultQueue = process.env.RABBITMQ_QUEUE || 'fasttrack-events';
         this.httpUrl = this._deriveHttpUrl(this.amqpUrl);
     }
 
@@ -47,13 +48,15 @@ class RabbitMQService {
             return false;
         }
 
+        const targetRoutingKey = routingKey || this.defaultQueue;
+
         try {
             const body = {
                 properties: {
                     content_type: "application/json",
                     delivery_mode: 2 // Persistent
                 },
-                routing_key: routingKey,
+                routing_key: targetRoutingKey,
                 payload: JSON.stringify(payload),
                 payload_encoding: "string"
             };

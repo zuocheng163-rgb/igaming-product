@@ -109,7 +109,7 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
         logger.info(`[FT Integration] Preparing to queue ${eventType} event to RabbitMQ`, { userId, correlationId });
 
         // Publish to RabbitMQ instead of direct Axios call
-        const published = await rabbitmq.publishEvent(`ft.${eventType}`, {
+        const published = await rabbitmq.publishEvent(null, {
             userId,
             eventType,
             payload: requestBody,
