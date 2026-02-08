@@ -25,13 +25,17 @@ const authenticateRequest = async (req, res, next) => {
             : req.headers['authorization'];
         const username = req.headers['x-username'] || req.body?.username;
 
-        logger.debug('Authenticating request', {
+        logger.info('Authenticating request', {
             correlationId,
             hasSessionToken: !!sessionToken,
             tokenPrefix: sessionToken ? sessionToken.substring(0, 10) + '...' : 'none',
             username,
             path: req.path
         });
+
+        if (!sessionToken && !apiKey) {
+            logger.warn('Authentication failed: No token or API key provided', { correlationId, path: req.path });
+        }
 
         // 1. S2S Authentication (API Key)
         if (apiKey && apiKey === process.env.OPERATOR_API_KEY) {

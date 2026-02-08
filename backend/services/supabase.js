@@ -58,14 +58,20 @@ const saveAuditLog = async (logEntry) => {
 const getUser = async (username, token) => {
     if (!supabase || !token) return null;
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('users')
         .select('*')
-        .eq('token', token)
-        .single();
+        .eq('token', token);
+
+    // Extra validation if username is provided
+    if (username) {
+        query = query.eq('username', username);
+    }
+
+    const { data, error } = await query.single();
 
     if (error || !data) {
-        logger.debug(`[Supabase] User not found by token`, { username });
+        logger.debug(`[Supabase] User not found by token/username`, { username, hasToken: !!token });
         return null;
     }
 

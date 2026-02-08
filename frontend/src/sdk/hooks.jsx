@@ -8,6 +8,11 @@ export const NeoStrikeProvider = ({ config, children }) => {
     const [isConnected, setIsConnected] = useState(false);
 
     useEffect(() => {
+        if (!config.token) {
+            console.log('[NeoStrikeProvider] No token provided, skipping initialization.');
+            return;
+        }
+
         const neostrike = new NeoStrikeClient(config);
 
         const initialize = async () => {
@@ -25,7 +30,7 @@ export const NeoStrikeProvider = ({ config, children }) => {
         return () => {
             neostrike.disconnect();
         };
-    }, [config.token, config.wsUrl]);
+    }, [config.token, config.apiUrl]);
 
     return (
         <NeoStrikeContext.Provider value={{ client, isConnected }}>
