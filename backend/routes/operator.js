@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabaseService = require('../services/supabase');
 const ftService = require('../services/ft-integration');
+const { logger, auditLog, generateCorrelationId } = require('../services/logger');
 const rabbitmq = require('../services/rabbitmq');
 
 // Middleware to extract or generate Correlation ID
@@ -485,8 +486,7 @@ router.get('/userdetails/:userid', authenticateRequest, async (req, res) => {
     res.json(response);
 });
 
-const { logger, auditLog, generateCorrelationId } = require('../services/logger');
-const rabbitmq = require('../services/rabbitmq');
+
 const ReportingService = require('../services/reporting');
 
 router.get('/stats/summary', authenticateRequest, async (req, res) => {
