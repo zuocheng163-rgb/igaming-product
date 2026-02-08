@@ -12,7 +12,7 @@ import {
     updateUserBlocks,
     logout as apiLogout
 } from '../services/api';
-import { useAlerts } from '../sdk/hooks';
+import { useAlerts, useBalance } from '../sdk/hooks';
 import axios from 'axios';
 
 function Dashboard({ user: initialUser, token, onLogout }) {
