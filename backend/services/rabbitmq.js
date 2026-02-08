@@ -15,18 +15,25 @@ class RabbitMQService {
         try {
             const parsed = new URL(amqpUrl);
             const host = parsed.hostname;
-            const vhost = parsed.pathname.substring(1); // Remove leading slash
-            const auth = `${parsed.username}:${parsed.password}`;
+            // Handle default vhost: In CloudAMQP/RabbitMQ HTTP API, '/' vhost must be encoded as '%2f'
+            let vhost = parsed.pathname.substring(1);
+            if (!vhost || vhost === '/') vhost = '%2f';
+            else vhost = encodeURIComponent(vhost);
 
-            // Construct HTTP API URL for default exchange
-            // Note: We use the default exchange (amq.default) or a specific one if configured
-            // For simplicity, we'll publish to the default exchange with routing key = queue name
+            const auth = {
+                username: parsed.username,
+                password: parsed.password
+            };
+
+            logger.info(`[RabbitMQ] Initializing Service`, {
+                host,
+                vhost: vhost === '%2f' ? '/' : vhost,
+                user: parsed.username
+            });
+
             return {
-                url: `https://${host}/api/exchanges/${encodeURIComponent(vhost)}/amq.default/publish`,
-                auth: {
-                    username: parsed.username,
-                    password: parsed.password
-                }
+                url: `https://${host}/api/exchanges/${vhost}/amq.default/publish`,
+                auth
             };
         } catch (error) {
             logger.error('[RabbitMQ] Failed to parse CLOUDAMQP_URL', error);

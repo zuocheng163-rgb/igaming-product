@@ -148,6 +148,11 @@ router.post('/authenticate', async (req, res) => {
 });
 
 router.get('/balance', authenticateRequest, async (req, res) => {
+    // Prevent browser and proxy caching to ensure fresh balance
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     res.json({
         balance: req.user.balance,
         bonus_balance: req.user.bonus_balance || 0,
