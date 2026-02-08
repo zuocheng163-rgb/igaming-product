@@ -4,11 +4,13 @@ class NeoStrikeClient {
     constructor(config) {
         this.apiUrl = config.apiUrl || 'http://localhost:5000';
         this.token = config.token;
+        this.username = config.username;
         this.client = axios.create({
             baseURL: this.apiUrl,
             headers: {
                 'Authorization': `Bearer ${this.token}`,
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'x-username': this.username
             }
         });
     }

@@ -11,17 +11,14 @@ export const login = async (username, token) => {
 };
 
 export const register = async (userData) => {
-    const response = await axios.post(`${API_URL}/register`, userData, {
-        headers: { 'x-sandbox-mode': 'true' }
-    });
+    const response = await axios.post(`${API_URL}/register`, userData);
     return response.data;
 };
 
 export const getBalance = async (token) => {
     const response = await axios.get(`${API_URL}/balance`, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
@@ -30,8 +27,7 @@ export const getBalance = async (token) => {
 export const deposit = async (token, amount) => {
     const response = await axios.post(`${API_URL}/deposit`, { amount }, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
@@ -49,8 +45,7 @@ export const placeBet = async (token, userId, amount) => {
         game_id: 'slot-game-1'
     }, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
@@ -59,8 +54,7 @@ export const placeBet = async (token, userId, amount) => {
 export const getBonusList = async (token) => {
     const response = await axios.get(`${API_URL}/bonus/list`, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
@@ -72,8 +66,7 @@ export const creditBonus = async (token, userId, bonusCode) => {
         bonus_code: bonusCode
     }, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
@@ -87,8 +80,7 @@ export const creditBonusFunds = async (token, userId, amount, bonusCode) => {
         currency: 'EUR'
     }, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
@@ -97,8 +89,7 @@ export const creditBonusFunds = async (token, userId, amount, bonusCode) => {
 export const triggerRegistration = async (token) => {
     const response = await axios.post(`${API_URL}/registration`, {}, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
@@ -107,8 +98,7 @@ export const triggerRegistration = async (token) => {
 export const logout = async (token) => {
     const response = await axios.post(`${API_URL}/logout`, {}, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
@@ -117,8 +107,7 @@ export const logout = async (token) => {
 export const updateUser = async (token, userData) => {
     const response = await axios.post(`${API_URL}/user/update`, userData, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
@@ -131,8 +120,7 @@ export const creditWin = async (token, userId, amount) => {
         game_id: 'slot-game-1'
     }, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
@@ -140,8 +128,7 @@ export const creditWin = async (token, userId, amount) => {
 export const updateUserConsents = async (token, userId, consents) => {
     const response = await axios.put(`${API_URL}/userconsents/${userId}`, { consents }, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
@@ -153,8 +140,7 @@ export const updateUserBlocks = async (token, userId, blocked, excluded) => {
         excluded
     }, {
         headers: {
-            Authorization: `Bearer ${token}`,
-            'x-sandbox-mode': 'true'
+            Authorization: `Bearer ${token}`
         }
     });
     return response.data;
