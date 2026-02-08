@@ -58,39 +58,39 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
         const timestamp = new Date().toISOString();
         let requestBody = {};
 
-        // Event enrichment logic (same as before)
+        // Event enrichment logic - Pruned to bare minimum required by FT
         if (eventType === 'login') {
-            requestBody = { user_id: userId, is_impersonated: payload.is_impersonated || false, ip_address: payload.ip_address || '127.0.0.1', user_agent: payload.user_agent || 'Mozilla/5.0', timestamp, origin };
+            requestBody = { user_id: userId, timestamp };
         } else if (eventType === 'registration') {
-            requestBody = { user_id: userId, note: payload.note || 'New registration', user_agent: payload.user_agent || 'Mozilla/5.0', ip_address: payload.ip_address || '127.0.0.1', timestamp, origin };
+            requestBody = { user_id: userId, timestamp, origin };
         } else if (['user_update', 'consents', 'consent', 'blocks', 'block', 'logout'].includes(eventType)) {
-            requestBody = { user_id: userId, timestamp, origin, ...payload };
+            // These events trigger a re-sync from FT side, minimal payload required
+            requestBody = { user_id: userId, timestamp, origin };
         } else if (eventType === 'deposit' || eventType === 'payment') {
-            requestBody = { user_id: userId, payment_id: payload.transaction_id || `tx-${Date.now()}`, type: 'Credit', status: payload.status || 'Approved', cashtype: 'cash', amount: parseFloat(payload.amount), currency: payload.currency || 'EUR', exchange_rate: 1.0, origin, timestamp };
+            requestBody = {
+                user_id: userId,
+                payment_id: payload.transaction_id || `tx-${Date.now()}`,
+                transaction_type: (payload.type === 'Debit' || eventType === 'withdrawal') ? 'Debit' : 'Credit',
+                status: payload.status || 'Approved',
+                amount: parseFloat(payload.amount),
+                currency: payload.currency || 'EUR',
+                exchange_rate: 1.0,
+                fee_amount: 0,
+                origin,
+                timestamp
+            };
         } else if (eventType === 'bet' || eventType === 'win' || eventType === 'casino') {
             requestBody = {
                 user_id: userId,
-                activity_id: payload.transaction_id || `ctx-${Date.now()}`,
-                type: (eventType === 'win' || payload.type === 'Win') ? 'Win' : 'Bet',
-                status: 'Approved',
-                amount: parseFloat(payload.amount),
-                bonus_wager_amount: parseFloat(payload.bonus_wager_amount || 0),
-                wager_amount: parseFloat(payload.wager_amount || 0),
-                balance_after: parseFloat(payload.balance_after || 0),
-                balance_before: parseFloat(payload.balance_before || 0),
-                bonus_balance_after: parseFloat(payload.bonus_balance_after || 0),
-                bonus_balance_before: parseFloat(payload.bonus_balance_before || 0),
-                currency: payload.currency || 'EUR',
-                exchange_rate: 1.0,
+                timestamp,
                 game_id: payload.game_id || 'unknown',
                 game_name: payload.game_name || 'Mock Slot Game',
-                game_type: payload.game_type || 'Slot',
-                vendor_id: payload.vendor_id || 'mock-vendor-1',
-                vendor_name: payload.game_provider || 'MockProvider',
-                round_id: payload.round_id || (payload.transaction_id ? `round-${payload.transaction_id}` : `round-${Date.now()}`),
-                is_round_end: payload.is_round_end !== undefined ? payload.is_round_end : true,
-                origin,
-                timestamp
+                provider_id: payload.vendor_id || 'mock-vendor-1',
+                provider_name: payload.game_provider || 'MockProvider',
+                currency: payload.currency || 'EUR',
+                amount: parseFloat(payload.amount),
+                transaction_type: (eventType === 'win' || payload.type === 'Win') ? 'Win' : 'Bet',
+                is_bonus_payout: payload.is_bonus_payout || false
             };
         } else if (eventType === 'balance') {
             requestBody = {
@@ -103,7 +103,15 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
                 timestamp
             };
         } else if (eventType === 'bonus') {
-            requestBody = { user_id: userId, bonus_id: payload.bonus_id || '9821', user_bonus_id: payload.user_bonus_id || `${userId}-${Date.now()}`, type: payload.type || 'WelcomeBonus', status: payload.status || 'Created', amount: parseFloat(payload.amount || 0), bonus_code: payload.bonus_code || 'WELCOME100', product: payload.product || 'Casino', currency: payload.currency || 'EUR', exchange_rate: 1.0, origin, timestamp };
+            requestBody = {
+                user_id: userId,
+                user_bonus_id: payload.user_bonus_id || `${userId}-${Date.now()}`,
+                bonus_contract_id: payload.bonus_id || '9821', // Mapping bonus_id to contract_id
+                amount: parseFloat(payload.amount || 0),
+                currency: payload.currency || 'EUR',
+                status: payload.status || 'Created',
+                timestamp
+            };
         }
 
         logger.info(`[FT Integration] Preparing to queue ${eventType} event to RabbitMQ`, { userId, correlationId });
