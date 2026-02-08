@@ -42,7 +42,7 @@ class RabbitMQService {
         }
     }
 
-    async publishEvent(routingKey, payload) {
+    async publishEvent(routingKey, payload, type = null) {
         if (!this.httpUrl) {
             logger.warn('[RabbitMQ] CLOUDAMQP_URL not set or invalid. Asynchronous event publishing is disabled.');
             return false;
@@ -54,10 +54,11 @@ class RabbitMQService {
             const body = {
                 properties: {
                     content_type: "application/json",
-                    delivery_mode: 2 // Persistent
+                    delivery_mode: 2, // Persistent
+                    type: type || (payload && payload.type) || "" // Set AMQP type property
                 },
                 routing_key: targetRoutingKey,
-                payload: JSON.stringify(payload),
+                payload: typeof payload === 'string' ? payload : JSON.stringify(payload),
                 payload_encoding: "string"
             };
 
