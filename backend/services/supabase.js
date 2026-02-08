@@ -75,6 +75,15 @@ const getUser = async (username, token) => {
         return null;
     }
 
+    logger.info(`[Supabase] User fetched successfully`, {
+        userId: data.user_id,
+        username: data.username,
+        balance: data.balance,
+        bonus_balance: data.bonus_balance,
+        currency: data.currency,
+        raw_keys: Object.keys(data)
+    });
+
     return data;
 };
 
