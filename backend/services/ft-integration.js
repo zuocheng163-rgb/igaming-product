@@ -27,6 +27,24 @@ const EVENT_CONFIG = {
     'consent': { path: '/v2/integration/user/consents', method: 'PUT' }
 };
 
+const FT_MESSAGE_TYPES = {
+    'balance': 'USER_BALANCES_UPDATE',
+    'bonus': 'BONUS',
+    'casino': 'CASINO',
+    'bet': 'CASINO',
+    'win': 'CASINO',
+    'payment': 'PAYMENT',
+    'deposit': 'PAYMENT',
+    'user_update': 'USER_UPDATE_V2',
+    'blocks': 'USER_BLOCK_V2',
+    'block': 'USER_BLOCK_V2',
+    'consents': 'USER_CONSENTS_V2',
+    'consent': 'USER_CONSENTS_V2',
+    'login': 'LOGIN_V2',
+    'registration': 'USER_CREATE_V2',
+    'logout': 'LOGOUT'
+};
+
 /**
  * Pushes clinical events to Fast Track Integration API.
  * Now supports multi-tenancy and professional observability.
@@ -55,7 +73,8 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
     try {
         const baseUrl = config_url.endsWith('/') ? config_url.slice(0, -1) : config_url;
         const targetUrl = `${baseUrl}${eventConfig.path}`;
-        const timestamp = new Date().toISOString();
+        const timestamp = new Date().toISOString(); // ISO8601 for payload
+        const utcTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC'; // Custom UTC for body
         let requestBody = {};
 
         // Event enrichment logic - Pruned to bare minimum required by FT
@@ -116,25 +135,32 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
 
         logger.info(`[FT Integration] Preparing to queue ${eventType} event to RabbitMQ`, { userId, correlationId });
 
-        // Publish to RabbitMQ instead of direct Axios call
-        const published = await rabbitmq.publishEvent(null, {
-            userId,
-            eventType,
-            payload: requestBody,
-            config: {
-                url: targetUrl,
-                method: eventConfig.method,
-                apiKey: config_key
-            },
-            correlationId
-        });
+        // Build the nested message as required by the user
+        const rabbitMessage = {
+            type: FT_MESSAGE_TYPES[eventType] || "",
+            body: {
+                config: {
+                    url: targetUrl,
+                    method: eventConfig.method,
+                    apiKey: config_key
+                },
+                correlationId,
+                eventType,
+                userId,
+                timestamp: utcTimestamp,
+                payload: requestBody
+            }
+        };
+
+        // Publish to RabbitMQ
+        const published = await rabbitmq.publishEvent(null, rabbitMessage);
 
         if (!published) {
             throw new Error('Failed to publish event to RabbitMQ');
         }
 
         await auditLog({
-            correlationId, operatorId, actor_id: userId, action: `outbound:rabbitmq:publish:${eventType}`, entity_type: 'fasttrack_event', entity_id: userId, status: 'success', metadata: { request: requestBody }, message: `Successfully queued ${eventType} event via RabbitMQ`
+            correlationId, operatorId, actor_id: userId, action: `outbound:rabbitmq:publish:${eventType}`, entity_type: 'fasttrack_event', entity_id: userId, status: 'success', metadata: { request: rabbitMessage }, message: `Successfully queued ${eventType} event via RabbitMQ`
         });
 
         return { status: 'queued', correlationId };
