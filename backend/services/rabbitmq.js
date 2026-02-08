@@ -36,7 +36,7 @@ class RabbitMQService {
 
     async publishEvent(routingKey, payload) {
         if (!this.httpUrl) {
-            logger.warn('[RabbitMQ] CLOUDAMQP_URL not set. Skipping publish.');
+            logger.warn('[RabbitMQ] CLOUDAMQP_URL not set or invalid. Asynchronous event publishing is disabled.');
             return false;
         }
 

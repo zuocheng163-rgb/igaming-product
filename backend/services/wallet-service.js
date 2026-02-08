@@ -73,8 +73,8 @@ class WalletService {
                 message: `SPI Debit Success: ${amount}`
             });
 
-            // RabbitMQ Event Publish (Async - Fire & Forget)
-            rabbitmq.publishEvent(`user.${userId}.balance`, {
+            // RabbitMQ Event Publish (Async)
+            await rabbitmq.publishEvent(`user.${userId}.balance`, {
                 type: 'balance_update',
                 balance: newBalance,
                 bonus_balance: newBonusBalance,
@@ -83,7 +83,7 @@ class WalletService {
             });
 
             // FT Integration (Async)
-            ftService.pushEvent(user.user_id, 'bet', {
+            await ftService.pushEvent(user.user_id, 'bet', {
                 amount,
                 bonus_wager_amount: bonusWager,
                 wager_amount: realWager,
@@ -139,7 +139,7 @@ class WalletService {
                 message: `SPI Credit Success: ${amount}`
             });
 
-            ftService.pushEvent(user.user_id, 'win', {
+            await ftService.pushEvent(user.user_id, 'win', {
                 amount,
                 transaction_id: transactionId,
                 game_id: gameId,
@@ -208,7 +208,7 @@ class WalletService {
             }, { correlationId, brandId });
 
             // RabbitMQ Event
-            rabbitmq.publishEvent(`user.${userId}.balance`, {
+            await rabbitmq.publishEvent(`user.${userId}.balance`, {
                 type: 'balance_update',
                 balance: newBalance,
                 bonus_balance: user.bonus_balance || 0,
@@ -216,7 +216,7 @@ class WalletService {
                 userId
             });
 
-            rabbitmq.publishEvent(`user.${userId}.payment`, {
+            await rabbitmq.publishEvent(`user.${userId}.payment`, {
                 type: 'payment_status',
                 status: 'success',
                 amount,
@@ -242,7 +242,7 @@ class WalletService {
             logger.error(`[Wallet SPI] Deposit Failed`, { error: error.message, correlationId });
 
             // Notify via RabbitMQ of failure
-            rabbitmq.publishEvent(`user.${userId}.payment`, {
+            await rabbitmq.publishEvent(`user.${userId}.payment`, {
                 type: 'payment_status',
                 status: 'failed',
                 amount,
@@ -325,7 +325,7 @@ class WalletService {
             }, { correlationId, brandId });
 
             // Balance Sync
-            ftService.pushEvent(user.user_id, 'balance', {
+            await ftService.pushEvent(user.user_id, 'balance', {
                 balances: [
                     { amount: user.balance || 0, currency: user.currency, key: 'real_money', exchange_rate: 1 },
                     { amount: newBonusBalance, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
