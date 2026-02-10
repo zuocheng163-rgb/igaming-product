@@ -346,6 +346,72 @@ const getUserBlocks = async (userId) => {
     return data;
 };
 
+const getOperatorNotifications = async (operatorId, limit = 50) => {
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+        .from('operator_notifications')
+        .select('*')
+        .eq('operator_id', operatorId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+    if (error) {
+        logger.error('[Supabase] Failed to fetch operator notifications', { error: error.message });
+        return [];
+    }
+
+    return data;
+};
+
+const getOperatorStats = async (operatorId) => {
+    if (!supabase) return {};
+
+    // 1. Fetch KPI Strip stats
+    const kpis = await getAggregatedKPIs(operatorId);
+
+    // 2. Fetch GGR history (last 30 days) from pre-aggregated table
+    const { data: history, error: historyError } = await supabase
+        .from('daily_stats')
+        .select('date, ggr, ngr')
+        .eq('operator_id', operatorId)
+        .order('date', { ascending: true })
+        .limit(30);
+
+    // 3. Mock some data if history is empty (for demo/PoC)
+    const ggrHistory = (history && history.length > 0) ? history : [
+        { date: '2026-02-01', ggr: 1200, ngr: 900 },
+        { date: '2026-02-02', ggr: 1500, ngr: 1100 },
+        { date: '2026-02-03', ggr: 1100, ngr: 850 },
+        { date: '2026-02-10', ggr: 2100, ngr: 1600 },
+    ];
+
+    // 4. Fetch recent events from audit logs
+    const recentEvents = await getActivities(operatorId, 5);
+
+    return {
+        ...kpis,
+        ggr_history: ggrHistory,
+        recent_events: recentEvents,
+        compliance_alerts: 4 // Mock for now
+    };
+};
+
+const searchOperatorGlobal = async (operatorId, query) => {
+    if (!supabase || !query) return [];
+
+    // Search in users (username, email) and transactions (id)
+    const [usersRes, transactionsRes] = await Promise.all([
+        supabase.from('users').select('user_id, username, email').eq('brand_id', 1).or(`username.ilike.%${query}%,email.ilike.%${query}%`).limit(5),
+        supabase.from('transactions').select('id, transaction_id, user_id').eq('operator_id', operatorId).ilike('transaction_id', `%${query}%`).limit(5)
+    ]);
+
+    return {
+        players: usersRes.data || [],
+        transactions: transactionsRes.data || []
+    };
+};
+
 module.exports = {
     client: supabase,
     getTenantConfig,
@@ -359,5 +425,8 @@ module.exports = {
     updateBalance,
     getActivities,
     getTransactionsByOperator,
-    getAggregatedKPIs
+    getAggregatedKPIs,
+    getOperatorNotifications,
+    getOperatorStats,
+    searchOperatorGlobal
 };

@@ -573,4 +573,37 @@ router.get('/payment/health', authenticateRequest, async (req, res) => {
     }
 });
 
+// --- OPERATOR PORTAL SERVERLESS ENDPOINTS ---
+
+router.get('/notifications', authenticateRequest, async (req, res) => {
+    const operatorId = req.user?.operator_id || req.operatorId || 'default-operator';
+    try {
+        const notifications = await supabaseService.getOperatorNotifications(operatorId);
+        res.json(notifications);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+});
+
+router.get('/stats', authenticateRequest, async (req, res) => {
+    const operatorId = req.user?.operator_id || req.operatorId || 'default-operator';
+    try {
+        const stats = await supabaseService.getOperatorStats(operatorId);
+        res.json(stats);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch portal stats' });
+    }
+});
+
+router.get('/search', authenticateRequest, async (req, res) => {
+    const operatorId = req.user?.operator_id || req.operatorId || 'default-operator';
+    const { q } = req.query;
+    try {
+        const results = await supabaseService.searchOperatorGlobal(operatorId, q);
+        res.json(results);
+    } catch (error) {
+        res.status(500).json({ error: 'Search failed' });
+    }
+});
+
 module.exports = router;
