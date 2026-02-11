@@ -575,7 +575,7 @@ router.get('/payment/health', authenticateRequest, async (req, res) => {
 
 // --- OPERATOR PORTAL SERVERLESS ENDPOINTS ---
 
-router.get('/notifications', authenticateRequest, async (req, res) => {
+router.get('/operator/notifications', authenticateRequest, async (req, res) => {
     const operatorId = req.user?.operator_id || req.operatorId || 'default-operator';
     try {
         const notifications = await supabaseService.getOperatorNotifications(operatorId);
@@ -585,7 +585,7 @@ router.get('/notifications', authenticateRequest, async (req, res) => {
     }
 });
 
-router.get('/stats', authenticateRequest, async (req, res) => {
+router.get('/operator/stats', authenticateRequest, async (req, res) => {
     const operatorId = req.user?.operator_id || req.operatorId || 'default-operator';
     try {
         const stats = await supabaseService.getOperatorStats(operatorId);
@@ -595,7 +595,7 @@ router.get('/stats', authenticateRequest, async (req, res) => {
     }
 });
 
-router.get('/search', authenticateRequest, async (req, res) => {
+router.get('/operator/search', authenticateRequest, async (req, res) => {
     const operatorId = req.user?.operator_id || req.operatorId || 'default-operator';
     const { q } = req.query;
     try {
