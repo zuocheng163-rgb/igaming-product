@@ -292,8 +292,18 @@ const getAggregatedKPIs = async (brandId) => {
         if (tx.status === 'success') successfulTxs++;
     });
 
-    // Mock active players based on unique user_ids in transaction history
-    const activePlayers = new Set(transactions.map(tx => tx.user_id)).size || 124;
+    // 1. Calculate Active Players (Unique users with transactions in last 24h)
+    let activePlayers = new Set(transactions.map(tx => tx.user_id)).size;
+
+    // Fallback: If no transactions, count users logged in within last 24h
+    if (activePlayers === 0) {
+        const { count } = await supabase
+            .from('users')
+            .select('*', { count: 'exact', head: true })
+            .gt('created_at', new Date(Date.now() - 86400000).toISOString());
+        activePlayers = count || 0;
+    }
+
     const approvalRate = transactions.length > 0 ? Math.round((successfulTxs / transactions.length) * 100) : 98;
 
     return {

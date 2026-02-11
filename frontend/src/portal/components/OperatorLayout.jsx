@@ -42,6 +42,15 @@ const OperatorLayout = ({ children, user, token, onLogout }) => {
         { icon: Settings, label: 'Settings', id: 'settings' },
     ];
 
+    const handleNavigation = (path) => {
+        window.history.pushState({}, '', path);
+        const navEvent = new PopStateEvent('popstate');
+        window.dispatchEvent(navEvent);
+        if (window.innerWidth < 1024) {
+            setIsSidebarCollapsed(true);
+        }
+    };
+
     return (
         <div className="operator-portal-root">
             {/* Floating Global Header */}
@@ -106,12 +115,19 @@ const OperatorLayout = ({ children, user, token, onLogout }) => {
                     </div>
 
                     <nav className="sidebar-nav">
-                        {navItems.map((item) => (
-                            <div key={item.id} className="nav-item">
-                                <item.icon className="nav-icon" size={20} />
-                                {!isSidebarCollapsed && <span className="nav-label">{item.label}</span>}
-                            </div>
-                        ))}
+                        {navItems.map((item) => {
+                            const isActive = window.location.pathname === (item.id === 'dashboard' ? '/portal' : `/portal/${item.id}`);
+                            return (
+                                <div
+                                    key={item.id}
+                                    className={`nav-item ${isActive ? 'active' : ''}`}
+                                    onClick={() => handleNavigation(item.id === 'dashboard' ? '/portal' : `/portal/${item.id}`)}
+                                >
+                                    <item.icon className="nav-icon" size={20} style={{ color: isActive ? 'var(--accent-gold)' : 'var(--text-muted)' }} />
+                                    {!isSidebarCollapsed && <span className="nav-label" style={{ color: isActive ? 'white' : 'var(--text-muted)' }}>{item.label}</span>}
+                                </div>
+                            );
+                        })}
                     </nav>
 
                     <div className="sidebar-footer">
@@ -127,7 +143,7 @@ const OperatorLayout = ({ children, user, token, onLogout }) => {
                 {/* Main Content Area */}
                 <main className="portal-main">
                     <div className="content-breadcrumbs">
-                        <span>Dashboard</span>
+                        <span>{navItems.find(i => window.location.pathname.includes(i.id))?.label || 'Dashboard'}</span>
                     </div>
                     {children}
                 </main>

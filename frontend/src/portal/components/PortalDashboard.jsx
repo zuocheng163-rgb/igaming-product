@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import OperatorLayout from './OperatorLayout';
 import GGRTrendChart from './GGRTrendChart';
 import KPICard from './KPICard';
 import { Users, TrendingUp, CheckCircle, ShieldAlert } from 'lucide-react';
+import { Players, Wallet, Games, Compliance, Settings } from './Pages';
 
 const fetcher = (url, token) => fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
@@ -16,6 +17,17 @@ const PortalDashboard = ({ token, onLogout }) => {
         { refreshInterval: 60000 }
     );
 
+    const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+    useEffect(() => {
+        const handleLocationChange = () => {
+            setCurrentPath(window.location.pathname);
+        };
+
+        window.addEventListener('popstate', handleLocationChange);
+        return () => window.removeEventListener('popstate', handleLocationChange);
+    }, []);
+
     const m = stats?.metrics;
 
     const kpiConfig = [
@@ -25,8 +37,14 @@ const PortalDashboard = ({ token, onLogout }) => {
         { label: 'Compliance Alerts', metric: m?.compliance_alerts, icon: ShieldAlert, color: '#ff4d4d' },
     ];
 
-    return (
-        <OperatorLayout token={token} onLogout={onLogout} user={stats?.user}>
+    const renderContent = () => {
+        if (currentPath.includes('/portal/players')) return <Players />;
+        if (currentPath.includes('/portal/wallet')) return <Wallet />;
+        if (currentPath.includes('/portal/games')) return <Games />;
+        if (currentPath.includes('/portal/compliance')) return <Compliance />;
+        if (currentPath.includes('/portal/settings')) return <Settings />;
+
+        return (
             <div className="dashboard-content">
                 <div className="kpi-strip">
                     {kpiConfig.map((kpi, i) => (
@@ -70,6 +88,12 @@ const PortalDashboard = ({ token, onLogout }) => {
                     </div>
                 </div>
             </div>
+        );
+    };
+
+    return (
+        <OperatorLayout token={token} onLogout={onLogout} user={stats?.user}>
+            {renderContent()}
         </OperatorLayout>
     );
 };
