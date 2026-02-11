@@ -274,13 +274,14 @@ const getTransactionsByOperator = async (brandId, filters = {}) => {
 };
 
 const getAggregatedKPIs = async (brandId) => {
-    if (!supabase) return { ggr: 0, ngr: 0, deposits: 0 };
+    if (!supabase) return { ggr: 0, ngr: 0, deposits: 0, active_players: 0, approval_rate: 0 };
 
     const transactions = await getTransactionsByOperator(brandId);
 
     let ggr = 0;
     let deposits = 0;
     let bonuses = 0;
+    let successfulTxs = 0;
 
     transactions.forEach(tx => {
         const amount = tx.metadata?.request?.amount || 0;
@@ -288,13 +289,20 @@ const getAggregatedKPIs = async (brandId) => {
         if (tx.action === 'wallet:credit') ggr -= amount;
         if (tx.action === 'wallet:deposit') deposits += amount;
         if (tx.action === 'wallet:bonus_credit') bonuses += amount;
+        if (tx.status === 'success') successfulTxs++;
     });
+
+    // Mock active players based on unique user_ids in transaction history
+    const activePlayers = new Set(transactions.map(tx => tx.user_id)).size || 124;
+    const approvalRate = transactions.length > 0 ? Math.round((successfulTxs / transactions.length) * 100) : 98;
 
     return {
         ggr,
         ngr: ggr - bonuses,
         deposits,
-        transaction_count: transactions.length
+        transaction_count: transactions.length,
+        active_players: activePlayers,
+        approval_rate: approvalRate
     };
 };
 
@@ -370,30 +378,65 @@ const getOperatorStats = async (operatorId) => {
     // 1. Fetch KPI Strip stats
     const kpis = await getAggregatedKPIs(operatorId);
 
-    // 2. Fetch GGR history (last 30 days) from pre-aggregated table
+    // 2. Fetch history for trends and sparklines
     const { data: history, error: historyError } = await supabase
         .from('daily_stats')
-        .select('date, ggr, ngr')
+        .select('*')
         .eq('operator_id', operatorId)
         .order('date', { ascending: true })
         .limit(30);
 
-    // 3. Mock some data if history is empty (for demo/PoC)
-    const ggrHistory = (history && history.length > 0) ? history : [
-        { date: '2026-02-01', ggr: 1200, ngr: 900 },
-        { date: '2026-02-02', ggr: 1500, ngr: 1100 },
-        { date: '2026-02-03', ggr: 1100, ngr: 850 },
-        { date: '2026-02-10', ggr: 2100, ngr: 1600 },
+    // 3. Realistic Demo Data Fallback
+    const demoHistory = history?.length > 0 ? history : [
+        { date: '2026-02-04', ggr: 1240, active_players: 85, ngr: 1100, approval_rate: 97 },
+        { date: '2026-02-05', ggr: 1350, active_players: 90, ngr: 1200, approval_rate: 98 },
+        { date: '2026-02-06', ggr: 1100, active_players: 88, ngr: 950, approval_rate: 96 },
+        { date: '2026-02-07', ggr: 1600, active_players: 105, ngr: 1400, approval_rate: 99 },
+        { date: '2026-02-08', ggr: 1850, active_players: 112, ngr: 1600, approval_rate: 98 },
+        { date: '2026-02-09', ggr: 1700, active_players: 110, ngr: 1550, approval_rate: 97 },
+        { date: '2026-02-10', ggr: 2100, active_players: 124, ngr: 1800, approval_rate: 98 },
     ];
 
-    // 4. Fetch recent events from audit logs
+    const lastDay = demoHistory[demoHistory.length - 1];
+    const prevDay = demoHistory[demoHistory.length - 2] || lastDay;
+
+    // Calculate trends based on the last 2 records
+    const calculateTrend = (current, previous) => {
+        if (!previous) return 0;
+        return Math.round(((current - previous) / previous) * 100);
+    };
+
+    // 4. Enrich KPIs with trends and sparklines
+    const enrichment = {
+        active_players: {
+            value: kpis.active_players,
+            trend: calculateTrend(lastDay.active_players, prevDay.active_players),
+            sparkline: demoHistory.slice(-7).map(d => d.active_players)
+        },
+        ggr: {
+            value: kpis.ggr || lastDay.ggr,
+            trend: calculateTrend(lastDay.ggr, prevDay.ggr),
+            sparkline: demoHistory.slice(-7).map(d => d.ggr)
+        },
+        approval_rate: {
+            value: kpis.approval_rate,
+            trend: calculateTrend(lastDay.approval_rate, prevDay.approval_rate),
+            sparkline: demoHistory.slice(-7).map(d => d.approval_rate)
+        },
+        compliance_alerts: {
+            value: 4,
+            trend: -20, // Improving
+            sparkline: [8, 7, 6, 6, 5, 4, 4]
+        }
+    };
+
     const recentEvents = await getActivities(operatorId, 5);
 
     return {
-        ...kpis,
-        ggr_history: ggrHistory,
-        recent_events: recentEvents,
-        compliance_alerts: 4 // Mock for now
+        ...kpis, // Legacy support
+        metrics: enrichment,
+        ggr_history: demoHistory,
+        recent_events: recentEvents
     };
 };
 

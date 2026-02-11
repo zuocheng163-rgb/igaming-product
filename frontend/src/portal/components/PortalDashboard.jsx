@@ -2,6 +2,7 @@ import React from 'react';
 import useSWR from 'swr';
 import OperatorLayout from './OperatorLayout';
 import GGRTrendChart from './GGRTrendChart';
+import KPICard from './KPICard';
 import { Users, TrendingUp, CheckCircle, ShieldAlert } from 'lucide-react';
 
 const fetcher = (url, token) => fetch(url, {
@@ -15,28 +16,30 @@ const PortalDashboard = ({ token, onLogout }) => {
         { refreshInterval: 60000 }
     );
 
-    const kpiData = [
-        { label: 'Active Players', value: stats?.active_players || 0, icon: Users, color: '#00ccff' },
-        { label: 'Total GGR', value: `€${stats?.ggr?.toLocaleString() || 0}`, icon: TrendingUp, color: '#ffd700' },
-        { label: 'Approval Rate', value: `${stats?.approval_rate || 0}%`, icon: CheckCircle, color: '#00ff88' },
-        { label: 'Compliance Alerts', value: stats?.compliance_alerts || 0, icon: ShieldAlert, color: '#ff4d4d' },
+    const m = stats?.metrics;
+
+    const kpiConfig = [
+        { label: 'Active Players', metric: m?.active_players, icon: Users, color: '#00ccff' },
+        { label: 'Total GGR', metric: m?.ggr, icon: TrendingUp, color: '#ffd700', prefix: '€' },
+        { label: 'Approval Rate', metric: m?.approval_rate, icon: CheckCircle, color: '#00ff88', suffix: '%' },
+        { label: 'Compliance Alerts', metric: m?.compliance_alerts, icon: ShieldAlert, color: '#ff4d4d' },
     ];
 
     return (
-        <OperatorLayout token={token} onLogout={onLogout}>
+        <OperatorLayout token={token} onLogout={onLogout} user={stats?.user}>
             <div className="dashboard-content">
                 <div className="kpi-strip">
-                    {kpiData.map((kpi, i) => (
-                        <div key={i} className="kpi-card glass-panel floating" style={{ '--delay': `${i * 0.1}s` }}>
-                            <div className="kpi-icon" style={{ backgroundColor: `${kpi.color}15`, color: kpi.color }}>
-                                <kpi.icon size={20} />
-                            </div>
-                            <div className="kpi-info">
-                                <label>{kpi.label}</label>
-                                <div className="value">{kpi.value}</div>
-                                <div className="small-trend up">+12% vs last period</div>
-                            </div>
-                        </div>
+                    {kpiConfig.map((kpi, i) => (
+                        <KPICard
+                            key={i}
+                            label={kpi.label}
+                            value={`${kpi.prefix || ''}${kpi.metric?.value?.toLocaleString() || 0}${kpi.suffix || ''}`}
+                            trend={kpi.metric?.trend || 0}
+                            sparkline={kpi.metric?.sparkline || []}
+                            icon={kpi.icon}
+                            color={kpi.color}
+                            delay={`${i * 0.1}s`}
+                        />
                     ))}
                 </div>
 
@@ -45,14 +48,20 @@ const PortalDashboard = ({ token, onLogout }) => {
 
                     <div className="side-panels">
                         <section className="glass-panel recent-activity">
-                            <h3>Live Operational Stream</h3>
+                            <div className="section-header">
+                                <h3>Live Operational Stream</h3>
+                            </div>
                             <div className="activity-list">
                                 {stats?.recent_events?.length > 0 ? stats.recent_events.map((ev, i) => (
                                     <div key={i} className="activity-item">
                                         <div className="dot"></div>
                                         <div className="info">
                                             <p>{ev.message}</p>
-                                            <span>{new Date(ev.timestamp).toLocaleTimeString()}</span>
+                                            <div className="meta">
+                                                <span>{new Date(ev.timestamp).toLocaleTimeString()}</span>
+                                                <span className="dot-sep">•</span>
+                                                <span>{ev.type || 'System'}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 )) : <p className="empty">No recent activity</p>}
@@ -61,7 +70,6 @@ const PortalDashboard = ({ token, onLogout }) => {
                     </div>
                 </div>
             </div>
-
         </OperatorLayout>
     );
 };

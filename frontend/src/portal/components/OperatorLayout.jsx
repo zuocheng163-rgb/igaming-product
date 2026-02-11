@@ -10,12 +10,28 @@ import {
     Search,
     Calendar,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Command
 } from 'lucide-react';
+import SearchOverlay from './SearchOverlay';
+import NotificationCenter from './NotificationCenter';
 
-const OperatorLayout = ({ children, user, onLogout }) => {
+const OperatorLayout = ({ children, user, token, onLogout }) => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [dateRange, setDateRange] = useState('Last 30 Days');
+    const [isDateSelectorOpen, setIsDateSelectorOpen] = useState(false);
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setIsSearchOpen(true);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', id: 'dashboard' },
@@ -29,29 +45,40 @@ const OperatorLayout = ({ children, user, onLogout }) => {
     return (
         <div className="operator-portal-root">
             {/* Floating Global Header */}
-            <header className="portal-header glass-panel floating">
+            <header className="portal-header glass-panel floating" onClick={() => setIsSearchOpen(true)}>
                 <div className="header-left">
                     <div className="omnisearch-wrapper">
                         <Search className="search-icon" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Search players, TXs... (Ctrl+K)"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
+                        <span className="search-placeholder">Quick Search...</span>
+                        <div className="shortcut">
+                            <Command size={10} />
+                            <span>K</span>
+                        </div>
                     </div>
                 </div>
 
                 <div className="header-right">
-                    <div className="date-selector glass-panel">
-                        <Calendar size={16} />
-                        <span>Last 30 Days</span>
+                    <div className="date-selector-container">
+                        <div className="date-selector glass-panel" onClick={(e) => { e.stopPropagation(); setIsDateSelectorOpen(!isDateSelectorOpen); }}>
+                            <Calendar size={16} />
+                            <span>{dateRange}</span>
+                        </div>
+                        {isDateSelectorOpen && (
+                            <div className="date-dropdown glass-panel">
+                                {['Today', 'Yesterday', 'Last 7 Days', 'Last 30 Days', 'This Month'].map(range => (
+                                    <div
+                                        key={range}
+                                        className={`date-item ${dateRange === range ? 'active' : ''}`}
+                                        onClick={() => { setDateRange(range); setIsDateSelectorOpen(false); }}
+                                    >
+                                        {range}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
-                    <div className="notification-bell">
-                        <Bell size={20} />
-                        <span className="pulse-badge"></span>
-                    </div>
+                    <NotificationCenter token={token} />
 
                     <div className="user-profile" onClick={onLogout}>
                         <div className="user-info">
@@ -62,6 +89,8 @@ const OperatorLayout = ({ children, user, onLogout }) => {
                     </div>
                 </div>
             </header>
+
+            <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} token={token} />
 
             <div className="portal-container">
                 {/* Persistent Left Sidebar */}
