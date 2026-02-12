@@ -625,6 +625,10 @@
 .ggr-chart-wrapper {
     padding: 24px;
     margin-bottom: 24px;
+    height: 420px;
+    min-height: 420px;
+    display: flex;
+    flex-direction: column;
 }
 
 .chart-header {
