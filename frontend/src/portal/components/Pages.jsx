@@ -7,6 +7,8 @@ export const Players = ({ token }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [selectedPlayer, setSelectedPlayer] = useState(null);
+    const [filteredData, setFilteredData] = useState([]);
 
     const fetchData = (query = '') => {
         setLoading(true);

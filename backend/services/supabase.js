@@ -474,14 +474,11 @@ const searchOperatorGlobal = async (brandId, query) => {
         query
             ? supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
             : supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
-        query
-            ? supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
-            : supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
     ]);
 
-    if (!query) {
-        // Debugging: why no transactions?
-        // logger.info('[Search] Transactions Query Result', { count: transactionsRes?.data?.length, error: transactionsRes?.error });
+    // Debug logging for wallet transactions visibility
+    if (transactionsRes) {
+        console.log(`[Search] Fetched transactions for brand ${brandId}. Count: ${transactionsRes.data?.length || 0}. Error: ${transactionsRes.error?.message || 'None'}`);
     }
 
     return {
