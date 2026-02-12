@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import DataTable from './DataTable';
 import { Save, RefreshCw, Shield, Bell, Lock, Gamepad2 } from 'lucide-react';
+import PlayerDetailsModal from './PlayerDetailsModal';
 
 export const Players = ({ token }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    const fetchData = () => {
+    const fetchData = (query = '') => {
         setLoading(true);
-        fetch('/api/operator/search?q=', {
+        fetch(`/api/operator/search?q=${query}`, {
             headers: { Authorization: `Bearer ${token}` }
         })
             .then(res => res.json())
@@ -22,6 +23,7 @@ export const Players = ({ token }) => {
                     last_login: new Date().toISOString()
                 }));
                 setData(enriched);
+                setFilteredData(enriched);
                 setLoading(false);
             })
             .catch(() => setLoading(false));
@@ -67,11 +69,19 @@ export const Players = ({ token }) => {
             </div>
             <DataTable
                 columns={columns}
-                data={data}
+                data={filteredData}
                 loading={loading}
                 pagination={{ page: 1, totalPages: 1 }}
                 searchPlaceholder="Search players..."
+                onRowDoubleClick={handleRowDoubleClick}
             />
+            {selectedPlayer && (
+                <PlayerDetailsModal
+                    userId={selectedPlayer}
+                    token={token}
+                    onClose={() => setSelectedPlayer(null)}
+                />
+            )}
         </div>
     );
 };

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, Search } from 'lucide-react';
 
-const DataTable = ({ columns, data, loading, pagination, onPageChange, onSearch, searchPlaceholder }) => {
+const DataTable = ({ columns, data, loading, pagination, onPageChange, onSearch, searchPlaceholder, onRowDoubleClick }) => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const handleSearch = (e) => {
@@ -68,7 +68,12 @@ const DataTable = ({ columns, data, loading, pagination, onPageChange, onSearch,
                             </tr>
                         ) : data?.length > 0 ? (
                             data.map((row, i) => (
-                                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: '0.2s' }} className="table-row">
+                                <tr
+                                    key={i}
+                                    style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: '0.2s', cursor: onRowDoubleClick ? 'pointer' : 'default' }}
+                                    className="table-row"
+                                    onDoubleClick={() => onRowDoubleClick && onRowDoubleClick(row)}
+                                >
                                     {columns.map((col, j) => (
                                         <td key={j} style={{ padding: '16px 20px', color: 'var(--text-primary)' }}>
                                             {col.render ? col.render(row) : row[col.accessor]}

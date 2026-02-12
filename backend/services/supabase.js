@@ -474,7 +474,15 @@ const searchOperatorGlobal = async (brandId, query) => {
         query
             ? supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
             : supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
+        query
+            ? supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
+            : supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
     ]);
+
+    if (!query) {
+        // Debugging: why no transactions?
+        // logger.info('[Search] Transactions Query Result', { count: transactionsRes?.data?.length, error: transactionsRes?.error });
+    }
 
     return {
         players: usersRes.data || [],

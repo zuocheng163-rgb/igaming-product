@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, User, CreditCard, History, Loader2 } from 'lucide-react';
 import axios from 'axios';
-import PlayerDetailsModal from './PlayerDetailsModal';
 
 const SearchOverlay = ({ isOpen, onClose, token }) => {
     const [query, setQuery] = useState('');
@@ -48,7 +47,10 @@ const SearchOverlay = ({ isOpen, onClose, token }) => {
 
     const handleSelect = (item, type) => {
         if (type === 'players') {
-            setSelectedPlayer(item.user_id || item.username);
+            const searchQuery = item.user_id || item.username;
+            window.history.pushState({}, '', `/portal/players?search=${searchQuery}`);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+            onClose();
         }
         const newRecent = [
             { id: item.user_id || item.transaction_id, label: item.username || item.transaction_id, type },
@@ -56,6 +58,7 @@ const SearchOverlay = ({ isOpen, onClose, token }) => {
         ].slice(0, 5);
         setRecent(newRecent);
         localStorage.setItem('ns_recent_searches', JSON.stringify(newRecent));
+        if (type !== 'players') onClose();
     };
 
     if (!isOpen) return null;
@@ -134,15 +137,9 @@ const SearchOverlay = ({ isOpen, onClose, token }) => {
                     )}
                 </div>
             </div>
-            {selectedPlayer && (
-                <PlayerDetailsModal
-                    userId={selectedPlayer}
-                    token={token}
-                    onClose={() => setSelectedPlayer(null)}
-                />
-            )}
         </div>
     );
 };
 
 export default SearchOverlay;
+```
