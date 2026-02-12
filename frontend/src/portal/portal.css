@@ -595,13 +595,39 @@
     outline: none;
 }
 
-.kbd-hint {
-    font-family: inherit;
-    font-size: 0.7rem;
-    padding: 2px 6px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
+.search-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    gap: 12px;
+    cursor: pointer;
+    transition: 0.2s;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.search-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.search-section {
+    padding-bottom: 8px;
+}
+
+.search-section label {
+    padding: 12px 20px 8px;
+    font-size: 0.75rem;
     color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+padding: 2px 6px;
+background: rgba(255, 255, 255, 0.1);
+border-radius: 4px;
+color: var(--text-muted);
 }
 
 @keyframes portal-pulse {

@@ -172,12 +172,23 @@ const NotificationCenter = ({ token }) => {
                         width: '90%',
                         background: '#1a1d24',
                         border: '1px solid var(--glass-border)',
-                        boxShadow: '0 20px 50px rgba(0,0,0,0.8)'
+                        boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
+                        position: 'relative'
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                             <h2 style={{ margin: 0 }}>Alert Details</h2>
                             <button onClick={() => setSelectedNotification(null)} className="btn-icon" style={{
+                                position: 'absolute',
+                                top: '16px',
+                                right: '16px',
                                 background: 'rgba(255,255,255,0.1)',
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                borderRadius: '8px',
+                                padding: '8px',
+                                cursor: 'pointer',
+                                color: 'white',
+                                zIndex: 100
+                            }}>
                                 border: '1px solid rgba(255,255,255,0.2)',
                                 borderRadius: '8px',
                                 padding: '8px',
