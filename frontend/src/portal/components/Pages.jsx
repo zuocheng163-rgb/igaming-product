@@ -32,7 +32,21 @@ export const Players = ({ token }) => {
     };
 
     useEffect(() => {
-        fetchData();
+        const handleSearchUpdate = (e) => {
+            const query = e.detail?.query;
+            if (query) fetchData(query);
+        };
+
+        const params = new URLSearchParams(window.location.search);
+        const searchQuery = params.get('search');
+        if (searchQuery) {
+            fetchData(searchQuery);
+        } else {
+            fetchData();
+        }
+
+        window.addEventListener('portal-search-update', handleSearchUpdate);
+        return () => window.removeEventListener('portal-search-update', handleSearchUpdate);
     }, [token]);
 
     const handleRefresh = async () => {
