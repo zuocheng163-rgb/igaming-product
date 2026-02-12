@@ -300,7 +300,8 @@ const getAggregatedKPIs = async (brandId) => {
         const { count } = await supabase
             .from('users')
             .select('*', { count: 'exact', head: true })
-            .gt('created_at', new Date(Date.now() - 86400000).toISOString());
+            .eq('brand_id', brandId)
+            .gt('last_login', new Date(Date.now() - 86400000).toISOString());
         activePlayers = count || 0;
     }
 
@@ -451,12 +452,16 @@ const getOperatorStats = async (operatorId) => {
 };
 
 const searchOperatorGlobal = async (operatorId, query) => {
-    if (!supabase || !query) return [];
+    if (!supabase) return { players: [], transactions: [] };
 
-    // Search in users (username, email) and transactions (id)
+    // If query is empty, return all users (for initial load)
     const [usersRes, transactionsRes] = await Promise.all([
-        supabase.from('users').select('user_id, username, email').eq('brand_id', 1).or(`username.ilike.%${query}%,email.ilike.%${query}%`).limit(5),
-        supabase.from('transactions').select('id, transaction_id, user_id').eq('operator_id', operatorId).ilike('transaction_id', `%${query}%`).limit(5)
+        query
+            ? supabase.from('users').select('user_id, username, email, balance').eq('brand_id', 1).or(`username.ilike.%${query}%,email.ilike.%${query}%`).limit(20)
+            : supabase.from('users').select('user_id, username, email, balance').eq('brand_id', 1).limit(20),
+        query
+            ? supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', 1).ilike('action', '%wallet%').limit(20)
+            : supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', 1).ilike('action', '%wallet%').limit(20)
     ]);
 
     return {
