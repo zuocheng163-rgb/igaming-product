@@ -176,7 +176,15 @@ const NotificationCenter = ({ token }) => {
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                             <h2 style={{ margin: 0 }}>Alert Details</h2>
-                            <button onClick={() => setSelectedNotification(null)} className="btn-icon" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '8px', padding: '8px', cursor: 'pointer' }}>
+                            <button onClick={() => setSelectedNotification(null)} className="btn-icon" style={{
+                                background: 'rgba(255,255,255,0.1)',
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                borderRadius: '8px',
+                                padding: '8px',
+                                cursor: 'pointer',
+                                color: 'white',
+                                zIndex: 10
+                            }}>
                                 <X size={20} />
                             </button>
                         </div>
