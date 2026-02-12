@@ -29,7 +29,9 @@ const NotificationCenter = ({ token }) => {
         list.sort((a, b) => {
             if (a.severity === 'Critical' && b.severity !== 'Critical') return -1;
             if (a.severity !== 'Critical' && b.severity === 'Critical') return 1;
-            return new Date(b.created_at) - new Date(a.created_at);
+            const dateA = new Date(a.timestamp || a.created_at);
+            const dateB = new Date(b.timestamp || b.created_at);
+            return dateB - dateA;
         });
 
         if (activeFilter === 'unread') return list.filter(n => n.status === 'unread');
@@ -56,14 +58,19 @@ const NotificationCenter = ({ token }) => {
     };
 
     const formatTimeAgo = (dateStr) => {
-        const seconds = Math.floor((new Date() - new Date(dateStr)) / 1000);
+        if (!dateStr) return 'Unknown';
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return 'Unknown';
+        const seconds = Math.floor((new Date() - date) / 1000);
         if (seconds < 60) return 'Just now';
         const minutes = Math.floor(seconds / 60);
         if (minutes < 60) return `${minutes}m ago`;
         const hours = Math.floor(minutes / 60);
         if (hours < 24) return `${hours}h ago`;
-        return new Date(dateStr).toLocaleDateString();
+        return date.toLocaleDateString();
     };
+
+    const [selectedNotification, setSelectedNotification] = useState(null);
 
     return (
         <div className="notification-center-container">
@@ -118,7 +125,12 @@ const NotificationCenter = ({ token }) => {
 
                     <div className="notification-list">
                         {filteredNotifications.length > 0 ? filteredNotifications.map(n => (
-                            <div key={n.id} className={`notification-item ${n.status} ${n.severity?.toLowerCase()}`}>
+                            <div
+                                key={n.id}
+                                className={`notification-item ${n.status} ${n.severity?.toLowerCase()}`}
+                                onClick={() => setSelectedNotification(n)}
+                                style={{ cursor: 'pointer' }}
+                            >
                                 <div className="severity-indicator">
                                     {getIcon(n.type, n.severity)}
                                 </div>
@@ -126,7 +138,7 @@ const NotificationCenter = ({ token }) => {
                                     <div className="msg-row">
                                         <p className="message">{n.message}</p>
                                         {n.status === 'unread' && (
-                                            <button className="resolve-btn" onClick={() => handleResolve(n.id)}>
+                                            <button className="resolve-btn" onClick={(e) => { e.stopPropagation(); handleResolve(n.id); }}>
                                                 <Check size={12} />
                                             </button>
                                         )}
@@ -134,7 +146,7 @@ const NotificationCenter = ({ token }) => {
                                     <div className="meta">
                                         <span className="type">{n.type || 'System'}</span>
                                         <span className="dot">•</span>
-                                        <span className="time"><Clock size={10} style={{ marginRight: '4px' }} /> {formatTimeAgo(n.created_at)}</span>
+                                        <span className="time"><Clock size={10} style={{ marginRight: '4px' }} /> {formatTimeAgo(n.timestamp || n.created_at)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -149,6 +161,49 @@ const NotificationCenter = ({ token }) => {
 
                     <div className="drawer-footer">
                         <button className="view-all">Open Alert Console</button>
+                    </div>
+                </div>
+            )}
+
+            {selectedNotification && (
+                <div className="modal-overlay" onClick={() => setSelectedNotification(null)}>
+                    <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h2 style={{ margin: 0 }}>Alert Details</h2>
+                            <button onClick={() => setSelectedNotification(null)} className="btn-icon" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '8px', padding: '8px', cursor: 'pointer' }}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div style={{ display: 'grid', gap: '16px' }}>
+                            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Type</div>
+                                <div>{selectedNotification.type || 'System Event'}</div>
+                            </div>
+                            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Severity</div>
+                                <div>{selectedNotification.severity || 'Unknown'}</div>
+                            </div>
+                            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Message</div>
+                                <div>{selectedNotification.message}</div>
+                            </div>
+                            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Timestamp</div>
+                                <div>{new Date(selectedNotification.timestamp || selectedNotification.created_at).toLocaleString()}</div>
+                            </div>
+                            {selectedNotification.user_id && (
+                                <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>User ID</div>
+                                    <div>{selectedNotification.user_id}</div>
+                                </div>
+                            )}
+                            {selectedNotification.metadata && (
+                                <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Additional Details</div>
+                                    <pre style={{ fontSize: '0.85rem', overflow: 'auto', maxHeight: '200px' }}>{JSON.stringify(selectedNotification.metadata, null, 2)}</pre>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

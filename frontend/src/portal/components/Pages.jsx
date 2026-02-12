@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import DataTable from './DataTable';
-import { Save, RefreshCw, Shield, Bell, Lock } from 'lucide-react';
+import { Save, RefreshCw, Shield, Bell, Lock, Gamepad2 } from 'lucide-react';
 
 export const Players = ({ token }) => {
     const [data, setData] = useState([]);
@@ -167,7 +167,9 @@ export const Games = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
                 {['Starburst', 'Book of Dead', 'Gonzo\'s Quest', 'Aviator', 'Sweet Bonanza'].map(game => (
                     <div key={game} className="glass-panel" style={{ padding: '20px', textAlign: 'center' }}>
-                        <div style={{ width: '100%', height: '120px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', marginBottom: '12px' }}></div>
+                        <div style={{ width: '100%', height: '120px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Gamepad2 size={48} style={{ color: 'var(--primary)', opacity: 0.6 }} />
+                        </div>
                         <h4>{game}</h4>
                         <button className="btn-primary" style={{ marginTop: '12px', width: '100%' }}>Configure</button>
                     </div>

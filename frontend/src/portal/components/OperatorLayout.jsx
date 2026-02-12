@@ -54,9 +54,9 @@ const OperatorLayout = ({ children, user, token, onLogout }) => {
     return (
         <div className="operator-portal-root">
             {/* Floating Global Header */}
-            <header className="portal-header glass-panel floating" onClick={() => setIsSearchOpen(true)}>
+            <header className="portal-header glass-panel floating">
                 <div className="header-left">
-                    <div className="omnisearch-wrapper">
+                    <div className="omnisearch-wrapper" onClick={() => setIsSearchOpen(true)}>
                         <Search className="search-icon" size={18} />
                         <span className="search-placeholder">Quick Search...</span>
                         <div className="shortcut">
