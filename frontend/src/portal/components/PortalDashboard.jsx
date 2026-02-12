@@ -38,11 +38,11 @@ const PortalDashboard = ({ token, onLogout }) => {
     ];
 
     const renderContent = () => {
-        if (currentPath.includes('/portal/players')) return <Players />;
-        if (currentPath.includes('/portal/wallet')) return <Wallet />;
-        if (currentPath.includes('/portal/games')) return <Games />;
-        if (currentPath.includes('/portal/compliance')) return <Compliance />;
-        if (currentPath.includes('/portal/settings')) return <Settings />;
+        if (currentPath.includes('/portal/players')) return <Players token={token} />;
+        if (currentPath.includes('/portal/wallet')) return <Wallet token={token} />;
+        if (currentPath.includes('/portal/games')) return <Games token={token} />;
+        if (currentPath.includes('/portal/compliance')) return <Compliance token={token} />;
+        if (currentPath.includes('/portal/settings')) return <Settings token={token} />;
 
         return (
             <div className="dashboard-content">

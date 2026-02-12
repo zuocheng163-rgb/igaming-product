@@ -110,6 +110,9 @@ router.post('/authenticate', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized: Invalid API Token or Username' });
         }
 
+        // Update Last Login
+        await supabaseService.updateUser(user.id, { last_login: new Date().toISOString() });
+
         const brandId = user.brand_id || 1;
         const sessionId = `sid-${user.id}-${Date.now()}`;
 
