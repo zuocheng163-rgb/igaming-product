@@ -416,8 +416,7 @@
     right: 20px;
     width: 360px;
     max-height: calc(100vh - 120px);
-    background: rgba(15, 18, 24, 0.98);
-    backdrop-filter: blur(20px);
+    background: #000;
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-l);
     z-index: 1001;

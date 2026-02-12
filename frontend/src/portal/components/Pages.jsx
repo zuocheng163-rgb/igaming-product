@@ -41,6 +41,12 @@ export const Players = ({ token }) => {
         setTimeout(() => setRefreshing(false), 500);
     };
 
+    const handleRowDoubleClick = (row) => {
+        if (row && row.user_id) {
+            setSelectedPlayer(row.user_id);
+        }
+    };
+
     const columns = [
         { header: 'User ID', accessor: 'user_id' },
         { header: 'Username', accessor: 'username' },

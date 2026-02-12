@@ -48,9 +48,19 @@ const SearchOverlay = ({ isOpen, onClose, token }) => {
     const handleSelect = (item, type) => {
         if (type === 'players') {
             const searchQuery = item.user_id || item.username;
-            window.history.pushState({}, '', `/portal/players?search=${searchQuery}`);
+            // Force navigation to players page with search query
+            const url = new URL(window.location.origin + '/portal/players');
+            url.searchParams.set('search', searchQuery);
+            window.history.pushState({}, '', url);
+
+            // Dispatch popstate to trigger router update
             window.dispatchEvent(new PopStateEvent('popstate'));
+
+            // Dispatch custom event for immediate search update if already on page
+            window.dispatchEvent(new CustomEvent('portal-search-update', { detail: { query: searchQuery } }));
+
             onClose();
+            return;
         }
         const newRecent = [
             { id: item.user_id || item.transaction_id, label: item.username || item.transaction_id, type },
