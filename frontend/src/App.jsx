@@ -12,6 +12,11 @@ function App() {
   const [error, setError] = useState('');
   const [pathname, setPathname] = useState(window.location.pathname);
 
+  useEffect(() => {
+    console.log('[NeoStrike] App Version: v1.0.5 - Fixes Deployed');
+    console.log('[NeoStrike] Current Path:', window.location.pathname);
+  }, []);
+
   // Simple path listener
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname);
