@@ -189,13 +189,6 @@ const NotificationCenter = ({ token }) => {
                                 color: 'white',
                                 zIndex: 100
                             }}>
-                                border: '1px solid rgba(255,255,255,0.2)',
-                                borderRadius: '8px',
-                                padding: '8px',
-                                cursor: 'pointer',
-                                color: 'white',
-                                zIndex: 10
-                            }}>
                                 <X size={20} />
                             </button>
                         </div>
