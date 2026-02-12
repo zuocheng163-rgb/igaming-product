@@ -451,17 +451,17 @@ const getOperatorStats = async (operatorId) => {
     };
 };
 
-const searchOperatorGlobal = async (operatorId, query) => {
+const searchOperatorGlobal = async (brandId, query) => {
     if (!supabase) return { players: [], transactions: [] };
 
     // If query is empty, return all users (for initial load)
     const [usersRes, transactionsRes] = await Promise.all([
         query
-            ? supabase.from('users').select('user_id, username, email, balance').eq('brand_id', 1).or(`username.ilike.%${query}%,email.ilike.%${query}%`).limit(20)
-            : supabase.from('users').select('user_id, username, email, balance').eq('brand_id', 1).limit(20),
+            ? supabase.from('users').select('user_id, username, email, balance').eq('brand_id', brandId).or(`username.ilike.%${query}%,email.ilike.%${query}%`).limit(20)
+            : supabase.from('users').select('user_id, username, email, balance').eq('brand_id', brandId).limit(20),
         query
-            ? supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', 1).ilike('action', '%wallet%').limit(20)
-            : supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', 1).ilike('action', '%wallet%').limit(20)
+            ? supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
+            : supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
     ]);
 
     return {

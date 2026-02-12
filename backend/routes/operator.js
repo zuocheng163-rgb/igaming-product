@@ -603,10 +603,10 @@ router.get('/operator/stats', authenticateRequest, async (req, res) => {
 });
 
 router.get('/operator/search', authenticateRequest, async (req, res) => {
-    const operatorId = req.user?.operator_id || req.operatorId || 'default-operator';
+    const brandId = req.brandId || req.user?.brand_id || 1;
     const { q } = req.query;
     try {
-        const results = await supabaseService.searchOperatorGlobal(operatorId, q);
+        const results = await supabaseService.searchOperatorGlobal(brandId, q);
         res.json(results);
     } catch (error) {
         res.status(500).json({ error: 'Search failed' });
