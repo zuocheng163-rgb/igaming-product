@@ -3,7 +3,7 @@ import useSWR from 'swr';
 import OperatorLayout from './OperatorLayout';
 import GGRTrendChart from './GGRTrendChart';
 import KPICard from './KPICard';
-import { Users, TrendingUp, CheckCircle, ShieldAlert } from 'lucide-react';
+import { Users, TrendingUp, CheckCircle, ShieldAlert, RefreshCw } from 'lucide-react';
 import { Players, Wallet, Games, Compliance, Settings } from './Pages';
 
 const fetcher = (url, token) => fetch(url, {
@@ -11,11 +11,19 @@ const fetcher = (url, token) => fetch(url, {
 }).then(res => res.json());
 
 const PortalDashboard = ({ token, onLogout }) => {
-    const { data: stats } = useSWR(
+    const { data: stats, mutate } = useSWR(
         token ? ['/api/operator/stats', token] : null,
         ([url, t]) => fetcher(url, t),
         { refreshInterval: 60000 }
     );
+
+    const [refreshing, setRefreshing] = useState(false);
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        await mutate();
+        setTimeout(() => setRefreshing(false), 500);
+    };
 
     const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
@@ -46,6 +54,18 @@ const PortalDashboard = ({ token, onLogout }) => {
 
         return (
             <div className="dashboard-content">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h2 style={{ margin: 0 }}>Dashboard Overview</h2>
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        className="btn-secondary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}
+                    >
+                        <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                        {refreshing ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                </div>
                 <div className="kpi-strip">
                     {kpiConfig.map((kpi, i) => (
                         <KPICard

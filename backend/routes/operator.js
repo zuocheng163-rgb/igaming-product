@@ -583,9 +583,9 @@ router.get('/payment/health', authenticateRequest, async (req, res) => {
 // --- OPERATOR PORTAL SERVERLESS ENDPOINTS ---
 
 router.get('/operator/notifications', authenticateRequest, async (req, res) => {
-    const operatorId = req.user?.operator_id || req.operatorId || 'default-operator';
+    const brandId = req.brandId || req.user?.brand_id || 1;
     try {
-        const notifications = await supabaseService.getOperatorNotifications(operatorId);
+        const notifications = await supabaseService.getOperatorNotifications(brandId);
         res.json(notifications);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch notifications' });
@@ -610,6 +610,20 @@ router.get('/operator/search', authenticateRequest, async (req, res) => {
         res.json(results);
     } catch (error) {
         res.status(500).json({ error: 'Search failed' });
+    }
+});
+
+router.get('/operator/users/:userId', authenticateRequest, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    const { userId } = req.params;
+    try {
+        const player = await supabaseService.getUserByIdAndBrand(userId, brandId);
+        if (!player) {
+            return res.status(404).json({ error: 'Player not found' });
+        }
+        res.json(player);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch player details' });
     }
 });
 

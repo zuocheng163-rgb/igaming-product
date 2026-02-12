@@ -365,14 +365,16 @@ const getUserBlocks = async (userId) => {
     return data;
 };
 
-const getOperatorNotifications = async (operatorId, limit = 50) => {
+const getOperatorNotifications = async (brandId, limit = 50) => {
     if (!supabase) return [];
 
+    // Fetch recent high-priority audit logs as notifications
     const { data, error } = await supabase
-        .from('operator_notifications')
+        .from('platform_audit_logs')
         .select('*')
-        .eq('operator_id', operatorId)
-        .order('created_at', { ascending: false })
+        .eq('brand_id', brandId)
+        .in('level', ['warn', 'error', 'critical'])
+        .order('timestamp', { ascending: false })
         .limit(limit);
 
     if (error) {
@@ -380,7 +382,17 @@ const getOperatorNotifications = async (operatorId, limit = 50) => {
         return [];
     }
 
-    return data;
+    // Map audit logs to notification format
+    return (data || []).map(log => ({
+        id: log.id,
+        type: log.level === 'critical' ? 'critical' : log.level === 'error' ? 'alert' : 'warning',
+        title: log.action || 'System Event',
+        message: log.message || `${log.action} event detected`,
+        timestamp: log.timestamp,
+        severity: log.level,
+        user_id: log.actor_id,
+        metadata: log.metadata
+    }));
 };
 
 const getOperatorStats = async (brandId) => {
@@ -470,6 +482,24 @@ const searchOperatorGlobal = async (brandId, query) => {
     };
 };
 
+const getUserByIdAndBrand = async (userId, brandId) => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('brand_id', brandId)
+        .or(`user_id.eq.${userId},username.eq.${userId}`)
+        .single();
+
+    if (error) {
+        logger.error('[Supabase] Failed to fetch user by ID and brand', { userId, brandId, error: error.message });
+        return null;
+    }
+
+    return data;
+};
+
 module.exports = {
     client: supabase,
     getTenantConfig,
@@ -486,5 +516,6 @@ module.exports = {
     getAggregatedKPIs,
     getOperatorNotifications,
     getOperatorStats,
-    searchOperatorGlobal
+    searchOperatorGlobal,
+    getUserByIdAndBrand
 };

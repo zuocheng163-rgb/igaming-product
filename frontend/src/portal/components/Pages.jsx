@@ -5,16 +5,16 @@ import { Save, RefreshCw, Shield, Bell, Lock } from 'lucide-react';
 export const Players = ({ token }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    useEffect(() => {
-        // Use the global search endpoint to fetch initial player list
+    const fetchData = () => {
+        setLoading(true);
         fetch('/api/operator/search?q=', {
             headers: { Authorization: `Bearer ${token}` }
         })
             .then(res => res.json())
             .then(res => {
                 const players = res.players || [];
-                // Enrich with dummy status/balance if missing from search result
                 const enriched = players.map(p => ({
                     ...p,
                     balance: p.balance || 0,
@@ -25,7 +25,17 @@ export const Players = ({ token }) => {
                 setLoading(false);
             })
             .catch(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        fetchData();
     }, [token]);
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        fetchData();
+        setTimeout(() => setRefreshing(false), 500);
+    };
 
     const columns = [
         { header: 'User ID', accessor: 'user_id' },
@@ -48,7 +58,13 @@ export const Players = ({ token }) => {
 
     return (
         <div className="page-container" style={{ padding: '24px' }}>
-            <h2 className="page-title">Player Management</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 className="page-title" style={{ margin: 0 }}>Player Management</h2>
+                <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                    <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                    {refreshing ? 'Refreshing...' : 'Refresh'}
+                </button>
+            </div>
             <DataTable
                 columns={columns}
                 data={data}
@@ -63,27 +79,38 @@ export const Players = ({ token }) => {
 export const Wallet = ({ token }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    useEffect(() => {
+    const fetchData = () => {
+        setLoading(true);
         fetch('/api/operator/search?q=', {
             headers: { Authorization: `Bearer ${token}` }
         })
             .then(res => res.json())
             .then(res => {
-                // Using transactions from search result for now
                 const txs = res.transactions || [];
                 setData(txs.map(tx => ({
                     ...tx,
-                    user: tx.user_id, // Map user_id to user column
+                    user: tx.user_id,
                     type: tx.action?.split(':')[1]?.toUpperCase() || 'TRANSACTION',
-                    amount: tx.amount || 0,
+                    amount: tx.metadata?.request?.amount || tx.amount || 0,
                     status: tx.status || 'Success',
-                    date: tx.created_at || new Date().toISOString()
+                    date: tx.timestamp || tx.created_at || new Date().toISOString()
                 })));
                 setLoading(false);
             })
             .catch(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        fetchData();
     }, [token]);
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        fetchData();
+        setTimeout(() => setRefreshing(false), 500);
+    };
 
     const columns = [
         { header: 'Transaction ID', accessor: 'transaction_id' },
@@ -102,7 +129,13 @@ export const Wallet = ({ token }) => {
 
     return (
         <div className="page-container" style={{ padding: '24px' }}>
-            <h2 className="page-title">Wallet Transactions</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 className="page-title" style={{ margin: 0 }}>Wallet Transactions</h2>
+                <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                    <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                    {refreshing ? 'Refreshing...' : 'Refresh'}
+                </button>
+            </div>
             <DataTable
                 columns={columns}
                 data={data}
@@ -115,9 +148,22 @@ export const Wallet = ({ token }) => {
 };
 
 export const Games = () => {
+    const [refreshing, setRefreshing] = useState(false);
+
+    const handleRefresh = () => {
+        setRefreshing(true);
+        setTimeout(() => setRefreshing(false), 500);
+    };
+
     return (
         <div className="page-container" style={{ padding: '24px' }}>
-            <h2 className="page-title" style={{ marginBottom: '24px' }}>Game Catalog</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 className="page-title" style={{ margin: 0 }}>Game Catalog</h2>
+                <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                    <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                    {refreshing ? 'Refreshing...' : 'Refresh'}
+                </button>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
                 {['Starburst', 'Book of Dead', 'Gonzo\'s Quest', 'Aviator', 'Sweet Bonanza'].map(game => (
                     <div key={game} className="glass-panel" style={{ padding: '20px', textAlign: 'center' }}>
@@ -136,6 +182,12 @@ export const Compliance = () => {
         { id: 'AL-502', user: 'player_one', trigger: 'Velocity Limit', risk: 'Medium', status: 'Under Review', date: '2026-02-12T11:00:00Z' },
         { id: 'AL-501', user: 'unknown', trigger: 'IP Mismatch', risk: 'High', status: 'Open', date: '2026-02-11T08:30:00Z' },
     ]);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const handleRefresh = () => {
+        setRefreshing(true);
+        setTimeout(() => setRefreshing(false), 500);
+    };
 
     const columns = [
         { header: 'Alert ID', accessor: 'id' },
@@ -158,7 +210,13 @@ export const Compliance = () => {
 
     return (
         <div className="page-container" style={{ padding: '24px' }}>
-            <h2 className="page-title">Compliance & Risk</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 className="page-title" style={{ margin: 0 }}>Compliance & Risk</h2>
+                <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                    <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                    {refreshing ? 'Refreshing...' : 'Refresh'}
+                </button>
+            </div>
             <DataTable
                 columns={columns}
                 data={data}
