@@ -215,16 +215,16 @@ router.post('/credit', authenticateRequest, async (req, res) => {
 // User Onboarding & Updates
 router.post('/register', async (req, res) => {
     const { correlationId } = req;
-    const { username, email, first_name, last_name, operator_id } = req.body;
-    const currentOperatorId = operator_id || 'default';
+    const { username, email, first_name, last_name, brand_id } = req.body;
 
     if (!username || !email) return res.status(400).json({ error: 'Missing required fields' });
+    if (!brand_id) return res.status(400).json({ error: 'Brand ID is required' });
 
     try {
         const token = `token-${username}-${Date.now()}`;
         const newUser = await supabaseService.createUser({
             username, email, first_name, last_name,
-            token, brand_id: currentOperatorId === 'default' ? 1 : parseInt(currentOperatorId) || 1
+            token, brand_id: parseInt(brand_id)
         });
 
         await ftService.pushEvent(newUser.user_id, 'registration', {
@@ -593,9 +593,9 @@ router.get('/operator/notifications', authenticateRequest, async (req, res) => {
 });
 
 router.get('/operator/stats', authenticateRequest, async (req, res) => {
-    const operatorId = req.user?.operator_id || req.operatorId || 'default-operator';
+    const brandId = req.brandId || req.user?.brand_id || 1;
     try {
-        const stats = await supabaseService.getOperatorStats(operatorId);
+        const stats = await supabaseService.getOperatorStats(brandId);
         res.json(stats);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch portal stats' });

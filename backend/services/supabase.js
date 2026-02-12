@@ -383,17 +383,17 @@ const getOperatorNotifications = async (operatorId, limit = 50) => {
     return data;
 };
 
-const getOperatorStats = async (operatorId) => {
+const getOperatorStats = async (brandId) => {
     if (!supabase) return {};
 
     // 1. Fetch KPI Strip stats
-    const kpis = await getAggregatedKPIs(operatorId);
+    const kpis = await getAggregatedKPIs(brandId);
 
     // 2. Fetch history for trends and sparklines
     const { data: history, error: historyError } = await supabase
         .from('daily_stats')
         .select('*')
-        .eq('operator_id', operatorId)
+        .eq('brand_id', brandId)
         .order('date', { ascending: true })
         .limit(30);
 
@@ -441,7 +441,7 @@ const getOperatorStats = async (operatorId) => {
         }
     };
 
-    const recentEvents = await getActivities(operatorId, 5);
+    const recentEvents = await getActivities(brandId, 5);
 
     return {
         ...kpis, // Legacy support

@@ -15,7 +15,8 @@ function Login({ onLogin }) {
         username: 'Test User',
         first_name: '',
         last_name: '',
-        email: ''
+        email: '',
+        brand_id: '1'
     });
 
     const handleLoginSubmit = async (e) => {
@@ -148,6 +149,17 @@ function Login({ onLogin }) {
                                 onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
                                 placeholder="name@example.com"
                                 required
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Brand ID</label>
+                            <input
+                                type="number"
+                                value={signupData.brand_id}
+                                onChange={(e) => setSignupData({ ...signupData, brand_id: e.target.value })}
+                                placeholder="Enter your brand ID (e.g., 1)"
+                                required
+                                min="1"
                             />
                         </div>
                         <button type="submit" className="btn-primary" style={{ width: '100%', padding: '16px', marginTop: '12px' }} disabled={loading}>
