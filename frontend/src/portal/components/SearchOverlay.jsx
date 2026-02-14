@@ -46,10 +46,10 @@ const SearchOverlay = ({ isOpen, onClose, token }) => {
     }, [query, token]);
 
     const handleSelect = (item, type) => {
-        if (type === 'players') {
+        if (type === 'player') {
             const searchQuery = item.user_id || item.username;
             // Force hard navigation to ensure consistent behavior
-            const targetUrl = `${window.location.origin}/portal/players?search=${encodeURIComponent(searchQuery)}`;
+            const targetUrl = `${window.location.origin}/portal/players?search=${encodeURIComponent(searchQuery)}&autoOpen=true`;
             window.location.href = targetUrl;
             return;
         }
@@ -68,7 +68,7 @@ const SearchOverlay = ({ isOpen, onClose, token }) => {
 
     return (
         <div className="search-overlay-backdrop" onClick={onClose}>
-            <div className="search-modal" onClick={e => e.stopPropagation()} style={{ background: '#1a1d24', border: '1px solid var(--glass-border)', boxShadow: '0 30px 60px rgba(0,0,0,0.8)' }}>
+            <div className="search-modal" onClick={e => e.stopPropagation()}>
                 <div className="search-header">
                     <Search size={20} className="search-icon" />
                     <input

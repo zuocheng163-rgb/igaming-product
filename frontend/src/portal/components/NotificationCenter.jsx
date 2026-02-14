@@ -14,6 +14,7 @@ const NotificationCenter = ({ token }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [activeFilter, setActiveFilter] = useState('all');
     const [showPrefs, setShowPrefs] = useState(false);
+    const [selectedNotification, setSelectedNotification] = useState(null);
 
     const { data: notifications, mutate } = useSWR(
         token ? ['/api/operator/notifications', token] : null,
@@ -52,9 +53,7 @@ const NotificationCenter = ({ token }) => {
     };
 
     const handleResolve = (id) => {
-        // Optimistic UI update
         mutate(notifications.map(n => n.id === id ? { ...n, status: 'read' } : n), false);
-        // axios.post(`/api/operator/notifications/${id}/resolve`, {}, { headers: { Authorization: `Bearer ${token}` } });
     };
 
     const formatTimeAgo = (dateStr) => {
@@ -69,8 +68,6 @@ const NotificationCenter = ({ token }) => {
         if (hours < 24) return `${hours}h ago`;
         return date.toLocaleDateString();
     };
-
-    const [selectedNotification, setSelectedNotification] = useState(null);
 
     return (
         <div className="notification-center-container">
@@ -101,27 +98,7 @@ const NotificationCenter = ({ token }) => {
                             className={`filter-tab ${activeFilter === 'unread' ? 'active' : ''}`}
                             onClick={() => setActiveFilter('unread')}
                         >Unread</button>
-                        <div className="flex-grow"></div>
-                        <span className="clear-all"><Trash2 size={12} /> Clear</span>
                     </div>
-
-                    {showPrefs && (
-                        <div className="prefs-panel glass-panel">
-                            <h4>Notification Preferences</h4>
-                            <div className="pref-item">
-                                <span>Security Alerts</span>
-                                <input type="checkbox" defaultChecked />
-                            </div>
-                            <div className="pref-item">
-                                <span>Payment Failures</span>
-                                <input type="checkbox" defaultChecked />
-                            </div>
-                            <div className="pref-item">
-                                <span>KYC Verification</span>
-                                <input type="checkbox" defaultChecked />
-                            </div>
-                        </div>
-                    )}
 
                     <div className="notification-list">
                         {filteredNotifications.length > 0 ? filteredNotifications.map(n => (
@@ -154,92 +131,73 @@ const NotificationCenter = ({ token }) => {
                             <div className="empty-state">
                                 <CheckCircle size={32} className="text-green-500" />
                                 <p>All Systems Nominal</p>
-                                <span>No active alerts detected in the stream</span>
                             </div>
                         )}
-                    </div>
-
-                    <div className="drawer-footer">
-                        <button className="view-all">Open Alert Console</button>
                     </div>
                 </div>
             )}
 
             {selectedNotification && (
                 <div className="modal-overlay" onClick={() => setSelectedNotification(null)}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
-                        maxWidth: '600px',
-                        width: '90%',
-                        background: '#000',
-                        border: '1px solid var(--glass-border-bright)',
-                        boxShadow: '0 40px 100px rgba(0,0,0,0.9)',
-                        position: 'relative',
-                        padding: '32px'
-                    }}>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: '24px',
-                            paddingBottom: '16px',
-                            borderBottom: '1px solid rgba(255,255,255,0.1)'
-                        }}>
-                            <h2 style={{ margin: 0, fontSize: '1.5rem', color: 'white' }}>Alert Investigation</h2>
-                            <button
-                                onClick={() => setSelectedNotification(null)}
-                                className="btn-close-modal"
-                                style={{
-                                    background: 'rgba(255,255,255,0.1)',
-                                    border: '1px solid rgba(255,255,255,0.2)',
-                                    borderRadius: '50%',
-                                    width: '40px',
-                                    height: '40px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    color: 'white',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-                                }}
-                            >
-                                <X size={22} />
-                            </button>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <button className="modal-close-prominent" onClick={() => setSelectedNotification(null)}>
+                            <X size={18} />
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                            <Bell className={selectedNotification.severity === 'Critical' ? 'text-danger' : 'text-warning'} size={24} />
+                            <h2 style={{ margin: 0, fontSize: '1.4rem', color: 'white' }}>Alert Investigation</h2>
                         </div>
-                        <div style={{ display: 'grid', gap: '16px' }}>
-                            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Type</div>
-                                <div>{selectedNotification.type || 'System Event'}</div>
+
+                        <div style={{ background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Event Message</label>
+                                <div style={{ fontSize: '1.1rem', fontWeight: '500', color: 'white' }}>{selectedNotification.message}</div>
                             </div>
-                            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Severity</div>
-                                <div>{selectedNotification.severity || 'Unknown'}</div>
-                            </div>
-                            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Message</div>
-                                <div>{selectedNotification.message}</div>
-                            </div>
-                            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Timestamp</div>
-                                <div>{new Date(selectedNotification.timestamp || selectedNotification.created_at).toLocaleString()}</div>
-                            </div>
-                            {selectedNotification.user_id && (
-                                <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>User ID</div>
-                                    <div>{selectedNotification.user_id}</div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Timestamp</label>
+                                    <div style={{ color: 'white' }}>{new Date(selectedNotification.timestamp || selectedNotification.created_at).toLocaleString()}</div>
                                 </div>
-                            )}
+                                <div>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>User ID</label>
+                                    <div style={{ color: 'white', fontFamily: 'monospace' }}>{selectedNotification.user_id || 'System'}</div>
+                                </div>
+                            </div>
+
                             {selectedNotification.metadata && (
-                                <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Additional Details</div>
-                                    <pre style={{ fontSize: '0.85rem', overflow: 'auto', maxHeight: '200px' }}>{JSON.stringify(selectedNotification.metadata, null, 2)}</pre>
+                                <div>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Metadata / Raw Evidence</label>
+                                    <pre style={{
+                                        margin: 0,
+                                        padding: '12px',
+                                        background: '#111',
+                                        borderRadius: '8px',
+                                        fontSize: '0.8rem',
+                                        color: '#ffd700',
+                                        overflow: 'auto',
+                                        maxHeight: '200px',
+                                        border: '1px solid rgba(255, 215, 0, 0.1)'
+                                    }}>
+                                        {JSON.stringify(selectedNotification.metadata, null, 2)}
+                                    </pre>
                                 </div>
                             )}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                            <button className="btn-primary" style={{ flex: 1 }} onClick={() => setSelectedNotification(null)}>
+                                Dismiss Alert
+                            </button>
+                            <button className="btn-secondary" style={{ flex: 1 }} onClick={() => { setSelectedNotification(null); window.location.href = '/portal/compliance'; }}>
+                                View Evidence Console
+                            </button>
                         </div>
                     </div>
                 </div>
-            )
-            }
-        </div >
+            )}
+        </div>
     );
 };
 

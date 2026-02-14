@@ -39,8 +39,14 @@ export const Players = ({ token }) => {
 
         const params = new URLSearchParams(window.location.search);
         const searchQuery = params.get('search');
+        const autoOpen = params.get('autoOpen');
+
         if (searchQuery) {
             fetchData(searchQuery);
+            if (autoOpen === 'true') {
+                // If it's a direct navigation from search, auto-trigger the modal
+                setSelectedPlayer(searchQuery);
+            }
         } else {
             fetchData();
         }

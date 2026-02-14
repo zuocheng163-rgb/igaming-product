@@ -40,7 +40,10 @@ const PlayerDetailsModal = ({ userId, token, onClose }) => {
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%', maxHeight: '80vh', overflow: 'auto' }}>
+            <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
+                <button className="modal-close-prominent" onClick={onClose}>
+                    <X size={18} />
+                </button>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                     <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <User size={24} />
