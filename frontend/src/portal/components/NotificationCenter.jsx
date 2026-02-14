@@ -152,7 +152,7 @@ const NotificationCenter = ({ token }) => {
                         <div style={{ background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <div style={{ marginBottom: '16px' }}>
                                 <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Event Message</label>
-                                <div style={{ fontSize: '1.1rem', fontWeight: '500', color: 'white' }}>{selectedNotification.message}</div>
+                                <div style={{ fontSize: '1.1rem', fontWeight: '500', color: 'white', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{selectedNotification.message}</div>
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>

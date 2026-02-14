@@ -129,7 +129,7 @@ export const Wallet = ({ token }) => {
                 const txs = res.transactions || [];
                 setData(txs.map(tx => ({
                     ...tx,
-                    user: tx.user_id,
+                    user: tx.actor_id || tx.user_id,
                     type: tx.action?.split(':')[1]?.toUpperCase() || 'TRANSACTION',
                     amount: tx.metadata?.request?.amount || tx.amount || 0,
                     status: tx.status || 'Success',

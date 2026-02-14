@@ -479,8 +479,8 @@ const searchOperatorGlobal = async (brandId, query) => {
             ? supabase.from('users').select('user_id, username, email, balance').eq('brand_id', brandId).or(`username.ilike.%${query}%,email.ilike.%${query}%`).limit(20)
             : supabase.from('users').select('user_id, username, email, balance').eq('brand_id', brandId).limit(20),
         query
-            ? supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
-            : supabase.from('platform_audit_logs').select('id, user_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').limit(20)
+            ? supabase.from('platform_audit_logs').select('id, actor_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').order('timestamp', { ascending: false }).limit(50)
+            : supabase.from('platform_audit_logs').select('id, actor_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').order('timestamp', { ascending: false }).limit(50)
     ]);
 
     // Debug logging for wallet transactions visibility
