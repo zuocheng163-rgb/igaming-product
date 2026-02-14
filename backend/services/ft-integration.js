@@ -191,7 +191,8 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
         });
 
         if (!published) {
-            throw new Error('Failed to publish event to RabbitMQ');
+            logger.warn(`[FT Integration] RabbitMQ publishing skipped or failed for ${eventType}`, { correlationId });
+            return { status: 'skipped', reason: 'RabbitMQ non-delivery' };
         }
 
         await auditLog({

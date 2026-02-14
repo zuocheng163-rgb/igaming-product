@@ -90,7 +90,7 @@ const PortalDashboard = ({ token, onLogout }) => {
                                 <h3>Live Operational Stream</h3>
                             </div>
                             <div className="activity-list">
-                                {stats?.recent_events?.length > 0 ? stats.recent_events.map((ev, i) => (
+                                {(stats?.recent_events && Array.isArray(stats.recent_events) && stats.recent_events.length > 0) ? stats.recent_events.map((ev, i) => (
                                     <div key={i} className="activity-item">
                                         <div className={`dot ${ev.type === 'inbound' ? 'inbound-dot' : 'outbound-dot'}`}></div>
                                         <div className="info" style={{ flex: 1 }}>

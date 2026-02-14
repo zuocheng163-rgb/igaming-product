@@ -23,7 +23,7 @@ const NotificationCenter = ({ token }) => {
     );
 
     const filteredNotifications = useMemo(() => {
-        if (!notifications) return [];
+        if (!notifications || !Array.isArray(notifications)) return [];
         let list = [...notifications];
 
         // Sorting: Critical first, then by date
