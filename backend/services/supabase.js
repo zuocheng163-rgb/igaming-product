@@ -470,27 +470,89 @@ const getOperatorStats = async (brandId) => {
     };
 };
 
+const createTransaction = async (txData) => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('transactions')
+        .insert([{
+            transaction_id: txData.transaction_id,
+            brand_id: txData.brand_id || 1,
+            user_id: txData.user_id, // Internal UUID
+            type: txData.type,
+            amount: txData.amount,
+            currency: txData.currency || 'EUR',
+            game_id: txData.game_id || null,
+            metadata: txData.metadata || {},
+            created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+    if (error) {
+        logger.error('[Supabase] Failed to create transaction record', { error: error.message, txId: txData.transaction_id });
+        return null;
+    }
+    return data;
+};
+
+const acquireLock = async (transactionId, brandId) => {
+    if (!supabase) return true; // Fail open in dev if needed, but safer to return true
+
+    const { error } = await supabase
+        .from('transaction_locks')
+        .insert([{
+            transaction_id: transactionId,
+            brand_id: brandId || 1,
+            status: 'pending',
+            created_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 60000).toISOString()
+        }]);
+
+    if (error) {
+        if (error.code === '23505') { // Unique violation
+            return false;
+        }
+        logger.error('[Supabase] Lock acquisition error', { error: error.message, txId: transactionId });
+        return false;
+    }
+    return true;
+};
+
 const searchOperatorGlobal = async (brandId, query) => {
     if (!supabase) return { players: [], transactions: [] };
 
-    // If query is empty, return all users (for initial load)
+    // 1. Search Users
+    const usersQuery = supabase.from('users')
+        .select('id, user_id, username, email, balance')
+        .eq('brand_id', brandId);
+
+    if (query) {
+        usersQuery.or(`username.ilike.%${query}%,email.ilike.%${query}%`);
+    }
+
+    // 2. Search Transactions (joined with users for public user_id)
+    const txQuery = supabase.from('transactions')
+        .select('*, users!inner(user_id, username)')
+        .eq('brand_id', brandId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
     const [usersRes, transactionsRes] = await Promise.all([
-        query
-            ? supabase.from('users').select('user_id, username, email, balance').eq('brand_id', brandId).or(`username.ilike.%${query}%,email.ilike.%${query}%`).limit(20)
-            : supabase.from('users').select('user_id, username, email, balance').eq('brand_id', brandId).limit(20),
-        query
-            ? supabase.from('platform_audit_logs').select('id, actor_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').order('timestamp', { ascending: false }).limit(50)
-            : supabase.from('platform_audit_logs').select('id, actor_id, action, metadata, timestamp').eq('brand_id', brandId).ilike('action', '%wallet%').order('timestamp', { ascending: false }).limit(50)
+        usersQuery.limit(20),
+        txQuery
     ]);
 
-    // Debug logging for wallet transactions visibility
-    if (transactionsRes) {
-        console.log(`[Search] Fetched transactions for brand ${brandId}. Count: ${transactionsRes.data?.length || 0}. Error: ${transactionsRes.error?.message || 'None'}`);
-    }
+    // Flatten transaction results to include public user identifier
+    const transactions = (transactionsRes.data || []).map(tx => ({
+        ...tx,
+        public_user_id: tx.users?.user_id || tx.users?.username || tx.user_id,
+        user_name: tx.users?.username
+    }));
 
     return {
         players: usersRes.data || [],
-        transactions: transactionsRes.data || []
+        transactions: transactions
     };
 };
 
@@ -529,5 +591,7 @@ module.exports = {
     getOperatorNotifications,
     getOperatorStats,
     searchOperatorGlobal,
-    getUserByIdAndBrand
+    getUserByIdAndBrand,
+    createTransaction,
+    acquireLock
 };

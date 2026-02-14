@@ -24,15 +24,20 @@ class WalletService {
         logger.debug(`[Wallet SPI] Processing Debit`, { userId, amount, transactionId, correlationId });
 
         // 1. Check Idempotency
-        // NOTE: In production, we'd use a real DB lock. 
-        // For PoC Maturity, we attempt to insert into transaction_locks.
-        // If it exists, we return existing result (or error if still pending).
+        const locked = await supabaseService.acquireLock(transactionId, brandId);
+        if (!locked) {
+            logger.warn(`[Wallet SPI] Duplicate transaction ignored`, { transactionId, userId });
+            const user = await supabaseService.getUserById(userId);
+            return {
+                transaction_id: transactionId,
+                balance: user?.balance,
+                bonus_balance: user?.bonus_balance,
+                currency: user?.currency,
+                duplicate: true
+            };
+        }
 
         try {
-            // Placeholder: In a real Supabase setup, we'd use a Stored Procedure (RPC) 
-            // to do the lock check AND the balance update in one atomic transaction.
-            // For this maturity step, we'll simulate the logic but strongly recommend RPC.
-
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
 
@@ -61,11 +66,23 @@ class WalletService {
                 bonus_balance: newBonusBalance
             });
 
+            // 2. Persist Transaction record
+            await supabaseService.createTransaction({
+                transaction_id: transactionId,
+                brand_id: brandId,
+                user_id: user.id,
+                type: 'DEBIT',
+                amount: -amount,
+                currency: user.currency,
+                game_id: gameId,
+                metadata: { correlationId, balance_after: newBalance }
+            });
+
             // Audit
             await auditLog({
                 correlationId,
                 brandId,
-                actor_id: userId,
+                actor_id: user.user_id, // Use public user_id for logs
                 action: 'wallet:debit',
                 entity_type: 'transaction',
                 entity_id: transactionId,
@@ -128,6 +145,12 @@ class WalletService {
     static async credit(userId, amount, transactionId, gameId, brandId, correlationId) {
         logger.debug(`[Wallet SPI] Processing Credit`, { userId, amount, transactionId, correlationId });
 
+        const locked = await supabaseService.acquireLock(transactionId, brandId);
+        if (!locked) {
+            const user = await supabaseService.getUserById(userId);
+            return { transaction_id: transactionId, balance: user?.balance, currency: user?.currency, duplicate: true };
+        }
+
         try {
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
@@ -136,10 +159,22 @@ class WalletService {
 
             await supabaseService.updateUser(user.id, { balance: newBalance });
 
+            // Persist Transaction record
+            await supabaseService.createTransaction({
+                transaction_id: transactionId,
+                brand_id: brandId,
+                user_id: user.id,
+                type: 'CREDIT',
+                amount: amount,
+                currency: user.currency,
+                game_id: gameId,
+                metadata: { correlationId, balance_after: newBalance }
+            });
+
             await auditLog({
                 correlationId,
                 brandId,
-                actor_id: userId,
+                actor_id: user.user_id,
                 action: 'wallet:credit',
                 entity_type: 'transaction',
                 entity_id: transactionId,
@@ -203,10 +238,21 @@ class WalletService {
             const newBalance = (user.balance || 0) + amount;
             await supabaseService.updateUser(user.id, { balance: newBalance });
 
+            // 2. Persist Transaction record
+            await supabaseService.createTransaction({
+                transaction_id: transactionId,
+                brand_id: brandId,
+                user_id: user.id,
+                type: 'DEPOSIT',
+                amount: amount,
+                currency: user.currency,
+                metadata: { correlationId, provider: paymentResult.provider, balance_after: newBalance }
+            });
+
             await auditLog({
                 correlationId,
                 brandId,
-                actor_id: userId,
+                actor_id: user.user_id,
                 action: 'wallet:deposit',
                 entity_type: 'transaction',
                 entity_id: transactionId,
@@ -328,10 +374,21 @@ class WalletService {
 
             await supabaseService.updateUser(user.id, { bonus_balance: newBonusBalance });
 
+            // Persist Transaction record
+            await supabaseService.createTransaction({
+                transaction_id: transactionId,
+                brand_id: brandId,
+                user_id: user.id,
+                type: 'BONUS_CREDIT',
+                amount: parseFloat(amount) || 0,
+                currency: user.currency,
+                metadata: { correlationId, bonusCode, bonus_balance_after: newBonusBalance }
+            });
+
             await auditLog({
                 correlationId,
                 brandId,
-                actor_id: userId,
+                actor_id: user.user_id,
                 action: 'wallet:bonus_credit',
                 entity_type: 'transaction',
                 entity_id: transactionId,

@@ -129,11 +129,12 @@ export const Wallet = ({ token }) => {
                 const txs = res.transactions || [];
                 setData(txs.map(tx => ({
                     ...tx,
-                    user: tx.actor_id || tx.user_id,
-                    type: tx.action?.split(':')[1]?.toUpperCase() || 'TRANSACTION',
-                    amount: tx.metadata?.request?.amount || tx.amount || 0,
+                    user: tx.public_user_id || tx.user_id,
+                    transaction_id: tx.transaction_id,
+                    type: tx.type || 'TRANSACTION',
+                    amount: tx.amount || 0,
                     status: tx.status || 'Success',
-                    date: tx.timestamp || tx.created_at || new Date().toISOString()
+                    date: tx.created_at || tx.timestamp || new Date().toISOString()
                 })));
                 setLoading(false);
             })
