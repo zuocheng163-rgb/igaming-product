@@ -15,12 +15,14 @@ import {
 } from 'lucide-react';
 import SearchOverlay from './SearchOverlay';
 import NotificationCenter from './NotificationCenter';
+import PlayerDetailsModal from './PlayerDetailsModal';
 
 const OperatorLayout = ({ children, user, token, onLogout }) => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [dateRange, setDateRange] = useState('Last 30 Days');
     const [isDateSelectorOpen, setIsDateSelectorOpen] = useState(false);
+    const [selectedPlayerId, setSelectedPlayerId] = useState(null);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -99,7 +101,15 @@ const OperatorLayout = ({ children, user, token, onLogout }) => {
                 </div>
             </header>
 
-            <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} token={token} />
+            <SearchOverlay
+                isOpen={isSearchOpen}
+                onClose={() => setIsSearchOpen(false)}
+                token={token}
+                onPlayerSelect={(id) => {
+                    setSelectedPlayerId(id);
+                    setIsSearchOpen(false);
+                }}
+            />
 
             <div className="portal-container">
                 {/* Persistent Left Sidebar */}
@@ -149,6 +159,13 @@ const OperatorLayout = ({ children, user, token, onLogout }) => {
                 </main>
             </div>
 
+            {selectedPlayerId && (
+                <PlayerDetailsModal
+                    userId={selectedPlayerId}
+                    token={token}
+                    onClose={() => setSelectedPlayerId(null)}
+                />
+            )}
         </div>
     );
 };

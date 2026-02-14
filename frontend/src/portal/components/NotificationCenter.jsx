@@ -190,7 +190,12 @@ const NotificationCenter = ({ token }) => {
                             <button className="btn-primary" style={{ flex: 1 }} onClick={() => setSelectedNotification(null)}>
                                 Dismiss Alert
                             </button>
-                            <button className="btn-secondary" style={{ flex: 1 }} onClick={() => { setSelectedNotification(null); window.location.href = '/portal/compliance'; }}>
+                            <button className="btn-secondary" style={{ flex: 1 }} onClick={() => {
+                                setSelectedNotification(null);
+                                setIsOpen(false);
+                                window.history.pushState({}, '', '/portal/compliance');
+                                window.dispatchEvent(new PopStateEvent('popstate'));
+                            }}>
                                 View Evidence Console
                             </button>
                         </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, User, CreditCard, History, Loader2 } from 'lucide-react';
 import axios from 'axios';
 
-const SearchOverlay = ({ isOpen, onClose, token }) => {
+const SearchOverlay = ({ isOpen, onClose, token, onPlayerSelect }) => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -47,11 +47,10 @@ const SearchOverlay = ({ isOpen, onClose, token }) => {
 
     const handleSelect = (item, type) => {
         if (type === 'player') {
-            const searchQuery = item.user_id || item.username;
-            // Force hard navigation to ensure consistent behavior
-            const targetUrl = `${window.location.origin}/portal/players?search=${encodeURIComponent(searchQuery)}&autoOpen=true`;
-            window.location.href = targetUrl;
-            return;
+            if (onPlayerSelect) {
+                onPlayerSelect(item.user_id || item.username);
+                return;
+            }
         }
 
         const newRecent = [
