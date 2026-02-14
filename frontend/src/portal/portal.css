@@ -103,8 +103,8 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(8px);
+    background: #000;
+    backdrop-filter: none;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -421,14 +421,14 @@
     right: 20px;
     width: 360px;
     max-height: calc(100vh - 120px);
-    background: #0d1117;
-    /* Solid Dark Background */
+    background: #000;
+    backdrop-filter: none;
     border: 1px solid var(--glass-border-bright);
     border-radius: var(--radius-l);
     z-index: 1001;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.9);
     animation: portal-slideInRight 0.3s ease-out;
 }
 
@@ -575,13 +575,13 @@
     max-width: 600px;
     height: fit-content;
     max-height: 500px;
-    background: rgba(20, 22, 28, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: #000;
+    border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 16px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 1);
 }
 
 .search-header {

@@ -170,33 +170,39 @@ const NotificationCenter = ({ token }) => {
                     <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
                         maxWidth: '600px',
                         width: '90%',
-                        background: '#1a1d24',
-                        border: '1px solid var(--glass-border)',
-                        boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
-                        position: 'relative'
+                        background: '#000',
+                        border: '1px solid var(--glass-border-bright)',
+                        boxShadow: '0 40px 100px rgba(0,0,0,0.9)',
+                        position: 'relative',
+                        padding: '32px'
                     }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '24px',
+                            paddingBottom: '16px',
+                            borderBottom: '1px solid rgba(255,255,255,0.1)'
+                        }}>
                             <h2 style={{ margin: 0, fontSize: '1.5rem', color: 'white' }}>Alert Investigation</h2>
                             <button
                                 onClick={() => setSelectedNotification(null)}
                                 className="btn-close-modal"
                                 style={{
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    background: 'rgba(255,255,255,0.1)',
+                                    border: '1px solid rgba(255,255,255,0.2)',
                                     borderRadius: '50%',
-                                    width: '36px',
-                                    height: '36px',
+                                    width: '40px',
+                                    height: '40px',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     cursor: 'pointer',
-                                    transition: '0.2s',
-                                    color: 'var(--text-muted)'
+                                    color: 'white',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                                 }}
-                                onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'white'; }}
-                                onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
                             >
-                                <X size={20} />
+                                <X size={22} />
                             </button>
                         </div>
                         <div style={{ display: 'grid', gap: '16px' }}>

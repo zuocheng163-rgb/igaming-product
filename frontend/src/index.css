@@ -53,11 +53,11 @@ h4 {
   letter-spacing: -0.03em;
 }
 
-/* Glassmorphism Container */
+/* Glassmorphism Container - TRANSITIONED TO OPAQUE FOR PORTAL */
 .glass-panel {
-  background: var(--glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--bg-card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-l);
   padding: 24px;
