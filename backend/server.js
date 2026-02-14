@@ -1,7 +1,9 @@
+const dotenv = require('dotenv');
+dotenv.config();
+
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
-const dotenv = require('dotenv');
 
 const { logger, setDbLogHook } = require('./services/logger');
 const supabaseService = require('./services/supabase');
@@ -12,8 +14,6 @@ const providerRoutes = require('./routes/providers');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const sandboxMiddleware = require('./middleware/sandbox');
-
-dotenv.config();
 
 // Initialize Observability Bridge
 setDbLogHook(supabaseService.saveAuditLog);

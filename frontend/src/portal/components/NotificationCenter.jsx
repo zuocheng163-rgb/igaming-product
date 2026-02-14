@@ -175,20 +175,27 @@ const NotificationCenter = ({ token }) => {
                         boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
                         position: 'relative'
                     }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h2 style={{ margin: 0 }}>Alert Details</h2>
-                            <button onClick={() => setSelectedNotification(null)} className="btn-icon" style={{
-                                position: 'absolute',
-                                top: '16px',
-                                right: '16px',
-                                background: 'rgba(255,255,255,0.1)',
-                                border: '1px solid rgba(255,255,255,0.2)',
-                                borderRadius: '8px',
-                                padding: '8px',
-                                cursor: 'pointer',
-                                color: 'white',
-                                zIndex: 100
-                            }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.5rem', color: 'white' }}>Alert Investigation</h2>
+                            <button
+                                onClick={() => setSelectedNotification(null)}
+                                className="btn-close-modal"
+                                style={{
+                                    background: 'rgba(255,255,255,0.05)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '50%',
+                                    width: '36px',
+                                    height: '36px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    transition: '0.2s',
+                                    color: 'var(--text-muted)'
+                                }}
+                                onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'white'; }}
+                                onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                            >
                                 <X size={20} />
                             </button>
                         </div>
@@ -224,8 +231,9 @@ const NotificationCenter = ({ token }) => {
                         </div>
                     </div>
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 };
 

@@ -10,6 +10,11 @@ if (supabaseUrl && (supabaseServiceKey || supabaseKey)) {
     supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseKey);
     logger.info('[Supabase] Client initialized');
 } else {
+    console.log('[DEBUG] Env check:', {
+        url: !!supabaseUrl,
+        key: !!supabaseKey,
+        serviceKey: !!supabaseServiceKey
+    });
     logger.warn('[Supabase] Missing credentials. Backend will fail to perform DB operations.');
 }
 
@@ -228,6 +233,7 @@ const getActivities = async (brandId, limit = 20) => {
             endpoint = log.entity_id ? `User: ${log.entity_id}` : 'System';
             if (log.metadata?.consents) endpoint = 'Update Consents';
             if (log.metadata?.blocks) endpoint = 'Update Blocks';
+            if (log.action === 'inbound:userdetails') endpoint = 'FT: GET UserDetails';
         } else {
             const parts = log.action.split(':');
             if (parts.length >= 3) {
@@ -244,6 +250,7 @@ const getActivities = async (brandId, limit = 20) => {
             type: isInbound ? 'inbound' : 'outbound',
             method: method,
             endpoint: endpoint,
+            message: log.message,
             status: log.status === 'success' ? 200 : 500,
             payload: log.metadata || {},
             timestamp: log.timestamp

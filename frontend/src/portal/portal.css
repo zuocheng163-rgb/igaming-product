@@ -88,11 +88,11 @@
     max-width: 600px;
     height: fit-content;
     max-height: 70vh;
-    background: rgba(15, 18, 24, 0.98);
-    backdrop-filter: blur(20px);
+    background: #000;
+    backdrop-filter: none;
     border: 1px solid var(--glass-border);
     border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
     animation: portal-slideUp 0.3s ease-out;
 }
 
@@ -113,14 +113,14 @@
 }
 
 .modal-content {
-    background: rgba(15, 18, 24, 0.98);
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--glass-border);
+    background: #0d1117;
+    /* Solid Dark Background */
+    border: 1px solid var(--glass-border-bright);
     border-radius: var(--radius-l);
-    padding: 24px;
+    padding: 32px;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.9);
     animation: portal-slideUp 0.3s ease-out;
 }
 
@@ -404,9 +404,14 @@
     line-height: 1.4;
 }
 
-.activity-item span {
-    font-size: 0.7rem;
-    color: var(--text-muted);
+.activity-item .dot.inbound-dot {
+    background: var(--success);
+    box-shadow: 0 0 10px var(--success);
+}
+
+.activity-item .dot.outbound-dot {
+    background: var(--secondary);
+    box-shadow: 0 0 10px var(--secondary);
 }
 
 /* Notification Drawer */
@@ -416,13 +421,14 @@
     right: 20px;
     width: 360px;
     max-height: calc(100vh - 120px);
-    background: #000;
-    border: 1px solid var(--glass-border);
+    background: #0d1117;
+    /* Solid Dark Background */
+    border: 1px solid var(--glass-border-bright);
     border-radius: var(--radius-l);
     z-index: 1001;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 0, 0, 0.5);
     animation: portal-slideInRight 0.3s ease-out;
 }
 
@@ -555,8 +561,8 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(12px);
+    background: #000;
+    backdrop-filter: none;
     z-index: 2000;
     display: flex;
     justify-content: center;

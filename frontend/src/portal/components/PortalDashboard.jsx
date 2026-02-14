@@ -92,14 +92,25 @@ const PortalDashboard = ({ token, onLogout }) => {
                             <div className="activity-list">
                                 {stats?.recent_events?.length > 0 ? stats.recent_events.map((ev, i) => (
                                     <div key={i} className="activity-item">
-                                        <div className="dot"></div>
-                                        <div className="info">
-                                            <p>{ev.message}</p>
-                                            <div className="meta">
-                                                <span>{new Date(ev.timestamp).toLocaleTimeString()}</span>
-                                                <span className="dot-sep">•</span>
-                                                <span>{ev.type || 'System'}</span>
+                                        <div className={`dot ${ev.type === 'inbound' ? 'inbound-dot' : 'outbound-dot'}`}></div>
+                                        <div className="info" style={{ flex: 1 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                                <span style={{
+                                                    fontSize: '0.65rem',
+                                                    fontWeight: 800,
+                                                    padding: '2px 6px',
+                                                    borderRadius: '4px',
+                                                    background: ev.type === 'inbound' ? 'rgba(0, 255, 163, 0.1)' : 'rgba(121, 40, 202, 0.1)',
+                                                    color: ev.type === 'inbound' ? 'var(--success)' : 'var(--secondary)',
+                                                    textTransform: 'uppercase'
+                                                }}>
+                                                    {ev.method} {ev.endpoint}
+                                                </span>
+                                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                                    {new Date(ev.timestamp).toLocaleTimeString()}
+                                                </span>
                                             </div>
+                                            <p style={{ color: '#e0e0e0', fontWeight: 500 }}>{ev.message || (ev.type === 'inbound' ? 'Inbound Request Received' : 'Outbound Event Pushed')}</p>
                                         </div>
                                     </div>
                                 )) : <p className="empty">No recent activity</p>}
