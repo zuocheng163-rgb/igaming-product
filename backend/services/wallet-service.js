@@ -21,10 +21,12 @@ class WalletService {
      * Standardized Debit (Bet) operation
      */
     static async debit(userId, amount, transactionId, gameId, brandId, correlationId) {
-        logger.debug(`[Wallet SPI] Processing Debit`, { userId, amount, transactionId, correlationId });
+        // Standardize brandId
+        const normalizedBrandId = supabaseService.getBrandId(brandId);
+        logger.debug(`[Wallet SPI] Processing Debit`, { userId, amount, transactionId, normalizedBrandId, correlationId });
 
         // 1. Check Idempotency
-        const locked = await supabaseService.acquireLock(transactionId, brandId);
+        const locked = await supabaseService.acquireLock(transactionId, normalizedBrandId);
         if (!locked) {
             logger.warn(`[Wallet SPI] Duplicate transaction ignored`, { transactionId, userId });
             const user = await supabaseService.getUserById(userId);
@@ -40,6 +42,9 @@ class WalletService {
         try {
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
+
+            // Use the actual brand_id from the user record
+            const playerBrandId = user.brand_id || normalizedBrandId;
 
             const totalBalance = (user.balance || 0) + (user.bonus_balance || 0);
             if (totalBalance < amount) throw new Error('INSUFFICIENT_FUNDS');
@@ -66,10 +71,10 @@ class WalletService {
                 bonus_balance: newBonusBalance
             });
 
-            // 2. Persist Transaction record
+            // 2. Persist Transaction record with CORRECT brand_id
             await supabaseService.createTransaction({
                 transaction_id: transactionId,
-                brand_id: brandId,
+                brand_id: playerBrandId,
                 user_id: user.id,
                 type: 'DEBIT',
                 amount: -amount,
@@ -81,7 +86,7 @@ class WalletService {
             // Audit
             await auditLog({
                 correlationId,
-                brandId,
+                brandId: playerBrandId,
                 actor_id: user.user_id, // Use public user_id for logs
                 action: 'wallet:debit',
                 entity_type: 'transaction',
@@ -143,9 +148,10 @@ class WalletService {
      * Standardized Credit (Win) operation
      */
     static async credit(userId, amount, transactionId, gameId, brandId, correlationId) {
-        logger.debug(`[Wallet SPI] Processing Credit`, { userId, amount, transactionId, correlationId });
+        const normalizedBrandId = supabaseService.getBrandId(brandId);
+        logger.debug(`[Wallet SPI] Processing Credit`, { userId, amount, transactionId, normalizedBrandId, correlationId });
 
-        const locked = await supabaseService.acquireLock(transactionId, brandId);
+        const locked = await supabaseService.acquireLock(transactionId, normalizedBrandId);
         if (!locked) {
             const user = await supabaseService.getUserById(userId);
             return { transaction_id: transactionId, balance: user?.balance, currency: user?.currency, duplicate: true };
@@ -155,6 +161,7 @@ class WalletService {
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
 
+            const playerBrandId = user.brand_id || normalizedBrandId;
             const newBalance = user.balance + amount;
 
             await supabaseService.updateUser(user.id, { balance: newBalance });
@@ -162,7 +169,7 @@ class WalletService {
             // Persist Transaction record
             await supabaseService.createTransaction({
                 transaction_id: transactionId,
-                brand_id: brandId,
+                brand_id: playerBrandId,
                 user_id: user.id,
                 type: 'CREDIT',
                 amount: amount,
@@ -173,7 +180,7 @@ class WalletService {
 
             await auditLog({
                 correlationId,
-                brandId,
+                brandId: playerBrandId,
                 actor_id: user.user_id,
                 action: 'wallet:credit',
                 entity_type: 'transaction',
@@ -221,12 +228,15 @@ class WalletService {
      * Standardized Deposit (Payment) operation with Auto-Retry and Failover
      */
     static async deposit(userId, amount, method, brandId, correlationId) {
-        logger.debug(`[Wallet SPI] Processing Deposit`, { userId, amount, method, correlationId });
+        const normalizedBrandId = supabaseService.getBrandId(brandId);
+        logger.debug(`[Wallet SPI] Processing Deposit`, { userId, amount, method, normalizedBrandId, correlationId });
         const transactionId = `dep-${Date.now()}`;
 
         try {
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
+
+            const playerBrandId = user.brand_id || normalizedBrandId;
 
             // 1. External Payment Orchestration (Adyen -> Stripe)
             const paymentResult = await this._orchestrateExternalPayment(userId, amount, method, correlationId);
@@ -241,7 +251,7 @@ class WalletService {
             // 2. Persist Transaction record
             await supabaseService.createTransaction({
                 transaction_id: transactionId,
-                brand_id: brandId,
+                brand_id: playerBrandId,
                 user_id: user.id,
                 type: 'DEPOSIT',
                 amount: amount,
@@ -251,7 +261,7 @@ class WalletService {
 
             await auditLog({
                 correlationId,
-                brandId,
+                brandId: playerBrandId,
                 actor_id: user.user_id,
                 action: 'wallet:deposit',
                 entity_type: 'transaction',
@@ -363,13 +373,15 @@ class WalletService {
      * Standardized Bonus Credit operation
      */
     static async creditBonus(userId, amount, bonusCode, brandId, correlationId, fasttrackReferences = null) {
-        logger.debug(`[Wallet SPI] Processing Bonus Credit`, { userId, amount, bonusCode, correlationId });
+        const normalizedBrandId = supabaseService.getBrandId(brandId);
+        logger.debug(`[Wallet SPI] Processing Bonus Credit`, { userId, amount, bonusCode, normalizedBrandId, correlationId });
         const transactionId = `bon-${Date.now()}`;
 
         try {
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
 
+            const playerBrandId = user.brand_id || normalizedBrandId;
             const newBonusBalance = (user.bonus_balance || 0) + (parseFloat(amount) || 0);
 
             await supabaseService.updateUser(user.id, { bonus_balance: newBonusBalance });
@@ -377,7 +389,7 @@ class WalletService {
             // Persist Transaction record
             await supabaseService.createTransaction({
                 transaction_id: transactionId,
-                brand_id: brandId,
+                brand_id: playerBrandId,
                 user_id: user.id,
                 type: 'BONUS_CREDIT',
                 amount: parseFloat(amount) || 0,
@@ -387,7 +399,7 @@ class WalletService {
 
             await auditLog({
                 correlationId,
-                brandId,
+                brandId: playerBrandId,
                 actor_id: user.user_id,
                 action: 'wallet:bonus_credit',
                 entity_type: 'transaction',

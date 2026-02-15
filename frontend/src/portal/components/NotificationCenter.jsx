@@ -178,7 +178,10 @@ const NotificationCenter = ({ token }) => {
                                         color: '#ffd700',
                                         overflow: 'auto',
                                         maxHeight: '200px',
-                                        border: '1px solid rgba(255, 215, 0, 0.1)'
+                                        border: '1px solid rgba(255, 215, 0, 0.1)',
+                                        whiteSpace: 'pre-wrap !important',
+                                        wordBreak: 'break-all !important',
+                                        overflowWrap: 'anywhere !important'
                                     }}>
                                         {JSON.stringify(selectedNotification.metadata, null, 2)}
                                     </pre>

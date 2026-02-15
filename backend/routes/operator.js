@@ -73,6 +73,20 @@ const authenticateRequest = async (req, res, next) => {
             }
         }
 
+        // Portal Access Control: Only allow users with "admin" in username for portal endpoints
+        if (req.path.startsWith('/operator/') && req.user) {
+            if (!req.user.username || !req.user.username.toLowerCase().includes('admin')) {
+                logger.warn('Portal access denied: Non-admin user attempted portal access', {
+                    username: req.user.username,
+                    path: req.path,
+                    correlationId
+                });
+                return res.status(403).json({
+                    error: 'Forbidden: Portal access restricted to administrators only'
+                });
+            }
+        }
+
         logger.warn('Unauthorized access attempt', {
             path: req.path,
             correlationId
@@ -130,17 +144,6 @@ router.post('/authenticate', async (req, res) => {
 
         if (!user) {
             return res.status(401).json({ error: 'Unauthorized: Invalid API Token or Username' });
-        }
-
-        // Portal Access: Only allow users with "admin" in username (case-insensitive)
-        if (!user.username || !user.username.toLowerCase().includes('admin')) {
-            logger.warn('Portal access denied: Non-admin user attempted login', {
-                username: user.username,
-                correlationId
-            });
-            return res.status(403).json({
-                error: 'Forbidden: Portal access restricted to administrators only'
-            });
         }
 
         // Update Last Login (Graceful degradation)
@@ -675,17 +678,20 @@ const parseOperatorFilter = (input) => {
 };
 
 // Helper function to parse date string (supports MM/DD/YYYY and MM/DD/YYYY, HH:MM:SS)
-const parseDate = (dateStr) => {
+const parseDate = (dateStr, operator) => {
     if (!dateStr) return null;
 
     try {
+        let date;
+
         // Try parsing MM/DD/YYYY, HH:MM:SS format
         const dateTimeRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4}),?\s*(\d{1,2}):(\d{1,2}):(\d{1,2})$/;
         const dateTimeMatch = dateStr.trim().match(dateTimeRegex);
 
         if (dateTimeMatch) {
             const [, month, day, year, hour, minute, second] = dateTimeMatch;
-            return new Date(year, month - 1, day, hour, minute, second).toISOString();
+            date = new Date(year, month - 1, day, hour, minute, second);
+            return date.toISOString();
         }
 
         // Try parsing MM/DD/YYYY format
@@ -694,7 +700,23 @@ const parseDate = (dateStr) => {
 
         if (dateMatch) {
             const [, month, day, year] = dateMatch;
-            return new Date(year, month - 1, day).toISOString();
+            date = new Date(year, month - 1, day);
+
+            // For < operator, we want "before this date" which means end of previous day
+            // For <= operator, we want "on or before this date" which means end of this day
+            if (operator === '<') {
+                date.setHours(0, 0, 0, 0); // Start of the specified day
+            } else if (operator === '<=') {
+                date.setHours(23, 59, 59, 999); // End of the specified day
+            } else if (operator === '>') {
+                date.setHours(23, 59, 59, 999); // End of the specified day
+            } else if (operator === '>=') {
+                date.setHours(0, 0, 0, 0); // Start of the specified day
+            } else {
+                date.setHours(0, 0, 0, 0); // Default to start of day for = operator
+            }
+
+            return date.toISOString();
         }
 
         return null;
@@ -725,7 +747,7 @@ router.post('/operator/players/filter', authenticateRequest, async (req, res) =>
         if (last_login) {
             const parsed = parseOperatorFilter(last_login);
             if (parsed) {
-                const dateValue = parseDate(parsed.value);
+                const dateValue = parseDate(parsed.value, parsed.operator);
                 if (dateValue) {
                     filters.last_login = { operator: parsed.operator, value: dateValue };
                 }
@@ -762,7 +784,7 @@ router.post('/operator/transactions/filter', authenticateRequest, async (req, re
         if (date) {
             const parsed = parseOperatorFilter(date);
             if (parsed) {
-                const dateValue = parseDate(parsed.value);
+                const dateValue = parseDate(parsed.value, parsed.operator);
                 if (dateValue) {
                     filters.date = { operator: parsed.operator, value: dateValue };
                 }

@@ -645,7 +645,8 @@ const getFilteredTransactions = async (brandId, filters, page = 1, limit = 10) =
         query = query.ilike('transaction_id', `%${filters.transaction_id}%`);
     }
     if (filters.user) {
-        query = query.or(`users.username.ilike.%${filters.user}%,users.user_id.ilike.%${filters.user}%`);
+        // Filter by username in the joined users table
+        query = query.ilike('users.username', `%${filters.user}%`);
     }
     if (filters.type) {
         query = query.ilike('type', `%${filters.type}%`);

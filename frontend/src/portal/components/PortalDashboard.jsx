@@ -88,8 +88,10 @@ const PortalDashboard = ({ token, onLogout }) => {
                 <div className="charts-grid">
                     <GGRTrendChart data={stats?.ggr_history || []} />
 
-                    <div className="side-panels">
-                        <NotificationsWidget token={token} />
+                    <div className="side-panels" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div style={{ minHeight: '280px', maxHeight: '280px' }}>
+                            <NotificationsWidget token={token} />
+                        </div>
                         <ActiveProvidersWidget />
                     </div>
                 </div>

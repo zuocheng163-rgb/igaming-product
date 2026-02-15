@@ -47,10 +47,19 @@ const SearchOverlay = ({ isOpen, onClose, token, onPlayerSelect }) => {
 
     const handleSelect = (item, type) => {
         if (type === 'player') {
+            const newRecent = [
+                { id: item.user_id || item.username, label: item.username || item.user_id, type },
+                ...recent.filter(r => r.id !== (item.user_id || item.username))
+            ].slice(0, 5);
+
+            setRecent(newRecent);
+            localStorage.setItem('ns_recent_searches', JSON.stringify(newRecent));
+
             if (onPlayerSelect) {
-                onPlayerSelect(item.user_id || item.username);
-                return;
+                onPlayerSelect(item.user_id || item.id || item.username);
             }
+            onClose();
+            return;
         }
 
         const newRecent = [
@@ -60,7 +69,7 @@ const SearchOverlay = ({ isOpen, onClose, token, onPlayerSelect }) => {
 
         setRecent(newRecent);
         localStorage.setItem('ns_recent_searches', JSON.stringify(newRecent));
-        if (type !== 'players') onClose();
+        onClose();
     };
 
     if (!isOpen) return null;
