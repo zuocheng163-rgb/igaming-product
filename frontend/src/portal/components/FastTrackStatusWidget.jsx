@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { Zap, CheckCircle, AlertCircle } from 'lucide-react';
 
-const FastTrackStatusWidget = ({ token }) => {
+const FastTrackStatusWidget = ({ token, stats }) => {
+    const eventsSentValue = stats?.metrics?.events_sent?.value || 0;
+
     const [status, setStatus] = useState({
         connected: true,
-        eventsSent: 12450,
+        eventsSent: eventsSentValue,
         lastSync: new Date(),
         health: 'good' // good, warning, error
     });
+
+    useEffect(() => {
+        if (stats?.metrics?.events_sent?.value) {
+            setStatus(prev => ({ ...prev, eventsSent: stats.metrics.events_sent.value }));
+        }
+    }, [stats]);
 
     useEffect(() => {
         // Update last sync time every second

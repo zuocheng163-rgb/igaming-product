@@ -78,32 +78,37 @@ const PlayerDetailsModal = ({ userId, token, onClose }) => {
                                 </button>
                             </div>
 
-                            <div style={{ display: 'grid', gap: '16px' }}>
-                                <DetailRow icon={<User size={16} />} label="User ID" value={player.user_id || 'N/A'} />
-                                <DetailRow icon={<User size={16} />} label="Username" value={player.username || 'N/A'} />
-                                <DetailRow icon={<User size={16} />} label="Full Name" value={`${player.first_name || ''} ${player.last_name || ''}`.trim() || 'N/A'} />
-                                <DetailRow
-                                    icon={<Mail size={16} />}
-                                    label="Email"
-                                    value={revealed ? (player.email || 'N/A') : maskEmail(player.email)}
-                                    sensitive={!revealed}
-                                />
-                                <DetailRow
-                                    icon={<Phone size={16} />}
-                                    label="Mobile"
-                                    value={revealed ? (player.full_mobile_number || player.mobile || 'N/A') : maskPhone(player.full_mobile_number || player.mobile)}
-                                    sensitive={!revealed}
-                                />
-                                <DetailRow
-                                    icon={<MapPin size={16} />}
-                                    label="Address"
-                                    value={revealed ? (player.address || 'N/A') : maskAddress(player.address)}
-                                    sensitive={!revealed}
-                                />
-                                <DetailRow icon={<MapPin size={16} />} label="Country" value={player.country || 'N/A'} />
-                                <DetailRow icon={<Calendar size={16} />} label="Registration Date" value={player.registration_date ? new Date(player.registration_date).toLocaleDateString() : 'N/A'} />
-                                <DetailRow icon={<Shield size={16} />} label="Verified" value={player.verified_at ? 'Yes' : 'No'} />
-                                <DetailRow icon={<Shield size={16} />} label="Status" value={player.is_blocked ? 'Blocked' : player.is_excluded ? 'Excluded' : 'Active'} />
+                            <div style={{ display: 'grid', gap: '12px', maxHeight: '60vh', overflowY: 'auto' }}>
+                                {/* Primary Identity Fields (Always Top) */}
+                                <DetailRow icon={<User size={16} />} label="User ID (Public)" value={player.user_id} />
+                                <DetailRow icon={<Shield size={16} />} label="Internal UUID" value={player.id} sensitive={true} />
+                                <DetailRow icon={<User size={16} />} label="Username" value={player.username} />
+
+                                {/* Dynamic Fields (All other fields from DB) */}
+                                {Object.entries(player)
+                                    .filter(([key]) => !['id', 'user_id', 'username', 'password_hash', 'token'].includes(key))
+                                    .sort()
+                                    .map(([key, value]) => {
+                                        let displayValue = value;
+                                        if (typeof value === 'boolean') displayValue = value ? 'Yes' : 'No';
+                                        if (typeof value === 'object' && value !== null) displayValue = JSON.stringify(value);
+                                        if (value === null || value === undefined) displayValue = 'null';
+
+                                        // Apply masking to known PII if not revealed
+                                        const isPII = ['email', 'mobile', 'first_name', 'last_name', 'address', 'phone', 'full_mobile_number'].includes(key);
+                                        if (isPII && !revealed) {
+                                            displayValue = '•'.repeat(8) + ' (Hidden)';
+                                        }
+
+                                        return (
+                                            <DetailRow
+                                                key={key}
+                                                icon={<div style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />}
+                                                label={key.replace(/_/g, ' ').toUpperCase()}
+                                                value={displayValue}
+                                            />
+                                        );
+                                    })}
                             </div>
 
                             <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
@@ -127,12 +132,12 @@ const PlayerDetailsModal = ({ userId, token, onClose }) => {
     );
 };
 
-const DetailRow = ({ icon, label, value, sensitive }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-        <div style={{ color: 'var(--primary)' }}>{icon}</div>
-        <div style={{ flex: 1 }}>
+const DetailRow = ({ icon, label, value, responsive }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', overflow: 'hidden' }}>
+        <div style={{ color: 'var(--primary)', flexShrink: 0 }}>{icon}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{label}</div>
-            <div style={{ fontSize: '0.95rem', fontFamily: sensitive ? 'monospace' : 'inherit' }}>{value}</div>
+            <div style={{ fontSize: '0.95rem', wordBreak: 'break-all' }}>{value}</div>
         </div>
     </div>
 );

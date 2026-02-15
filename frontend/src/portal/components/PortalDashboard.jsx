@@ -89,7 +89,7 @@ const PortalDashboard = ({ user, token, onLogout }) => {
                     <GGRTrendChart data={stats?.ggr_history || []} />
 
                     <div className="side-panels" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        <FastTrackStatusWidget token={token} />
+                        <FastTrackStatusWidget token={token} stats={stats} />
                         <ActiveProvidersWidget />
                     </div>
                 </div>

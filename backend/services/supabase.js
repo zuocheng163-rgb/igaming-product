@@ -303,7 +303,8 @@ const getAggregatedKPIs = async (brandId) => {
     });
 
     // 1. Calculate Active Players (Unique users with transactions in last 24h)
-    let activePlayers = new Set(transactions.map(tx => tx.user_id)).size;
+    // Note: audit logs use 'actor_id', not 'user_id'
+    let activePlayers = new Set(transactions.map(tx => tx.actor_id || tx.user_id)).size;
 
     // Fallback: If no transactions, count users logged in within last 24h
     if (activePlayers === 0) {
@@ -315,6 +316,14 @@ const getAggregatedKPIs = async (brandId) => {
         activePlayers = count || 0;
     }
 
+    // 2. Calculate Events Sent (Last 24h) - FT Integration Events
+    const { count: eventsSent } = await supabase
+        .from('platform_audit_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('brand_id', brandId)
+        .gte('timestamp', new Date(Date.now() - 86400000).toISOString())
+        .or('action.ilike.inbound:*,action.ilike.push_event*');
+
     const approvalRate = transactions.length > 0 ? Math.round((successfulTxs / transactions.length) * 100) : 98;
 
     return {
@@ -323,7 +332,8 @@ const getAggregatedKPIs = async (brandId) => {
         deposits,
         transaction_count: transactions.length,
         active_players: activePlayers,
-        approval_rate: approvalRate
+        approval_rate: approvalRate,
+        events_sent: eventsSent || 0
     };
 };
 
@@ -460,6 +470,11 @@ const getOperatorStats = async (brandId) => {
             value: 4,
             trend: -20, // Improving
             sparkline: [8, 7, 6, 6, 5, 4, 4]
+        },
+        events_sent: {
+            value: kpis.events_sent,
+            trend: 5,
+            sparkline: [120, 150, 180, 200, 210, 220, kpis.events_sent || 230]
         }
     };
 
