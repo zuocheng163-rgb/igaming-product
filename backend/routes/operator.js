@@ -132,6 +132,17 @@ router.post('/authenticate', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized: Invalid API Token or Username' });
         }
 
+        // Portal Access: Only allow users with "admin" in username (case-insensitive)
+        if (!user.username || !user.username.toLowerCase().includes('admin')) {
+            logger.warn('Portal access denied: Non-admin user attempted login', {
+                username: user.username,
+                correlationId
+            });
+            return res.status(403).json({
+                error: 'Forbidden: Portal access restricted to administrators only'
+            });
+        }
+
         // Update Last Login (Graceful degradation)
         try {
             await supabaseService.updateUser(user.id, { last_login: new Date().toISOString() });
@@ -646,6 +657,137 @@ router.get('/operator/users/:userId', authenticateRequest, async (req, res) => {
         res.json(player);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch player details' });
+    }
+});
+
+// Helper function to parse filter operators
+const parseOperatorFilter = (input) => {
+    if (!input || typeof input !== 'string') return null;
+
+    const trimmed = input.trim();
+    const operatorRegex = /^(>=|<=|>|<|=)\s*(.+)$/;
+    const match = trimmed.match(operatorRegex);
+
+    if (match) {
+        return { operator: match[1], value: match[2].trim() };
+    }
+    return null;
+};
+
+// Helper function to parse date string (supports MM/DD/YYYY and MM/DD/YYYY, HH:MM:SS)
+const parseDate = (dateStr) => {
+    if (!dateStr) return null;
+
+    try {
+        // Try parsing MM/DD/YYYY, HH:MM:SS format
+        const dateTimeRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4}),?\s*(\d{1,2}):(\d{1,2}):(\d{1,2})$/;
+        const dateTimeMatch = dateStr.trim().match(dateTimeRegex);
+
+        if (dateTimeMatch) {
+            const [, month, day, year, hour, minute, second] = dateTimeMatch;
+            return new Date(year, month - 1, day, hour, minute, second).toISOString();
+        }
+
+        // Try parsing MM/DD/YYYY format
+        const dateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+        const dateMatch = dateStr.trim().match(dateRegex);
+
+        if (dateMatch) {
+            const [, month, day, year] = dateMatch;
+            return new Date(year, month - 1, day).toISOString();
+        }
+
+        return null;
+    } catch (e) {
+        return null;
+    }
+};
+
+// Player filtering endpoint
+router.post('/operator/players/filter', authenticateRequest, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    const { country, username, email, balance, last_login, page = 1, limit = 10 } = req.body;
+
+    try {
+        const filters = {};
+
+        if (country) filters.country = country;
+        if (username) filters.username = username;
+        if (email) filters.email = email;
+
+        if (balance) {
+            const parsed = parseOperatorFilter(balance);
+            if (parsed) {
+                filters.balance = { operator: parsed.operator, value: parseFloat(parsed.value) };
+            }
+        }
+
+        if (last_login) {
+            const parsed = parseOperatorFilter(last_login);
+            if (parsed) {
+                const dateValue = parseDate(parsed.value);
+                if (dateValue) {
+                    filters.last_login = { operator: parsed.operator, value: dateValue };
+                }
+            }
+        }
+
+        const result = await supabaseService.getFilteredPlayers(brandId, filters, page, limit);
+        res.json(result);
+    } catch (error) {
+        logger.error('Player filter failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to filter players' });
+    }
+});
+
+// Transaction filtering endpoint
+router.post('/operator/transactions/filter', authenticateRequest, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    const { transaction_id, user, type, amount, date, page = 1, limit = 10 } = req.body;
+
+    try {
+        const filters = {};
+
+        if (transaction_id) filters.transaction_id = transaction_id;
+        if (user) filters.user = user;
+        if (type) filters.type = type;
+
+        if (amount) {
+            const parsed = parseOperatorFilter(amount);
+            if (parsed) {
+                filters.amount = { operator: parsed.operator, value: parseFloat(parsed.value) };
+            }
+        }
+
+        if (date) {
+            const parsed = parseOperatorFilter(date);
+            if (parsed) {
+                const dateValue = parseDate(parsed.value);
+                if (dateValue) {
+                    filters.date = { operator: parsed.operator, value: dateValue };
+                }
+            }
+        }
+
+        const result = await supabaseService.getFilteredTransactions(brandId, filters, page, limit);
+        res.json(result);
+    } catch (error) {
+        logger.error('Transaction filter failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to filter transactions' });
+    }
+});
+
+// Operational stream endpoint
+router.get('/operator/operational-stream', authenticateRequest, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    const { page = 1, limit = 20 } = req.query;
+
+    try {
+        const result = await supabaseService.getOperationalStream(brandId, parseInt(page), parseInt(limit));
+        res.json(result);
+    } catch (error) {
+        logger.error('Operational stream fetch failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch operational stream' });
     }
 });
 

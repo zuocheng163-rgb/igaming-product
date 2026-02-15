@@ -22,7 +22,10 @@ if (supabaseUrl && (supabaseServiceKey || supabaseKey)) {
  * Helper to map operator_id (string) to brand_id (int)
  */
 const getBrandId = (brandId) => {
-    return brandId || 1;
+    // Standardize to numeric 1 if falsy, '1', or 1.
+    // We remove the 'default' string mapping to ensure DB consistency.
+    if (!brandId || brandId === 1 || brandId === '1') return 1;
+    return brandId;
 };
 
 /**
@@ -532,9 +535,11 @@ const searchOperatorGlobal = async (brandId, query) => {
     }
 
     // 2. Search Transactions (joined with users for public user_id)
+    const normalizedBrandId = getBrandId(brandId);
+
     const txQuery = supabase.from('transactions')
         .select('*, users!inner(user_id, username)')
-        .eq('brand_id', brandId)
+        .eq('brand_id', normalizedBrandId)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -574,6 +579,184 @@ const getUserByIdAndBrand = async (userId, brandId) => {
     return data;
 };
 
+const getFilteredPlayers = async (brandId, filters, page = 1, limit = 10) => {
+    if (!supabase) return { players: [], total: 0, totalPages: 0 };
+
+    let query = supabase.from('users')
+        .select('id, user_id, username, email, balance, country, last_login', { count: 'exact' })
+        .eq('brand_id', brandId);
+
+    // Apply filters
+    if (filters.country) {
+        query = query.ilike('country', `%${filters.country}%`);
+    }
+    if (filters.username) {
+        query = query.ilike('username', `%${filters.username}%`);
+    }
+    if (filters.email) {
+        query = query.ilike('email', `%${filters.email}%`);
+    }
+    if (filters.balance) {
+        const { operator, value } = filters.balance;
+        if (operator === '>') query = query.gt('balance', value);
+        else if (operator === '>=') query = query.gte('balance', value);
+        else if (operator === '=') query = query.eq('balance', value);
+        else if (operator === '<') query = query.lt('balance', value);
+        else if (operator === '<=') query = query.lte('balance', value);
+    }
+    if (filters.last_login) {
+        const { operator, value } = filters.last_login;
+        if (operator === '>') query = query.gt('last_login', value);
+        else if (operator === '>=') query = query.gte('last_login', value);
+        else if (operator === '=') query = query.eq('last_login', value);
+        else if (operator === '<') query = query.lt('last_login', value);
+        else if (operator === '<=') query = query.lte('last_login', value);
+    }
+
+    // Pagination
+    const offset = (page - 1) * limit;
+    query = query.order('last_login', { ascending: false, nullsFirst: false })
+        .range(offset, offset + limit - 1);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+        logger.error('[Supabase] Failed to fetch filtered players', { error: error.message });
+        return { players: [], total: 0, totalPages: 0 };
+    }
+
+    return {
+        players: data || [],
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit),
+        currentPage: page
+    };
+};
+
+const getFilteredTransactions = async (brandId, filters, page = 1, limit = 10) => {
+    if (!supabase) return { transactions: [], total: 0, totalPages: 0 };
+
+    let query = supabase.from('transactions')
+        .select('*, users!inner(user_id, username)', { count: 'exact' })
+        .eq('brand_id', brandId);
+
+    // Apply filters
+    if (filters.transaction_id) {
+        query = query.ilike('transaction_id', `%${filters.transaction_id}%`);
+    }
+    if (filters.user) {
+        query = query.or(`users.username.ilike.%${filters.user}%,users.user_id.ilike.%${filters.user}%`);
+    }
+    if (filters.type) {
+        query = query.ilike('type', `%${filters.type}%`);
+    }
+    if (filters.amount) {
+        const { operator, value } = filters.amount;
+        if (operator === '>') query = query.gt('amount', value);
+        else if (operator === '>=') query = query.gte('amount', value);
+        else if (operator === '=') query = query.eq('amount', value);
+        else if (operator === '<') query = query.lt('amount', value);
+        else if (operator === '<=') query = query.lte('amount', value);
+    }
+    if (filters.date) {
+        const { operator, value } = filters.date;
+        if (operator === '>') query = query.gt('created_at', value);
+        else if (operator === '>=') query = query.gte('created_at', value);
+        else if (operator === '=') query = query.eq('created_at', value);
+        else if (operator === '<') query = query.lt('created_at', value);
+        else if (operator === '<=') query = query.lte('created_at', value);
+    }
+
+    // Pagination
+    const offset = (page - 1) * limit;
+    query = query.order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+        logger.error('[Supabase] Failed to fetch filtered transactions', { error: error.message });
+        return { transactions: [], total: 0, totalPages: 0 };
+    }
+
+    // Format transactions
+    const transactions = (data || []).map(tx => ({
+        ...tx,
+        public_user_id: tx.users?.user_id || tx.users?.username || tx.user_id,
+        user: tx.users?.username || tx.user_id
+    }));
+
+    return {
+        transactions,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit),
+        currentPage: page
+    };
+};
+
+const getOperationalStream = async (brandId, page = 1, limit = 20) => {
+    if (!supabase) return { events: [], total: 0, totalPages: 0 };
+
+    // Fetch most recent 100 events, paginate client-side for simplicity
+    const { data, error, count } = await supabase
+        .from('platform_audit_logs')
+        .select('*', { count: 'exact' })
+        .or(`brand_id.eq.${brandId},brand_id.eq.1`)
+        .order('timestamp', { ascending: false })
+        .limit(100);
+
+    if (error) {
+        logger.error('[Supabase] Failed to fetch operational stream', { error: error.message });
+        return { events: [], total: 0, totalPages: 0 };
+    }
+
+    // Format events
+    const allEvents = (data || []).map(log => {
+        const isInbound = log.action.startsWith('inbound:');
+        let method = 'POST';
+        let endpoint = log.action;
+
+        if (isInbound) {
+            method = log.action.split(':')[1]?.toUpperCase() || 'ACTION';
+            endpoint = log.entity_id ? `User: ${log.entity_id}` : 'System';
+            if (log.metadata?.consents) endpoint = 'Update Consents';
+            if (log.metadata?.blocks) endpoint = 'Update Blocks';
+            if (log.action === 'inbound:userdetails') endpoint = 'FT: GET UserDetails';
+        } else {
+            const parts = log.action.split(':');
+            if (parts.length >= 3) {
+                method = 'FT-PUSH';
+                endpoint = parts[2].toUpperCase();
+            } else if (parts.length === 2 && parts[0] === 'push_event') {
+                method = 'FT-PUSH';
+                endpoint = parts[1].toUpperCase();
+            }
+        }
+
+        return {
+            id: log.id,
+            type: isInbound ? 'inbound' : 'outbound',
+            method: method,
+            endpoint: endpoint,
+            message: log.message,
+            status: log.status === 'success' ? 200 : 500,
+            payload: log.metadata || {},
+            timestamp: log.timestamp
+        };
+    });
+
+    // Paginate
+    const offset = (page - 1) * limit;
+    const paginatedEvents = allEvents.slice(offset, offset + limit);
+
+    return {
+        events: paginatedEvents,
+        total: Math.min(allEvents.length, 100),
+        totalPages: Math.ceil(Math.min(allEvents.length, 100) / limit),
+        currentPage: page
+    };
+};
+
 module.exports = {
     client: supabase,
     getTenantConfig,
@@ -593,5 +776,8 @@ module.exports = {
     searchOperatorGlobal,
     getUserByIdAndBrand,
     createTransaction,
-    acquireLock
+    acquireLock,
+    getFilteredPlayers,
+    getFilteredTransactions,
+    getOperationalStream
 };

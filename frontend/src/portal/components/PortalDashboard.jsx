@@ -5,6 +5,9 @@ import GGRTrendChart from './GGRTrendChart';
 import KPICard from './KPICard';
 import { Users, TrendingUp, CheckCircle, ShieldAlert, RefreshCw } from 'lucide-react';
 import { Players, Wallet, Games, Compliance, Settings } from './Pages';
+import OperationalStream from './OperationalStream';
+import NotificationsWidget from './NotificationsWidget';
+import ActiveProvidersWidget from './ActiveProvidersWidget';
 
 const fetcher = (url, token) => fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
@@ -51,6 +54,7 @@ const PortalDashboard = ({ token, onLogout }) => {
         if (currentPath.includes('/portal/games')) return <Games token={token} />;
         if (currentPath.includes('/portal/compliance')) return <Compliance token={token} />;
         if (currentPath.includes('/portal/settings')) return <Settings token={token} />;
+        if (currentPath.includes('/portal/operational-stream')) return <OperationalStream token={token} />;
 
         return (
             <div className="dashboard-content">
@@ -85,37 +89,8 @@ const PortalDashboard = ({ token, onLogout }) => {
                     <GGRTrendChart data={stats?.ggr_history || []} />
 
                     <div className="side-panels">
-                        <section className="glass-panel recent-activity">
-                            <div className="section-header">
-                                <h3>Live Operational Stream</h3>
-                            </div>
-                            <div className="activity-list">
-                                {(stats?.recent_events && Array.isArray(stats.recent_events) && stats.recent_events.length > 0) ? stats.recent_events.map((ev, i) => (
-                                    <div key={i} className="activity-item">
-                                        <div className={`dot ${ev.type === 'inbound' ? 'inbound-dot' : 'outbound-dot'}`}></div>
-                                        <div className="info" style={{ flex: 1 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                                <span style={{
-                                                    fontSize: '0.65rem',
-                                                    fontWeight: 800,
-                                                    padding: '2px 6px',
-                                                    borderRadius: '4px',
-                                                    background: ev.type === 'inbound' ? 'rgba(0, 255, 163, 0.1)' : 'rgba(121, 40, 202, 0.1)',
-                                                    color: ev.type === 'inbound' ? 'var(--success)' : 'var(--secondary)',
-                                                    textTransform: 'uppercase'
-                                                }}>
-                                                    {ev.method} {ev.endpoint}
-                                                </span>
-                                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                                                    {new Date(ev.timestamp).toLocaleTimeString()}
-                                                </span>
-                                            </div>
-                                            <p style={{ color: '#e0e0e0', fontWeight: 500 }}>{ev.message || (ev.type === 'inbound' ? 'Inbound Request Received' : 'Outbound Event Pushed')}</p>
-                                        </div>
-                                    </div>
-                                )) : <p className="empty">No recent activity</p>}
-                            </div>
-                        </section>
+                        <NotificationsWidget token={token} />
+                        <ActiveProvidersWidget />
                     </div>
                 </div>
             </div>

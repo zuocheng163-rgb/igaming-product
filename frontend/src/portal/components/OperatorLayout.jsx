@@ -11,7 +11,8 @@ import {
     Calendar,
     ChevronLeft,
     ChevronRight,
-    Command
+    Command,
+    Activity
 } from 'lucide-react';
 import SearchOverlay from './SearchOverlay';
 import NotificationCenter from './NotificationCenter';
@@ -41,6 +42,7 @@ const OperatorLayout = ({ children, user, token, onLogout }) => {
         { icon: Wallet, label: 'Wallet', id: 'wallet' },
         { icon: Gamepad2, label: 'Games', id: 'games' },
         { icon: ShieldAlert, label: 'Compliance', id: 'compliance' },
+        { icon: Activity, label: 'Operational Stream', id: 'operational-stream' },
         { icon: Settings, label: 'Settings', id: 'settings' },
     ];
 
