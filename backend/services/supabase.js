@@ -780,5 +780,6 @@ module.exports = {
     acquireLock,
     getFilteredPlayers,
     getFilteredTransactions,
-    getOperationalStream
+    getOperationalStream,
+    getBrandId
 };
