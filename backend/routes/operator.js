@@ -58,17 +58,40 @@ const authenticateRequest = async (req, res, next) => {
             // Fallback to Demo Token ONLY if user not in DB and sandbox mode is enabled
             const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
             if (isSandbox && sessionToken.startsWith('token-')) {
-                const usernameFromToken = sessionToken.replace('token-', '');
-                req.user = {
-                    user_id: usernameFromToken,
-                    username: usernameFromToken,
-                    brand_id: 1,
-                    role: 'PLAYER',
-                    balance: 1000,
-                    currency: 'EUR'
-                };
-                req.brandId = 1;
-                req.role = 'PLAYER';
+                // Try to determine username from token or header
+                let targetUsername = username;
+                if (!targetUsername) {
+                    // Best effort extraction: remove 'token-' and strip timestamp if it looks like one
+                    const raw = sessionToken.replace('token-', '');
+                    targetUsername = raw.split('-')[0];
+                }
+
+                logger.info('[Auth] Sandbox Fallback: Resolving user', { targetUsername });
+
+                // JIT: Find or Create User in DB
+                let dbUser = await supabaseService.getUserById(targetUsername);
+                if (!dbUser) {
+                    logger.info('[Auth] Sandbox: User not found, creating JIT user', { targetUsername });
+                    try {
+                        dbUser = await supabaseService.createUser({
+                            username: targetUsername,
+                            email: `${targetUsername}@example.com`,
+                            token: sessionToken,
+                            brand_id: 1
+                        });
+                    } catch (err) {
+                        logger.error('[Auth] JIT Creation Failed', { error: err.message });
+                        // Last resort fallback (will likely fail wallet ops but allows read-only)
+                        req.user = { user_id: targetUsername, username: targetUsername, brand_id: 1, role: 'PLAYER' };
+                        req.brandId = 1;
+                        req.role = 'PLAYER';
+                        return next();
+                    }
+                }
+
+                req.user = dbUser;
+                req.brandId = dbUser.brand_id || 1;
+                req.role = 'PLAYER'; // Force player role for sandbox users
                 return next();
             }
         }
@@ -123,22 +146,26 @@ router.post('/authenticate', async (req, res) => {
         // Fallback to Demo Token ONLY if user not in DB and sandbox/demo mode is enabled
         const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
         if (!user && isSandbox && sessionToken?.startsWith('token-')) {
-            const usernameFromToken = sessionToken.replace('token-', '');
-            if (usernameFromToken === username || username === 'admin') {
-                logger.info('Using Sandbox Fallback for Auth', { username, correlationId });
-                user = {
-                    id: `demo-${username}`,
-                    user_id: username,
-                    username: username,
-                    balance: 1000,
-                    bonus_balance: 500,
-                    currency: 'EUR',
-                    brand_id: 1,
-                    role: username === 'admin' ? 'ADMIN' : 'PLAYER',
-                    first_name: username.charAt(0).toUpperCase() + username.slice(1),
-                    last_name: 'Tester',
-                    email: `${username}@example.com`
-                };
+            const targetUsername = username || sessionToken.replace('token-', '').split('-')[0];
+
+            logger.info('Using Sandbox Fallback for Auth (JIT)', { targetUsername, correlationId });
+
+            // Try to find existing user first
+            user = await supabaseService.getUserById(targetUsername);
+
+            if (!user) {
+                // Create user if not exists
+                try {
+                    user = await supabaseService.createUser({
+                        username: targetUsername,
+                        email: `${targetUsername}@example.com`,
+                        token: sessionToken,
+                        brand_id: 1,
+                        role: targetUsername === 'admin' ? 'ADMIN' : 'PLAYER'
+                    });
+                } catch (e) {
+                    logger.error('Sandbox JIT User Creation Failed', { error: e.message });
+                }
             }
         }
 
