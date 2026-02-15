@@ -3,7 +3,7 @@ import DataTable from './DataTable';
 import { Save, RefreshCw, Shield, Bell, Lock, Gamepad2, Filter } from 'lucide-react';
 import PlayerDetailsModal from './PlayerDetailsModal';
 
-export const Players = ({ token }) => {
+export const Players = ({ user, token }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -25,6 +25,7 @@ export const Players = ({ token }) => {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${token}`,
+                'x-username': user?.username,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -242,7 +243,7 @@ export const Players = ({ token }) => {
     );
 };
 
-export const Wallet = ({ token }) => {
+export const Wallet = ({ user, token }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -263,6 +264,7 @@ export const Wallet = ({ token }) => {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${token}`,
+                'x-username': user?.username,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({

@@ -86,7 +86,7 @@ function App() {
     }
 
     if (isPortal) {
-      return <PortalDashboard token={token} onLogout={handleLogout} />;
+      return <PortalDashboard user={user} token={token} onLogout={handleLogout} />;
     }
 
     return <Dashboard user={user} token={token} onLogout={handleLogout} />;

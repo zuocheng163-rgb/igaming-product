@@ -13,7 +13,7 @@ const fetcher = (url, token) => fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
 }).then(res => res.json());
 
-const PortalDashboard = ({ token, onLogout }) => {
+const PortalDashboard = ({ user, token, onLogout }) => {
     const { data: stats, mutate } = useSWR(
         token ? ['/api/operator/stats', token] : null,
         ([url, t]) => fetcher(url, t),
@@ -49,12 +49,12 @@ const PortalDashboard = ({ token, onLogout }) => {
     ];
 
     const renderContent = () => {
-        if (currentPath.includes('/portal/players')) return <Players token={token} />;
-        if (currentPath.includes('/portal/wallet')) return <Wallet token={token} />;
-        if (currentPath.includes('/portal/games')) return <Games token={token} />;
-        if (currentPath.includes('/portal/compliance')) return <Compliance token={token} />;
-        if (currentPath.includes('/portal/settings')) return <Settings token={token} />;
-        if (currentPath.includes('/portal/operational-stream')) return <OperationalStream token={token} />;
+        if (currentPath.includes('/portal/players')) return <Players user={user} token={token} />;
+        if (currentPath.includes('/portal/wallet')) return <Wallet user={user} token={token} />;
+        if (currentPath.includes('/portal/games')) return <Games user={user} token={token} />;
+        if (currentPath.includes('/portal/compliance')) return <Compliance user={user} token={token} />;
+        if (currentPath.includes('/portal/settings')) return <Settings user={user} token={token} />;
+        if (currentPath.includes('/portal/operational-stream')) return <OperationalStream user={user} token={token} />;
 
         return (
             <div className="dashboard-content">

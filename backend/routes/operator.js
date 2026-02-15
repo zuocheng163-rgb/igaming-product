@@ -694,26 +694,46 @@ const parseDate = (dateStr, operator) => {
             return date.toISOString();
         }
 
-        // Try parsing MM/DD/YYYY format
+        // Try parsing DD/MM/YYYY format (International/European) - Priority for portal
         const dateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
         const dateMatch = dateStr.trim().match(dateRegex);
 
         if (dateMatch) {
-            const [, month, day, year] = dateMatch;
+            let [, first, second, year] = dateMatch;
+            let month, day;
+
+            // Simple heuristic to differentiate MM/DD/YYYY and DD/MM/YYYY
+            // Default to DD/MM/YYYY for consistency with portal usage
+            if (parseInt(first) > 12) {
+                day = first;
+                month = second;
+            } else if (parseInt(second) > 12) {
+                day = first;
+                month = second; // If second > 12, it's likely MM/DD/YYYY but second is day. Wait. 13/02 -> 13 is day.
+                // Actually if second > 12, it MUST be MM/DD/YYYY where second is Day. NO.
+                // If input is 02/13/2026. first=02, second=13.
+                // 13 > 12. So second is DAY. first is MONTH.
+                month = first;
+                day = second;
+            } else {
+                // Ambiguous. Default to DD/MM/YYYY.
+                day = first;
+                month = second;
+            }
+
             date = new Date(year, month - 1, day);
 
-            // For < operator, we want "before this date" which means end of previous day
-            // For <= operator, we want "on or before this date" which means end of this day
+            // Set time based on operator
             if (operator === '<') {
-                date.setHours(0, 0, 0, 0); // Start of the specified day
+                date.setHours(0, 0, 0, 0);
             } else if (operator === '<=') {
-                date.setHours(23, 59, 59, 999); // End of the specified day
+                date.setHours(23, 59, 59, 999);
             } else if (operator === '>') {
-                date.setHours(23, 59, 59, 999); // End of the specified day
+                date.setHours(23, 59, 59, 999);
             } else if (operator === '>=') {
-                date.setHours(0, 0, 0, 0); // Start of the specified day
+                date.setHours(0, 0, 0, 0);
             } else {
-                date.setHours(0, 0, 0, 0); // Default to start of day for = operator
+                date.setHours(0, 0, 0, 0);
             }
 
             return date.toISOString();
