@@ -6,7 +6,7 @@ import KPICard from './KPICard';
 import { Users, TrendingUp, CheckCircle, ShieldAlert, RefreshCw } from 'lucide-react';
 import { Players, Wallet, Games, Compliance, Settings } from './Pages';
 import OperationalStream from './OperationalStream';
-import NotificationsWidget from './NotificationsWidget';
+import FastTrackStatusWidget from './FastTrackStatusWidget';
 import ActiveProvidersWidget from './ActiveProvidersWidget';
 
 const fetcher = (url, token) => fetch(url, {
@@ -89,9 +89,7 @@ const PortalDashboard = ({ token, onLogout }) => {
                     <GGRTrendChart data={stats?.ggr_history || []} />
 
                     <div className="side-panels" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        <div style={{ minHeight: '280px', maxHeight: '280px' }}>
-                            <NotificationsWidget token={token} />
-                        </div>
+                        <FastTrackStatusWidget token={token} />
                         <ActiveProvidersWidget />
                     </div>
                 </div>
