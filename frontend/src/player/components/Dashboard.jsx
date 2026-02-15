@@ -153,9 +153,10 @@ function Dashboard({ user: initialUser, token, onLogout }) {
         try {
             await apiLogout(token);
             setStatus('Logout [FT Logout] Event Sent');
-            setTimeout(onLogout, 1500);
         } catch (err) {
-            setStatus('Logout simulation failed');
+            setStatus('Logout simulation failed (Local logout proceeding)');
+        } finally {
+            setTimeout(onLogout, 1000);
         }
     };
 

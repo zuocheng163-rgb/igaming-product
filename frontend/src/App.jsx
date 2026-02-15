@@ -25,9 +25,24 @@ function App() {
       try {
         const userData = JSON.parse(savedUser);
         if (userData && userData.username) {
+          // Optimistically set user
           setToken(savedToken);
           setUser(userData);
-          console.log('[NeoStrike] Auto-login successful');
+
+          // Verify token validity with backend
+          // We dynamic import api to avoid circular dependencies if any, or just use imported
+          // Importing getBalance from services/api is safe
+          import('./player/services/api').then(({ getBalance }) => {
+            getBalance(savedToken).catch(() => {
+              console.warn('[NeoStrike] Invalid token detected, logging out...');
+              localStorage.removeItem('ns_portal_token');
+              localStorage.removeItem('ns_portal_user');
+              setUser(null);
+              setToken(null);
+            });
+          });
+
+          console.log('[NeoStrike] Auto-login successful (validating...)');
         } else {
           throw new Error('Invalid user data');
         }
