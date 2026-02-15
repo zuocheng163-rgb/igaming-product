@@ -102,7 +102,7 @@ const SearchOverlay = ({ isOpen, onClose, token, onPlayerSelect }) => {
                         <div className="search-section">
                             <label><History size={14} /> Recent Searches</label>
                             {recent.map((r, i) => (
-                                <div key={i} className="search-item" onClick={() => onClose()}>
+                                <div key={i} className="search-item" onClick={() => handleSelect(r, r.type)}>
                                     <span className="item-icon">{r.type === 'player' ? <User size={14} /> : <CreditCard size={14} />}</span>
                                     <span className="item-label">{r.label}</span>
                                     <span className="item-meta">{r.type}</span>

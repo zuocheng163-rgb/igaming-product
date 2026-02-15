@@ -14,24 +14,34 @@ function App() {
 
   // Auto-login from localStorage on mount
   useEffect(() => {
-    console.log('[NeoStrike] App Version: v1.0.5 - Fixes Deployed');
+    console.log('[NeoStrike] App Version: v1.0.6 - Auth Fixes');
     console.log('[NeoStrike] Current Path:', window.location.pathname);
 
     // Check for saved credentials
     const savedToken = localStorage.getItem('ns_portal_token');
     const savedUser = localStorage.getItem('ns_portal_user');
 
-    if (savedToken && savedUser) {
+    if (savedToken && savedToken !== 'undefined' && savedToken !== 'null' && savedUser) {
       try {
         const userData = JSON.parse(savedUser);
-        setToken(savedToken);
-        setUser(userData);
-        console.log('[NeoStrike] Auto-login successful');
+        if (userData && userData.username) {
+          setToken(savedToken);
+          setUser(userData);
+          console.log('[NeoStrike] Auto-login successful');
+        } else {
+          throw new Error('Invalid user data');
+        }
       } catch (e) {
-        console.error('[NeoStrike] Failed to parse saved user data');
+        console.error('[NeoStrike] Failed to parse saved user data', e);
         localStorage.removeItem('ns_portal_token');
         localStorage.removeItem('ns_portal_user');
+        setUser(null);
+        setToken(null);
       }
+    } else {
+      // Clear potential partial state
+      localStorage.removeItem('ns_portal_token');
+      localStorage.removeItem('ns_portal_user');
     }
   }, []);
 

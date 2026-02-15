@@ -5,7 +5,10 @@ const API_URL = '/api';
 
 export const login = async (username, token) => {
     const response = await axios.post(`${API_URL}/authenticate`, { username }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'x-username': username
+        }
     });
     return response.data;
 };
