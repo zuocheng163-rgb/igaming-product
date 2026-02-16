@@ -849,10 +849,10 @@ router.post('/operator/transactions/filter', authenticateRequest, async (req, re
 // Operational stream endpoint
 router.get('/operator/operational-stream', authenticateRequest, async (req, res) => {
     const brandId = req.brandId || req.user?.brand_id || 1;
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, type } = req.query;
 
     try {
-        const result = await supabaseService.getOperationalStream(brandId, parseInt(page), parseInt(limit));
+        const result = await supabaseService.getOperationalStream(brandId, parseInt(page), parseInt(limit), type);
         res.json(result);
     } catch (error) {
         logger.error('Operational stream fetch failed', { error: error.message });

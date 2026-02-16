@@ -2,7 +2,7 @@ import React from 'react';
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-const KPICard = ({ label, value, trend, sparkline, icon: Icon, color, delay }) => {
+const KPICard = ({ label, value, trend, sparkline, icon: Icon, color, delay, onClick }) => {
     const isPositive = trend >= 0;
     const isSignificant = Math.abs(trend) >= 10;
 
@@ -10,7 +10,11 @@ const KPICard = ({ label, value, trend, sparkline, icon: Icon, color, delay }) =
     const chartData = sparkline?.map((v, i) => ({ value: v, id: i })) || [];
 
     return (
-        <div className={`kpi-card glass-panel floating ${isSignificant ? 'significant' : ''}`} style={{ '--delay': delay }}>
+        <div
+            className={`kpi-card glass-panel floating ${isSignificant ? 'significant' : ''}`}
+            style={{ '--delay': delay, cursor: onClick ? 'pointer' : 'default' }}
+            onClick={onClick}
+        >
             <div className="kpi-top">
                 <div className="kpi-icon" style={{ backgroundColor: `${color}15`, color: color }}>
                     <Icon size={20} />

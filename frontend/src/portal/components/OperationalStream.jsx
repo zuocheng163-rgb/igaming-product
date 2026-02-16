@@ -8,9 +8,14 @@ const OperationalStream = ({ token }) => {
     const [refreshing, setRefreshing] = useState(false);
     const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
 
-    const fetchData = (page = 1) => {
+    const [typeFilter, setTypeFilter] = useState('');
+
+    const fetchData = (page = 1, type = typeFilter) => {
         setLoading(true);
-        fetch(`/api/operator/operational-stream?page=${page}&limit=20`, {
+        const query = new URLSearchParams({ page, limit: 20 });
+        if (type) query.append('type', type);
+
+        fetch(`/api/operator/operational-stream?${query.toString()}`, {
             headers: { Authorization: `Bearer ${token}` }
         })
             .then(res => res.json())
@@ -27,17 +32,36 @@ const OperationalStream = ({ token }) => {
     };
 
     useEffect(() => {
+        // limit fetching to only when token is available to avoid double-fetch issues
+        if (!token) return;
+
+        const savedFilter = sessionStorage.getItem('operationalStreamFilters');
+        if (savedFilter) {
+            const { type } = JSON.parse(savedFilter);
+            if (type) {
+                setTypeFilter(type);
+                fetchData(1, type);
+                // Clear it so it doesn't persist forever
+                sessionStorage.removeItem('operationalStreamFilters');
+                return;
+            }
+        }
         fetchData();
     }, [token]);
 
     const handleRefresh = async () => {
         setRefreshing(true);
-        fetchData(pagination.page);
+        fetchData(pagination.page, typeFilter);
         setTimeout(() => setRefreshing(false), 500);
     };
 
     const handlePageChange = (newPage) => {
-        fetchData(newPage);
+        fetchData(newPage, typeFilter);
+    };
+
+    const handleTypeFilterChange = (newType) => {
+        setTypeFilter(newType);
+        fetchData(1, newType);
     };
 
     const columns = [
@@ -90,10 +114,32 @@ const OperationalStream = ({ token }) => {
                     <Activity size={24} style={{ color: 'var(--primary)' }} />
                     <h2 className="page-title" style={{ margin: 0 }}>Live Operational Stream</h2>
                 </div>
-                <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
-                    <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                    {refreshing ? 'Refreshing...' : 'Refresh'}
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <div className="filter-group" style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', padding: '2px' }}>
+                        {['', 'inbound', 'outbound'].map((t) => (
+                            <button
+                                key={t}
+                                onClick={() => handleTypeFilterChange(t)}
+                                style={{
+                                    background: typeFilter === t ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                    border: 'none',
+                                    color: typeFilter === t ? 'white' : 'var(--text-muted)',
+                                    padding: '6px 12px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.85rem',
+                                    cursor: 'pointer',
+                                    textTransform: 'capitalize'
+                                }}
+                            >
+                                {t || 'All'}
+                            </button>
+                        ))}
+                    </div>
+                    <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                        <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                        {refreshing ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                </div>
             </div>
             <div style={{ marginBottom: '12px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                 Showing most recent 100 events • Page {pagination.page} of {pagination.totalPages}
@@ -106,7 +152,7 @@ const OperationalStream = ({ token }) => {
                 onPageChange={handlePageChange}
                 searchPlaceholder="Search events..."
             />
-        </div>
+        </div >
     );
 };
 

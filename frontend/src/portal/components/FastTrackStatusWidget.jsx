@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Zap, CheckCircle, AlertCircle } from 'lucide-react';
 
-const FastTrackStatusWidget = ({ token, stats }) => {
+const FastTrackStatusWidget = ({ token, stats, onClick }) => {
     const eventsSentValue = stats?.metrics?.events_sent?.value || 0;
 
     const [status, setStatus] = useState({
@@ -80,11 +80,18 @@ const FastTrackStatusWidget = ({ token, stats }) => {
             </div>
 
             <div style={{ marginTop: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Events Sent (24h)</span>
-                </div>
-                <div style={{ fontSize: '2rem', fontWeight: '700', color: 'white', marginBottom: '16px' }}>
-                    {status.eventsSent.toLocaleString()}
+                <div
+                    onClick={onClick}
+                    style={{ cursor: onClick ? 'pointer' : 'default', transition: 'opacity 0.2s' }}
+                    onMouseEnter={(e) => onClick && (e.currentTarget.style.opacity = '0.8')}
+                    onMouseLeave={(e) => onClick && (e.currentTarget.style.opacity = '1')}
+                >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Events Sent (24h)</span>
+                    </div>
+                    <div style={{ fontSize: '2rem', fontWeight: '700', color: 'white', marginBottom: '16px' }}>
+                        {status.eventsSent.toLocaleString()}
+                    </div>
                 </div>
 
                 {/* Progress Bar */}

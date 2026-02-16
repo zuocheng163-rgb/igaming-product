@@ -48,6 +48,18 @@ const PortalDashboard = ({ user, token, onLogout }) => {
         { label: 'Compliance Alerts', metric: m?.compliance_alerts, icon: ShieldAlert, color: '#ff4d4d' },
     ];
 
+    const handleNavigate = (path, filterFn) => {
+        // Simple client-side navigation since Pages.jsx handles routing via currentPath state
+        window.history.pushState({}, '', path);
+
+        // Trigger generic popstate event to notify components
+        const navEvent = new PopStateEvent('popstate');
+        window.dispatchEvent(navEvent);
+
+        // Persist filter if provided
+        if (filterFn) filterFn();
+    };
+
     const renderContent = () => {
         if (currentPath.includes('/portal/players')) return <Players user={user} token={token} />;
         if (currentPath.includes('/portal/wallet')) return <Wallet user={user} token={token} />;
@@ -81,6 +93,20 @@ const PortalDashboard = ({ user, token, onLogout }) => {
                             icon={kpi.icon}
                             color={kpi.color}
                             delay={`${i * 0.1}s`}
+                            onClick={() => {
+                                if (kpi.label === 'Active Players') {
+                                    handleNavigate('/portal/players', () => {
+                                        // Set filter for 'Active' status (users with recent login/tx)
+                                        // Since 'Active' status is computed, we'll filter by Last Login > 24h
+                                        const now = new Date();
+                                        now.setDate(now.getDate() - 1);
+                                        const yesterday = now.toLocaleDateString();
+                                        sessionStorage.setItem('playerFilters', JSON.stringify({
+                                            last_login: `> ${yesterday}`
+                                        }));
+                                    });
+                                }
+                            }}
                         />
                     ))}
                 </div>
@@ -89,7 +115,17 @@ const PortalDashboard = ({ user, token, onLogout }) => {
                     <GGRTrendChart data={stats?.ggr_history || []} />
 
                     <div className="side-panels" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        <FastTrackStatusWidget token={token} stats={stats} />
+                        <FastTrackStatusWidget
+                            token={token}
+                            stats={stats}
+                            onClick={() => {
+                                handleNavigate('/portal/operational-stream', () => {
+                                    sessionStorage.setItem('operationalStreamFilters', JSON.stringify({
+                                        type: 'outbound'
+                                    }));
+                                });
+                            }}
+                        />
                         <ActiveProvidersWidget />
                     </div>
                 </div>

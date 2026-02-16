@@ -710,14 +710,22 @@ const getFilteredTransactions = async (brandId, filters, page = 1, limit = 10) =
     };
 };
 
-const getOperationalStream = async (brandId, page = 1, limit = 20) => {
+const getOperationalStream = async (brandId, page = 1, limit = 20, type = null) => {
     if (!supabase) return { events: [], total: 0, totalPages: 0 };
 
     // Fetch most recent 100 events, paginate client-side for simplicity
-    const { data, error, count } = await supabase
+    let query = supabase
         .from('platform_audit_logs')
         .select('*', { count: 'exact' })
-        .or(`brand_id.eq.${brandId},brand_id.eq.1`)
+        .or(`brand_id.eq.${brandId},brand_id.eq.1`);
+
+    if (type === 'inbound') {
+        query = query.ilike('action', 'inbound:%');
+    } else if (type === 'outbound') {
+        query = query.not('action', 'ilike', 'inbound:%');
+    }
+
+    const { data, error, count } = await query
         .order('timestamp', { ascending: false })
         .limit(100);
 
