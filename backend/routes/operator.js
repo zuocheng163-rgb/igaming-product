@@ -882,7 +882,7 @@ router.get('/operator/config', authenticateRequest, async (req, res) => {
     const brandId = req.brandId || req.user?.brand_id || 1;
     try {
         const config = await supabaseService.getTenantConfig(brandId);
-        res.json(config);
+        res.json(config || { brand_id: brandId, config: {} });
     } catch (error) {
         logger.error('Failed to fetch config', { error: error.message });
         res.status(500).json({ error: 'Failed to fetch operator config' });

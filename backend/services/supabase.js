@@ -824,18 +824,17 @@ const getOperationalStream = async (brandId, page = 1, limit = 20, type = null) 
 const updateOperatorApiKey = async (brandId, newKey) => {
     if (!supabase) return false;
 
-    // We store this in the tenant_configs table
-    // Sanity check: brandId 1 is default for PoC
+    // Use upsert to create record if it doesn't exist
     const { error } = await supabase
         .from('tenant_configs')
-        .update({
+        .upsert({
+            brand_id: brandId,
             config: { operator_api_key: newKey },
             updated_at: new Date().toISOString()
-        })
-        .eq('brand_id', brandId);
+        }, { onConflict: 'brand_id' });
 
     if (error) {
-        logger.error('Failed to update operator API key:', { error: error.message, brandId });
+        logger.error('Failed to upsert operator API key:', { error: error.message, brandId });
         return false;
     }
     return true;
