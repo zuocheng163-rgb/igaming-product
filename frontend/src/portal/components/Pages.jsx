@@ -598,8 +598,10 @@ export const Settings = ({ token }) => {
         })
             .then(res => res.json())
             .then(config => {
-                if (config?.config?.operator_api_key) {
-                    setApiKey(config.config.operator_api_key);
+                // Check both potential locations for compatibility
+                const key = config?.ft_api_key || config?.config?.operator_api_key;
+                if (key) {
+                    setApiKey(key);
                 } else {
                     setApiKey('NONE SET');
                 }

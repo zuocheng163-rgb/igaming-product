@@ -41,7 +41,7 @@ const authenticateRequest = async (req, res, next) => {
         if (apiKey) {
             const brandId = 1; // Default for PoC
             const config = await supabaseService.getTenantConfig(brandId);
-            const dbApiKey = config?.config?.operator_api_key;
+            const dbApiKey = config?.ft_api_key;
 
             if (apiKey === dbApiKey || apiKey === process.env.OPERATOR_API_KEY) {
                 req.isOperator = true;
@@ -882,7 +882,16 @@ router.get('/operator/config', authenticateRequest, async (req, res) => {
     const brandId = req.brandId || req.user?.brand_id || 1;
     try {
         const config = await supabaseService.getTenantConfig(brandId);
-        res.json(config || { brand_id: brandId, config: {} });
+        // For visibility, return the actual config structure but map ft_api_key to operator_api_key for frontend
+        const responseData = config ? {
+            ...config,
+            config: {
+                ...config.config,
+                operator_api_key: config.ft_api_key
+            }
+        } : { brand_id: brandId, config: {} };
+
+        res.json(responseData);
     } catch (error) {
         logger.error('Failed to fetch config', { error: error.message });
         res.status(500).json({ error: 'Failed to fetch operator config' });

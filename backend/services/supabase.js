@@ -41,11 +41,35 @@ const getTenantConfig = async (brandId) => {
         .single();
 
     if (error) {
-        logger.error(`[Supabase] Failed to fetch tenant config for ${brandId}`, { error: error.message });
+        logger.error(, { error: error.message });
         return null;
     }
 
     return data;
+};
+
+/**
+ * Update the Operator API key in the database.
+ * Falls back to ft_api_key column which exists in 001_initial_schema.sql
+ */
+const updateOperatorApiKey = async (brandId, newKey) => {
+    if (!supabase) return false;
+
+    // Use upsert with mandatory operator_name
+    const { error } = await supabase
+        .from('tenant_configs')
+        .upsert({
+            brand_id: brandId,
+            operator_name: brandId === 1 ? 'Default Operator' : `Operator ${brandId}`,
+            ft_api_key: newKey,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'brand_id' });
+
+    if (error) {
+        logger.error('Failed to update operator API key:', { error: error.message, brandId });
+        return false;
+    }
+    return true;
 };
 
 /**
@@ -83,6 +107,20 @@ const getUser = async (username, token) => {
         return null;
     }
 
+const getTenantConfig = async (brandId) => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('tenant_configs')
+        .select('*')
+        .eq('brand_id', brandId)
+        .single();
+
+    if (error) {
+        logger.error(, { error: error.message });
+        return null;
+    }
+
     return data;
 };
 
@@ -103,6 +141,20 @@ const getUserById = async (userId) => {
 
     const { data, error } = await query.single();
     if (error) return null;
+const getTenantConfig = async (brandId) => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('tenant_configs')
+        .select('*')
+        .eq('brand_id', brandId)
+        .single();
+
+    if (error) {
+        logger.error(, { error: error.message });
+        return null;
+    }
+
     return data;
 };
 
@@ -114,6 +166,20 @@ const getUserConsents = async (userId) => {
         .eq('user_id', userId)
         .single();
     if (error) return { email: true, sms: true, telephone: true, post_mail: true, site_notification: true, push_notification: true };
+const getTenantConfig = async (brandId) => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('tenant_configs')
+        .select('*')
+        .eq('brand_id', brandId)
+        .single();
+
+    if (error) {
+        logger.error(, { error: error.message });
+        return null;
+    }
+
     return data;
 };
 
@@ -125,6 +191,20 @@ const getUserBlocks = async (userId) => {
         .eq('user_id', userId)
         .single();
     if (error) return { blocked: false, excluded: false };
+const getTenantConfig = async (brandId) => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('tenant_configs')
+        .select('*')
+        .eq('brand_id', brandId)
+        .single();
+
+    if (error) {
+        logger.error(, { error: error.message });
+        return null;
+    }
+
     return data;
 };
 
@@ -300,6 +380,20 @@ const getTransactionsByOperator = async (brandId, filters = {}) => {
     if (error) {
         logger.error('[Supabase] Failed to fetch transactions', { error: error.message });
         return [];
+    }
+
+const getTenantConfig = async (brandId) => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('tenant_configs')
+        .select('*')
+        .eq('brand_id', brandId)
+        .single();
+
+    if (error) {
+        logger.error(, { error: error.message });
+        return null;
     }
 
     return data;
@@ -548,6 +642,20 @@ const createTransaction = async (txData) => {
         logger.error('[Supabase] Failed to create transaction record', { error: error.message, txId: txData.transaction_id });
         return null;
     }
+const getTenantConfig = async (brandId) => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('tenant_configs')
+        .select('*')
+        .eq('brand_id', brandId)
+        .single();
+
+    if (error) {
+        logger.error(, { error: error.message });
+        return null;
+    }
+
     return data;
 };
 
@@ -625,6 +733,20 @@ const getUserByIdAndBrand = async (userId, brandId) => {
 
     if (error) {
         logger.error('[Supabase] Failed to fetch user by ID and brand', { userId, brandId, error: error.message });
+        return null;
+    }
+
+const getTenantConfig = async (brandId) => {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+        .from('tenant_configs')
+        .select('*')
+        .eq('brand_id', brandId)
+        .single();
+
+    if (error) {
+        logger.error(, { error: error.message });
         return null;
     }
 
@@ -821,25 +943,6 @@ const getOperationalStream = async (brandId, page = 1, limit = 20, type = null) 
     };
 };
 
-const updateOperatorApiKey = async (brandId, newKey) => {
-    if (!supabase) return false;
-
-    // Use upsert to create record if it doesn't exist
-    const { error } = await supabase
-        .from('tenant_configs')
-        .upsert({
-            brand_id: brandId,
-            operator_name: brandId === 1 ? 'Default Operator' : `Operator ${brandId}`,
-            config: { operator_api_key: newKey },
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'brand_id' });
-
-    if (error) {
-        logger.error('Failed to upsert operator API key:', { error: error.message, brandId });
-        return false;
-    }
-    return true;
-};
 
 module.exports = {
     client: supabase,
