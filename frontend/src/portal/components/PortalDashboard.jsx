@@ -71,7 +71,7 @@ const PortalDashboard = ({ user, token, onLogout }) => {
         return (
             <div className="dashboard-content">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h2 style={{ margin: 0 }}>Dashboard Overview <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>v1.1.0</span></h2>
+                    <h2 style={{ margin: 0 }}>Dashboard Overview <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>v1.1.1</span></h2>
                     <button
                         onClick={handleRefresh}
                         disabled={refreshing}

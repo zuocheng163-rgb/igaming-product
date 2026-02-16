@@ -829,6 +829,7 @@ const updateOperatorApiKey = async (brandId, newKey) => {
         .from('tenant_configs')
         .upsert({
             brand_id: brandId,
+            operator_name: brandId === 1 ? 'Default Operator' : `Operator ${brandId}`,
             config: { operator_api_key: newKey },
             updated_at: new Date().toISOString()
         }, { onConflict: 'brand_id' });
