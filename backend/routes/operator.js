@@ -38,10 +38,16 @@ const authenticateRequest = async (req, res, next) => {
         }
 
         // 1. S2S Authentication (API Key)
-        if (apiKey && apiKey === process.env.OPERATOR_API_KEY) {
-            req.isOperator = true;
-            req.role = 'ADMIN'; // S2S is always Admin in PoC
-            return next();
+        if (apiKey) {
+            const brandId = 1; // Default for PoC
+            const config = await supabaseService.getTenantConfig(brandId);
+            const dbApiKey = config?.config?.operator_api_key;
+
+            if (apiKey === dbApiKey || apiKey === process.env.OPERATOR_API_KEY) {
+                req.isOperator = true;
+                req.role = 'ADMIN'; // S2S is always Admin in PoC
+                return next();
+            }
         }
 
         // 2. User Authentication (Session Token)
@@ -872,6 +878,17 @@ router.get('/operator/operational-stream', authenticateRequest, async (req, res)
 });
 
 // Operator config endpoints
+router.get('/operator/config', authenticateRequest, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    try {
+        const config = await supabaseService.getTenantConfig(brandId);
+        res.json(config);
+    } catch (error) {
+        logger.error('Failed to fetch config', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch operator config' });
+    }
+});
+
 router.post('/operator/config/api-key', authenticateRequest, async (req, res) => {
     const brandId = req.brandId || req.user?.brand_id || 1;
     const { api_key } = req.body;

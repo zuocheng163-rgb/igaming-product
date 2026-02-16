@@ -588,8 +588,27 @@ export const Compliance = ({ user, token }) => {
 };
 
 export const Settings = ({ token }) => {
-    const [apiKey, setApiKey] = useState('••••••••••••••••');
+    const [apiKey, setApiKey] = useState('FETCHING...');
     const [isRegenerating, setIsRegenerating] = useState(false);
+
+    useEffect(() => {
+        if (!token) return;
+        fetch('/api/operator/config', {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+            .then(res => res.json())
+            .then(config => {
+                if (config?.config?.operator_api_key) {
+                    setApiKey(config.config.operator_api_key);
+                } else {
+                    setApiKey('NONE SET');
+                }
+            })
+            .catch(err => {
+                console.error('Failed to fetch config', err);
+                setApiKey('ERROR LOADING');
+            });
+    }, [token]);
 
     const handleRegenerateKey = async () => {
         if (!window.confirm('Are you sure? This will invalidate the existing Operator API key immediately.')) return;
