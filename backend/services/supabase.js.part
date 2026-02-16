@@ -1,0 +1,49 @@
+const { createClient } = require('@supabase/supabase-js');
+const { logger } = require('./logger');
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+let supabase;
+if (supabaseUrl && (supabaseServiceKey || supabaseKey)) {
+    supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseKey);
+    logger.info('[Supabase] Client initialized');
+} else {
+    console.log('[DEBUG] Env check:', {
+        url: !!supabaseUrl,
+        key: !!supabaseKey,
+        serviceKey: !!supabaseServiceKey
+    });
+    logger.warn('[Supabase] Missing credentials. Backend will fail to perform DB operations.');
+}
+
+const getBrandId = (brandId) => {
+    if (!brandId || brandId === 1 || brandId === '1') return 1;
+    return brandId;
+};
+
+const getTenantConfig = async (brandId) => {
+    if (!supabase) return null;
+    const { data, error } = await supabase.from('tenant_configs').select('*').eq('brand_id', brandId).single();
+    if (error) {
+        logger.error('[Supabase] Failed to fetch tenant config', { brandId, error: error.message });
+        return null;
+    }
+    return data;
+};
+
+const updateOperatorApiKey = async (brandId, newKey) => {
+    if (!supabase) return false;
+    const { error } = await supabase.from('tenant_configs').upsert({
+        brand_id: brandId,
+        operator_name: brandId === 1 ? 'Default Operator' : `Operator ${brandId}`,
+        ft_api_key: newKey,
+        updated_at: new Date().toISOString()
+    }, { onConflict: 'brand_id' });
+    if (error) {
+        logger.error('Failed to update operator API key:', { error: error.message, brandId });
+        return false;
+    }
+    return true;
+};

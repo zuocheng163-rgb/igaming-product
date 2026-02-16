@@ -10,61 +10,32 @@ if (supabaseUrl && (supabaseServiceKey || supabaseKey)) {
     supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseKey);
     logger.info('[Supabase] Client initialized');
 } else {
-    console.log('[DEBUG] Env check:', {
-        url: !!supabaseUrl,
-        key: !!supabaseKey,
-        serviceKey: !!supabaseServiceKey
-    });
-    logger.warn('[Supabase] Missing credentials. Backend will fail to perform DB operations.');
+    logger.warn('[Supabase] Missing credentials.');
 }
 
-/**
- * Helper to map operator_id (string) to brand_id (int)
- */
 const getBrandId = (brandId) => {
-    // Standardize to numeric 1 if falsy, '1', or 1.
-    // We remove the 'default' string mapping to ensure DB consistency.
     if (!brandId || brandId === 1 || brandId === '1') return 1;
     return brandId;
 };
 
-/**
- * Fetches dynamic configuration for a specific operator.
- */
 const getTenantConfig = async (brandId) => {
     if (!supabase) return null;
-
-    const { data, error } = await supabase
-        .from('tenant_configs')
-        .select('*')
-        .eq('brand_id', brandId)
-        .single();
-
+    const { data, error } = await supabase.from('tenant_configs').select('*').eq('brand_id', brandId).single();
     if (error) {
-        logger.error(, { error: error.message });
+        logger.error('[Supabase] Failed to fetch tenant config', { brandId, error: error.message });
         return null;
     }
-
     return data;
 };
 
-/**
- * Update the Operator API key in the database.
- * Falls back to ft_api_key column which exists in 001_initial_schema.sql
- */
 const updateOperatorApiKey = async (brandId, newKey) => {
     if (!supabase) return false;
-
-    // Use upsert with mandatory operator_name
-    const { error } = await supabase
-        .from('tenant_configs')
-        .upsert({
-            brand_id: brandId,
-            operator_name: brandId === 1 ? 'Default Operator' : `Operator ${brandId}`,
-            ft_api_key: newKey,
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'brand_id' });
-
+    const { error } = await supabase.from('tenant_configs').upsert({
+        brand_id: brandId,
+        operator_name: brandId === 1 ? 'Default Operator' : f'Operator {brandId}',
+        ft_api_key: newKey,
+        updated_at: new Date().toISOString()
+    }, { onConflict: 'brand_id' });
     if (error) {
         logger.error('Failed to update operator API key:', { error: error.message, brandId });
         return false;
@@ -72,9 +43,6 @@ const updateOperatorApiKey = async (brandId, newKey) => {
     return true;
 };
 
-/**
- * Persists an audit log entry to Supabase.
- */
 const saveAuditLog = async (logEntry) => {
     if (!supabase) return;
 
