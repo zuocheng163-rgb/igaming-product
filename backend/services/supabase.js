@@ -106,6 +106,28 @@ const getUserById = async (userId) => {
     return data;
 };
 
+const getUserConsents = async (userId) => {
+    if (!supabase) return {};
+    const { data, error } = await supabase
+        .from('user_consents')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+    if (error) return { email: true, sms: true, telephone: true, post_mail: true, site_notification: true, push_notification: true };
+    return data;
+};
+
+const getUserBlocks = async (userId) => {
+    if (!supabase) return {};
+    const { data, error } = await supabase
+        .from('user_blocks')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+    if (error) return { blocked: false, excluded: false };
+    return data;
+};
+
 const updateUser = async (userId, updates) => {
     if (!supabase) throw new Error('Supabase not initialized');
 
@@ -369,6 +391,29 @@ const getComplianceAlerts = async (brandId, limit = 50) => {
     }));
 };
 
+const getOperatorNotifications = async (brandId) => {
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+        .from('platform_audit_logs') // Fallback to audit logs for notifications for now
+        .select('*')
+        .eq('brand_id', brandId)
+        .in('level', ['warn', 'error', 'critical'])
+        .order('timestamp', { ascending: false })
+        .limit(10);
+
+    if (error) return [];
+
+    return data.map(log => ({
+        id: log.id,
+        type: log.level === 'critical' ? 'alert' : 'info',
+        title: log.action.toUpperCase(),
+        message: log.message,
+        time: log.timestamp,
+        read: false
+    }));
+};
+
 const getOperatorStats = async (brandId) => {
     if (!supabase) return {};
 
@@ -386,15 +431,16 @@ const getOperatorStats = async (brandId) => {
     // 3. Generate History from Transactions if daily_stats is empty
     let demoHistory = history;
     if (!history || history.length === 0) {
-        // Fetch last 7 days of transactions to generate GGR history on the fly
+        // Fetch last 7 days of audit logs to generate GGR history on the fly
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
         const { data: recentTxs } = await supabase
-            .from('transactions')
-            .select('amount, type, created_at')
+            .from('platform_audit_logs')
+            .select('metadata, action, timestamp')
             .eq('brand_id', brandId)
-            .gte('created_at', sevenDaysAgo.toISOString());
+            .gte('timestamp', sevenDaysAgo.toISOString())
+            .in('action', ['wallet:debit', 'wallet:credit']);
 
         if (recentTxs && recentTxs.length > 0) {
             const days = {};
@@ -407,10 +453,11 @@ const getOperatorStats = async (brandId) => {
             }
 
             recentTxs.forEach(tx => {
-                const dateStr = tx.created_at.split('T')[0];
+                const dateStr = tx.timestamp.split('T')[0];
+                const amount = tx.metadata?.request?.amount || 0;
                 if (days[dateStr]) {
-                    if (tx.type === 'DEBIT') days[dateStr].ggr += tx.amount;
-                    if (tx.type === 'CREDIT') days[dateStr].ggr -= tx.amount;
+                    if (tx.action === 'wallet:debit') days[dateStr].ggr += amount;
+                    if (tx.action === 'wallet:credit') days[dateStr].ggr -= amount;
                 }
             });
             demoHistory = Object.values(days).sort((a, b) => a.date.localeCompare(b.date));
