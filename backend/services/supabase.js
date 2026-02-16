@@ -845,5 +845,6 @@ module.exports = {
     getFilteredPlayers,
     getFilteredTransactions,
     getOperationalStream,
-    getBrandId
+    getBrandId,
+    updateOperatorApiKey
 };

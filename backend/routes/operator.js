@@ -871,4 +871,26 @@ router.get('/operator/operational-stream', authenticateRequest, async (req, res)
     }
 });
 
+// Operator config endpoints
+router.post('/operator/config/api-key', authenticateRequest, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    const { api_key } = req.body;
+
+    if (!api_key) {
+        return res.status(400).json({ error: 'API key is required' });
+    }
+
+    try {
+        const success = await supabaseService.updateOperatorApiKey(brandId, api_key);
+        if (success) {
+            res.json({ message: 'Operator API key updated successfully' });
+        } else {
+            res.status(500).json({ error: 'Failed to update Operator API key' });
+        }
+    } catch (error) {
+        logger.error('API key update failed', { error: error.message });
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 module.exports = router;

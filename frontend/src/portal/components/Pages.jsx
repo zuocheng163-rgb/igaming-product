@@ -587,7 +587,38 @@ export const Compliance = ({ user, token }) => {
     );
 };
 
-export const Settings = () => {
+export const Settings = ({ token }) => {
+    const [apiKey, setApiKey] = useState('••••••••••••••••');
+    const [isRegenerating, setIsRegenerating] = useState(false);
+
+    const handleRegenerateKey = async () => {
+        if (!window.confirm('Are you sure? This will invalidate the existing Operator API key immediately.')) return;
+
+        setIsRegenerating(true);
+        try {
+            const newKey = `sk_op_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`;
+            const response = await fetch('/api/operator/config/api-key', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ api_key: newKey })
+            });
+
+            if (response.ok) {
+                setApiKey(newKey);
+                alert('API Key regenerated successfully. Please update your environment variables if needed.');
+            } else {
+                throw new Error('Failed to update API key');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            setIsRegenerating(false);
+        }
+    };
+
     return (
         <div className="page-container" style={{ padding: '24px', maxWidth: '800px' }}>
             <h2 className="page-title" style={{ marginBottom: '24px' }}>Platform Settings</h2>
@@ -601,9 +632,25 @@ export const Settings = () => {
                     <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Session Timeout (minutes)</label>
                     <input type="number" defaultValue={30} className="input-field" style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }} />
                 </div>
-                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <input type="checkbox" defaultChecked id="mfa" style={{ width: '16px', height: '16px' }} />
-                    <label htmlFor="mfa" style={{ color: 'var(--text-primary)' }}>Enforce MFA for Admin Access</label>
+
+                <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Operator API Key (X-API-Key)</label>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        <input
+                            type="text"
+                            readOnly
+                            value={apiKey}
+                            style={{ flex: 1, padding: '10px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#00ff88', fontFamily: 'monospace' }}
+                        />
+                        <button
+                            onClick={handleRegenerateKey}
+                            disabled={isRegenerating}
+                            className="btn-primary"
+                            style={{ padding: '0 15px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                        >
+                            {isRegenerating ? 'REGENERATING...' : 'REGENERATE'}
+                        </button>
+                    </div>
                 </div>
             </section>
 

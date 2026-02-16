@@ -1,3 +1,4 @@
+const SlackService = require('./slack-service');
 const rabbitmq = require('./rabbitmq');
 const ftService = require('./ft-integration');
 const { logger } = require('./logger');
@@ -55,7 +56,10 @@ class InterventionService {
             this.triggerRealityCheck(userId, reasons.join(', '), type);
         }
 
-        // 3. Log to internal audit
+        // 3. Slack Integration: Notify for risk events
+        await SlackService.sendRiskAlert(userId, riskData);
+
+        // 4. Log to internal audit
         logger.warn(`AI Duty of Care Intervention Triggered`, { userId, riskLevel, reasons });
     }
 }

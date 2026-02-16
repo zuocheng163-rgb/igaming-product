@@ -103,7 +103,7 @@ const PortalDashboard = ({ user, token, onLogout }) => {
                                         const year = now.getFullYear();
                                         const yesterdayFormatted = `${day}/${month}/${year}`;
                                         sessionStorage.setItem('playerFilters', JSON.stringify({
-                                            last_login: `> ${yesterdayFormatted}`
+                                            last_login: `>= ${yesterdayFormatted}`
                                         }));
                                     });
                                 } else if (kpi.label === 'Total GGR') {
