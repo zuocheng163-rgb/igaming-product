@@ -349,7 +349,7 @@ export const Wallet = ({ user, token }) => {
 
             {/* Filter Row */}
             <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr) auto', gap: '12px', alignItems: 'end' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr) auto', gap: '12px', alignItems: 'end' }}>
                     <div>
                         <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Transaction ID</label>
                         <input
@@ -440,6 +440,24 @@ export const Wallet = ({ user, token }) => {
                             }}
                         />
                     </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Status</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. success"
+                            value={filters.status || ''}
+                            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                            style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                background: 'rgba(255,255,255,0.05)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '6px',
+                                color: 'white',
+                                fontSize: '0.9rem'
+                            }}
+                        />
+                    </div>
                     <button
                         onClick={handleFilter}
                         className="btn-primary"
@@ -462,7 +480,7 @@ export const Wallet = ({ user, token }) => {
                 onPageChange={handlePageChange}
                 searchPlaceholder="Search transactions..."
             />
-        </div>
+        </div >
     );
 };
 
@@ -498,15 +516,34 @@ export const Games = () => {
     );
 };
 
-export const Compliance = () => {
-    const [data] = useState([
-        { id: 'AL-502', user: 'player_one', trigger: 'Velocity Limit', risk: 'Medium', status: 'Under Review', date: '2026-02-12T11:00:00Z' },
-        { id: 'AL-501', user: 'unknown', trigger: 'IP Mismatch', risk: 'High', status: 'Open', date: '2026-02-11T08:30:00Z' },
-    ]);
+export const Compliance = ({ user, token }) => {
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+
+    const fetchData = () => {
+        setLoading(true);
+        fetch('/api/operator/compliance/alerts', {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'x-username': user?.username
+            }
+        })
+            .then(res => res.json())
+            .then(alerts => {
+                setData(alerts || []);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        if (token) fetchData();
+    }, [token]);
 
     const handleRefresh = () => {
         setRefreshing(true);
+        fetchData();
         setTimeout(() => setRefreshing(false), 500);
     };
 
@@ -518,15 +555,16 @@ export const Compliance = () => {
             header: 'Risk Level', accessor: 'risk', render: row => (
                 <span style={{
                     padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem',
-                    background: row.risk === 'High' ? 'rgba(255, 77, 77, 0.2)' : 'rgba(255, 215, 0, 0.2)',
-                    color: row.risk === 'High' ? '#ff4d4d' : '#ffd700'
+                    background: row.risk === 'High' ? 'rgba(255, 77, 77, 0.2)' : row.risk === 'Medium' ? 'rgba(255, 165, 0, 0.2)' : 'rgba(255, 215, 0, 0.2)',
+                    color: row.risk === 'High' ? '#ff4d4d' : row.risk === 'Medium' ? '#ffa500' : '#ffd700'
                 }}>
                     {row.risk}
                 </span>
             )
         },
         { header: 'Status', accessor: 'status' },
-        { header: 'Date', accessor: 'date', render: row => new Date(row.date).toLocaleString() }
+        { header: 'Date', accessor: 'date', render: row => new Date(row.date).toLocaleString() },
+        { header: 'Message', accessor: 'message' }
     ];
 
     return (
@@ -541,6 +579,7 @@ export const Compliance = () => {
             <DataTable
                 columns={columns}
                 data={data}
+                loading={loading}
                 pagination={{ page: 1, totalPages: 1 }}
                 searchPlaceholder="Search alerts..."
             />

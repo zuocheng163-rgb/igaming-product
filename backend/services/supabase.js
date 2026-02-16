@@ -302,19 +302,15 @@ const getAggregatedKPIs = async (brandId) => {
         if (tx.status === 'success') successfulTxs++;
     });
 
-    // 1. Calculate Active Players (Unique users with transactions in last 24h)
-    // Note: audit logs use 'actor_id', not 'user_id'
-    let activePlayers = new Set(transactions.map(tx => tx.actor_id || tx.user_id)).size;
-
-    // Fallback: If no transactions, count users logged in within last 24h
-    if (activePlayers === 0) {
-        const { count } = await supabase
-            .from('users')
-            .select('*', { count: 'exact', head: true })
-            .eq('brand_id', brandId)
-            .gt('last_login', new Date(Date.now() - 86400000).toISOString());
-        activePlayers = count || 0;
-    }
+    // 1. Calculate Active Players (Unique users who logged in OR transacted in last 24h)
+    // We prioritize the users table last_login to align with the frontend list filter, 
+    // but we should technically include those who transacted too. 
+    // However, to match the "Active Players" list exactly (which filters by last_login), we will use that.
+    const { count: activePlayers } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('brand_id', brandId)
+        .gt('last_login', new Date(Date.now() - 86400000).toISOString());
 
     // 2. Calculate Events Sent (Last 24h) - FT Integration Events
     const { count: eventsSent } = await supabase
@@ -324,6 +320,14 @@ const getAggregatedKPIs = async (brandId) => {
         .gte('timestamp', new Date(Date.now() - 86400000).toISOString())
         .or('action.ilike.inbound:*,action.ilike.push_event*');
 
+    // 3. Compliance Alerts Count (Warnings/Errors in last 24h)
+    const { count: complianceAlerts } = await supabase
+        .from('platform_audit_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('brand_id', brandId)
+        .in('level', ['warn', 'error', 'critical'])
+        .gt('timestamp', new Date(Date.now() - 86400000).toISOString());
+
     const approvalRate = transactions.length > 0 ? Math.round((successfulTxs / transactions.length) * 100) : 98;
 
     return {
@@ -331,64 +335,16 @@ const getAggregatedKPIs = async (brandId) => {
         ngr: ggr - bonuses,
         deposits,
         transaction_count: transactions.length,
-        active_players: activePlayers,
+        active_players: activePlayers || 0,
         approval_rate: approvalRate,
-        events_sent: eventsSent || 0
+        events_sent: eventsSent || 0,
+        compliance_alerts: complianceAlerts || 0
     };
 };
 
-const getUserConsents = async (userId) => {
-    if (!supabase) return null;
-
-    // Fetch from the new normalized table
-    const { data, error } = await supabase
-        .from('user_consents')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-    if (error || !data) {
-        // Fallback to defaults if not found
-        return {
-            brand_id: 1,
-            user_id: userId,
-            email: true,
-            sms: true,
-            telephone: true,
-            post_mail: true,
-            site_notification: true,
-            push_notification: true
-        };
-    }
-
-    return data;
-};
-
-const getUserBlocks = async (userId) => {
-    if (!supabase) return null;
-
-    const { data, error } = await supabase
-        .from('user_blocks')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-    if (error || !data) {
-        return {
-            brand_id: 1,
-            user_id: userId,
-            blocked: false,
-            excluded: false
-        };
-    }
-
-    return data;
-};
-
-const getOperatorNotifications = async (brandId, limit = 50) => {
+const getComplianceAlerts = async (brandId, limit = 50) => {
     if (!supabase) return [];
 
-    // Fetch recent high-priority audit logs as notifications
     const { data, error } = await supabase
         .from('platform_audit_logs')
         .select('*')
@@ -398,20 +354,18 @@ const getOperatorNotifications = async (brandId, limit = 50) => {
         .limit(limit);
 
     if (error) {
-        logger.error('[Supabase] Failed to fetch operator notifications', { error: error.message });
+        logger.error('[Supabase] Failed to fetch compliance alerts', { error: error.message });
         return [];
     }
 
-    // Map audit logs to notification format
-    return (data || []).map(log => ({
+    return data.map(log => ({
         id: log.id,
-        type: log.level === 'critical' ? 'critical' : log.level === 'error' ? 'alert' : 'warning',
-        title: log.action || 'System Event',
-        message: log.message || `${log.action} event detected`,
-        timestamp: log.timestamp,
-        severity: log.level,
-        user_id: log.actor_id,
-        metadata: log.metadata
+        user: log.actor_id || 'System',
+        trigger: log.action,
+        risk: log.level === 'critical' ? 'High' : log.level === 'error' ? 'Medium' : 'Low',
+        status: 'Open',
+        date: log.timestamp,
+        message: log.message
     }));
 };
 
@@ -429,23 +383,52 @@ const getOperatorStats = async (brandId) => {
         .order('date', { ascending: true })
         .limit(30);
 
-    // 3. Realistic Demo Data Fallback
-    const demoHistory = history?.length > 0 ? history : [
-        { date: '2026-02-04', ggr: 1240, active_players: 85, ngr: 1100, approval_rate: 97 },
-        { date: '2026-02-05', ggr: 1350, active_players: 90, ngr: 1200, approval_rate: 98 },
-        { date: '2026-02-06', ggr: 1100, active_players: 88, ngr: 950, approval_rate: 96 },
-        { date: '2026-02-07', ggr: 1600, active_players: 105, ngr: 1400, approval_rate: 99 },
-        { date: '2026-02-08', ggr: 1850, active_players: 112, ngr: 1600, approval_rate: 98 },
-        { date: '2026-02-09', ggr: 1700, active_players: 110, ngr: 1550, approval_rate: 97 },
-        { date: '2026-02-10', ggr: 2100, active_players: 124, ngr: 1800, approval_rate: 98 },
-    ];
+    // 3. Generate History from Transactions if daily_stats is empty
+    let demoHistory = history;
+    if (!history || history.length === 0) {
+        // Fetch last 7 days of transactions to generate GGR history on the fly
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const lastDay = demoHistory[demoHistory.length - 1];
+        const { data: recentTxs } = await supabase
+            .from('transactions')
+            .select('amount, type, created_at')
+            .eq('brand_id', brandId)
+            .gte('created_at', sevenDaysAgo.toISOString());
+
+        if (recentTxs && recentTxs.length > 0) {
+            const days = {};
+            // Initialize last 7 days
+            for (let i = 0; i < 7; i++) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateStr = d.toISOString().split('T')[0];
+                days[dateStr] = { ggr: 0, active_players: 0, approval_rate: 98, date: dateStr }; // Mock others
+            }
+
+            recentTxs.forEach(tx => {
+                const dateStr = tx.created_at.split('T')[0];
+                if (days[dateStr]) {
+                    if (tx.type === 'DEBIT') days[dateStr].ggr += tx.amount;
+                    if (tx.type === 'CREDIT') days[dateStr].ggr -= tx.amount;
+                }
+            });
+            demoHistory = Object.values(days).sort((a, b) => a.date.localeCompare(b.date));
+        } else {
+            // Fallback to static demo data only if NO transactions exist
+            demoHistory = [
+                { date: '2026-02-10', ggr: 0, active_players: 0, ngr: 0, approval_rate: 0 },
+                { date: '2026-02-11', ggr: 0, active_players: 0, ngr: 0, approval_rate: 0 }
+            ];
+        }
+    }
+
+    const lastDay = demoHistory[demoHistory.length - 1] || { ggr: 0, active_players: 0, approval_rate: 0 };
     const prevDay = demoHistory[demoHistory.length - 2] || lastDay;
 
     // Calculate trends based on the last 2 records
     const calculateTrend = (current, previous) => {
-        if (!previous) return 0;
+        if (!previous || previous === 0) return 0;
         return Math.round(((current - previous) / previous) * 100);
     };
 
@@ -453,28 +436,28 @@ const getOperatorStats = async (brandId) => {
     const enrichment = {
         active_players: {
             value: kpis.active_players,
-            trend: calculateTrend(lastDay.active_players, prevDay.active_players),
+            trend: calculateTrend(kpis.active_players, prevDay.active_players), // Compare current real to prev day
             sparkline: demoHistory.slice(-7).map(d => d.active_players)
         },
         ggr: {
-            value: kpis.ggr || lastDay.ggr,
-            trend: calculateTrend(lastDay.ggr, prevDay.ggr),
+            value: kpis.ggr,
+            trend: calculateTrend(kpis.ggr, prevDay.ggr),
             sparkline: demoHistory.slice(-7).map(d => d.ggr)
         },
         approval_rate: {
             value: kpis.approval_rate,
-            trend: calculateTrend(lastDay.approval_rate, prevDay.approval_rate),
+            trend: calculateTrend(kpis.approval_rate, prevDay.approval_rate),
             sparkline: demoHistory.slice(-7).map(d => d.approval_rate)
         },
         compliance_alerts: {
-            value: 4,
-            trend: -20, // Improving
-            sparkline: [8, 7, 6, 6, 5, 4, 4]
+            value: kpis.compliance_alerts,
+            trend: kpis.compliance_alerts > 0 ? 10 : 0,
+            sparkline: [0, 0, 0, 0, 0, 0, kpis.compliance_alerts]
         },
         events_sent: {
             value: kpis.events_sent,
             trend: 5,
-            sparkline: [120, 150, 180, 200, 210, 220, kpis.events_sent || 230]
+            sparkline: [0, 0, 0, 0, 0, 0, kpis.events_sent]
         }
     };
 
@@ -682,6 +665,9 @@ const getFilteredTransactions = async (brandId, filters, page = 1, limit = 10) =
         else if (operator === '<') query = query.lt('created_at', value);
         else if (operator === '<=') query = query.lte('created_at', value);
     }
+    if (filters.status) {
+        query = query.ilike('status', `%${filters.status}%`);
+    }
 
     // Pagination
     const offset = (page - 1) * limit;
@@ -795,6 +781,7 @@ module.exports = {
     getActivities,
     getTransactionsByOperator,
     getAggregatedKPIs,
+    getComplianceAlerts,
     getOperatorNotifications,
     getOperatorStats,
     searchOperatorGlobal,

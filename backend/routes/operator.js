@@ -812,7 +812,7 @@ router.post('/operator/players/filter', authenticateRequest, async (req, res) =>
 // Transaction filtering endpoint
 router.post('/operator/transactions/filter', authenticateRequest, async (req, res) => {
     const brandId = req.brandId || req.user?.brand_id || 1;
-    const { transaction_id, user, type, amount, date, page = 1, limit = 10 } = req.body;
+    const { transaction_id, user, type, amount, date, status, page = 1, limit = 10 } = req.body;
 
     try {
         const filters = {};
@@ -820,6 +820,7 @@ router.post('/operator/transactions/filter', authenticateRequest, async (req, re
         if (transaction_id) filters.transaction_id = transaction_id;
         if (user) filters.user = user;
         if (type) filters.type = type;
+        if (status) filters.status = status;
 
         if (amount) {
             const parsed = parseOperatorFilter(amount);
@@ -843,6 +844,16 @@ router.post('/operator/transactions/filter', authenticateRequest, async (req, re
     } catch (error) {
         logger.error('Transaction filter failed', { error: error.message });
         res.status(500).json({ error: 'Failed to filter transactions' });
+    }
+});
+
+router.get('/operator/compliance/alerts', authenticateRequest, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    try {
+        const alerts = await supabaseService.getComplianceAlerts(brandId);
+        res.json(alerts);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch compliance alerts' });
     }
 });
 

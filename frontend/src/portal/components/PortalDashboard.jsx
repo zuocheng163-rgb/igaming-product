@@ -96,15 +96,28 @@ const PortalDashboard = ({ user, token, onLogout }) => {
                             onClick={() => {
                                 if (kpi.label === 'Active Players') {
                                     handleNavigate('/portal/players', () => {
-                                        // Set filter for 'Active' status (users with recent login/tx)
-                                        // Since 'Active' status is computed, we'll filter by Last Login > 24h
                                         const now = new Date();
                                         now.setDate(now.getDate() - 1);
-                                        const yesterday = now.toLocaleDateString();
+                                        const yesterdayISO = now.toISOString();
                                         sessionStorage.setItem('playerFilters', JSON.stringify({
-                                            last_login: `> ${yesterday}`
+                                            last_login: `> ${yesterdayISO}`
                                         }));
                                     });
+                                } else if (kpi.label === 'Total GGR') {
+                                    handleNavigate('/portal/wallet', () => {
+                                        sessionStorage.setItem('transactionFilters', JSON.stringify({
+                                            type: 'DEBIT', // Closest to GGR
+                                            status: 'success'
+                                        }));
+                                    });
+                                } else if (kpi.label === 'Approval Rate') {
+                                    handleNavigate('/portal/wallet', () => {
+                                        sessionStorage.setItem('transactionFilters', JSON.stringify({
+                                            status: 'failed'
+                                        }));
+                                    });
+                                } else if (kpi.label === 'Compliance Alerts') {
+                                    handleNavigate('/portal/compliance');
                                 }
                             }}
                         />
