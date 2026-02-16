@@ -821,6 +821,26 @@ const getOperationalStream = async (brandId, page = 1, limit = 20, type = null) 
     };
 };
 
+const updateOperatorApiKey = async (brandId, newKey) => {
+    if (!supabase) return false;
+
+    // We store this in the tenant_configs table
+    // Sanity check: brandId 1 is default for PoC
+    const { error } = await supabase
+        .from('tenant_configs')
+        .update({
+            config: { operator_api_key: newKey },
+            updated_at: new Date().toISOString()
+        })
+        .eq('brand_id', brandId);
+
+    if (error) {
+        logger.error('Failed to update operator API key:', { error: error.message, brandId });
+        return false;
+    }
+    return true;
+};
+
 module.exports = {
     client: supabase,
     getTenantConfig,
