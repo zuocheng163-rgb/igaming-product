@@ -77,6 +77,7 @@ class WalletService {
                 brand_id: playerBrandId,
                 user_id: user.id,
                 type: 'DEBIT',
+                status: 'success',
                 amount: -amount,
                 currency: user.currency,
                 game_id: gameId,
@@ -172,6 +173,7 @@ class WalletService {
                 brand_id: playerBrandId,
                 user_id: user.id,
                 type: 'CREDIT',
+                status: 'success',
                 amount: amount,
                 currency: user.currency,
                 game_id: gameId,
@@ -254,6 +256,7 @@ class WalletService {
                 brand_id: playerBrandId,
                 user_id: user.id,
                 type: 'DEPOSIT',
+                status: 'success',
                 amount: amount,
                 currency: user.currency,
                 metadata: { correlationId, provider: paymentResult.provider, balance_after: newBalance }

@@ -449,15 +449,21 @@ const getOperatorStats = async (brandId) => {
                 const d = new Date();
                 d.setDate(d.getDate() - i);
                 const dateStr = d.toISOString().split('T')[0];
-                days[dateStr] = { ggr: 0, active_players: 0, approval_rate: 98, date: dateStr }; // Mock others
+                days[dateStr] = { ggr: 0, ngr: 0, active_players: 0, approval_rate: 98, date: dateStr }; // Mock others
             }
 
             recentTxs.forEach(tx => {
                 const dateStr = tx.timestamp.split('T')[0];
                 const amount = tx.metadata?.request?.amount || 0;
                 if (days[dateStr]) {
-                    if (tx.action === 'wallet:debit') days[dateStr].ggr += amount;
-                    if (tx.action === 'wallet:credit') days[dateStr].ggr -= amount;
+                    if (tx.action === 'wallet:debit') {
+                        days[dateStr].ggr += amount;
+                        days[dateStr].ngr += amount; // Assuming GGR = NGR for now if no bonuses
+                    }
+                    if (tx.action === 'wallet:credit') {
+                        days[dateStr].ggr -= amount;
+                        days[dateStr].ngr -= amount; // Bonus credits would reduce NGR further
+                    }
                 }
             });
             demoHistory = Object.values(days).sort((a, b) => a.date.localeCompare(b.date));
@@ -529,6 +535,7 @@ const createTransaction = async (txData) => {
             user_id: txData.user_id, // Internal UUID
             type: txData.type,
             amount: txData.amount,
+            status: txData.status || 'Success',
             currency: txData.currency || 'EUR',
             game_id: txData.game_id || null,
             metadata: txData.metadata || {},

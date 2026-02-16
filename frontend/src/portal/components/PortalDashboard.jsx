@@ -98,9 +98,12 @@ const PortalDashboard = ({ user, token, onLogout }) => {
                                     handleNavigate('/portal/players', () => {
                                         const now = new Date();
                                         now.setDate(now.getDate() - 1);
-                                        const yesterdayISO = now.toISOString();
+                                        const day = String(now.getDate()).padStart(2, '0');
+                                        const month = String(now.getMonth() + 1).padStart(2, '0');
+                                        const year = now.getFullYear();
+                                        const yesterdayFormatted = `${day}/${month}/${year}`;
                                         sessionStorage.setItem('playerFilters', JSON.stringify({
-                                            last_login: `> ${yesterdayISO}`
+                                            last_login: `> ${yesterdayFormatted}`
                                         }));
                                     });
                                 } else if (kpi.label === 'Total GGR') {
