@@ -5,7 +5,7 @@ const rabbitmq = require('./rabbitmq');
 const MonitoringService = require('./monitoring');
 const InterventionService = require('./intervention');
 const PaymentRoutingService = require('./payment-routing');
-const PaymentAdapters = require('./payment-adapters');
+const PaymentAdapters = require('../../mock-game/mock-services/payment-adapters');
 const PaymentAnalyticsService = require('./payment-analytics');
 
 /**

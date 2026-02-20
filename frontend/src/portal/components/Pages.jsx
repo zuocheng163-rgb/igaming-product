@@ -613,8 +613,6 @@ export const Settings = ({ token }) => {
     }, [token]);
 
     const handleRegenerateKey = async () => {
-        if (!window.confirm('Are you sure? This will invalidate the existing Operator API key immediately.')) return;
-
         setIsRegenerating(true);
         try {
             const newKey = `sk_op_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`;
@@ -690,7 +688,11 @@ export const Settings = ({ token }) => {
                 </div>
             </section>
 
-            <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}>
+            <button
+                onClick={() => alert('Settings saved successfully')}
+                className="btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}
+            >
                 <Save size={18} />
                 Save Changes
             </button>

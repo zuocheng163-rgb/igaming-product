@@ -1,4 +1,4 @@
-const { logger } = require('./logger');
+// Removed logger for isolated mock service
 
 /**
  * PaymentAdapters
@@ -7,7 +7,7 @@ const { logger } = require('./logger');
 class PaymentAdapters {
 
     static async call(provider, amount, userId) {
-        logger.info(`[Adapter] Calling ${provider} for user ${userId}`, { amount });
+        console.log(`[Adapter] Calling ${provider} for user ${userId}`, { amount });
 
         // Simulate network latency
         await new Promise(r => setTimeout(r, 500));

@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const WalletService = require('../services/wallet-service');
-const EvolutionAdapter = require('../services/adapters/evolution');
-const PragmaticPlayAdapter = require('../services/adapters/pragmatic');
-const NetEntAdapter = require('../services/adapters/netent');
+const EvolutionAdapter = require('../../mock-game/mock-services/adapters/evolution');
+const PragmaticPlayAdapter = require('../../mock-game/mock-services/adapters/pragmatic');
+const NetEntAdapter = require('../../mock-game/mock-services/adapters/netent');
 
 // Initialize adapters
 const adapters = {

@@ -102,11 +102,11 @@ const authenticateRequest = async (req, res, next) => {
             }
         }
 
-        // Portal Access Control: Only allow users with "admin" in username for portal endpoints
-        if (req.path.startsWith('/operator/') && req.user) {
-            if (!req.user.username || !req.user.username.toLowerCase().includes('admin')) {
+        // Portal Access Control: Only allow users with ADMIN role for portal endpoints
+        if (req.path.startsWith('/operator/')) {
+            if (req.role !== 'ADMIN') {
                 logger.warn('Portal access denied: Non-admin user attempted portal access', {
-                    username: req.user.username,
+                    username: req.user?.username,
                     path: req.path,
                     correlationId
                 });
@@ -229,6 +229,7 @@ router.get('/balance', authenticateRequest, async (req, res) => {
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
+    logger.info('[Balance SPI] Fetching balance', { username: req.user.username, balance: req.user.balance });
     res.json({
         balance: req.user.balance,
         bonus_balance: req.user.bonus_balance || 0,
@@ -252,6 +253,7 @@ router.post('/debit', authenticateRequest, async (req, res) => {
             user_id, amount, transaction_id, game_id,
             currentOperatorId, correlationId
         );
+        logger.info('[Debit SPI] Success', { user_id, amount, balance_after: result.balance });
         res.json(result);
     } catch (error) {
         const status = error.message === 'INSUFFICIENT_FUNDS' ? 402 : 500;
@@ -274,6 +276,7 @@ router.post('/credit', authenticateRequest, async (req, res) => {
             user_id, amount, transaction_id, game_id,
             currentOperatorId, correlationId
         );
+        logger.info('[Credit SPI] Success', { user_id, amount, balance_after: result.balance });
         res.json(result);
     } catch (error) {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
@@ -503,13 +506,19 @@ router.get('/activities', authenticateRequest, async (req, res) => {
 
 // Bonus Operations
 router.get('/bonus/list', authenticateRequest, async (req, res) => {
-    // In production, fetch available bonuses from DB or Bonus Engine
-    const mockBonuses = [
-        { bonus_code: 'WELCOME100', name: 'Welcome Bonus 100%', amount: 100 },
-        { bonus_code: 'RELOAD50', name: 'Weekend Reload', amount: 50 },
-        { bonus_code: 'FREESPIN10', name: '10 Free Spins', amount: 10 }
-    ];
-    res.json({ Data: mockBonuses });
+    try {
+        // Fetch available bonuses from DB
+        const { data, error } = await supabaseService.client
+            .from('bonus_config')
+            .select('*')
+            .eq('is_active', true);
+
+        if (error) throw error;
+        res.json({ Data: data || [] });
+    } catch (error) {
+        logger.error('Failed to fetch bonuses', { error: error.message });
+        res.status(500).json({ error: 'Failed to fetch bonuses' });
+    }
 });
 
 router.post('/bonus/credit', authenticateRequest, async (req, res) => {
@@ -560,7 +569,7 @@ router.get('/userdetails/:userid', authenticateRequest, async (req, res) => {
         currency: user.currency || 'EUR',
         balance: user.balance,
         registration_date: user.registration_date,
-        verified_at: user.verified_at || new Date().toISOString(), // RFC3339 format
+        verified_at: user.verified_at,
         birth_date: user.birth_date,
         sex: user.sex,
         title: user.title,
@@ -569,10 +578,10 @@ router.get('/userdetails/:userid', authenticateRequest, async (req, res) => {
         postal_code: user.postal_code,
         mobile: user.mobile,
         mobile_prefix: user.mobile_prefix,
-        origin: user.origin || 'Web',
-        market: user.market || 'International',
+        origin: user.origin,
+        market: user.market,
         registration_code: user.registration_code,
-        affiliate_reference: user.affiliate_reference || 'FT_DEMO_REF', // Mandatory field
+        affiliate_reference: user.affiliate_reference,
         is_blocked: !!user.is_blocked,
         is_excluded: !!user.is_excluded,
         roles: Array.isArray(user.roles) ? user.roles : ['PLAYER']

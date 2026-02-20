@@ -3,13 +3,7 @@ const InterventionService = require('../services/intervention');
 const WalletService = require('../services/wallet-service');
 const supabaseService = require('../services/supabase');
 const ftService = require('../services/ft-integration');
-const socketService = require('../services/socket');
-
-// Overwrite the function directly to bypass the internal check
-socketService.broadcastToUser = (uid, event, data) => {
-    console.log(`[Captured WS] ${event}`, data);
-    return true;
-};
+// socketService removed, using rabbitmq or direct array for checks
 
 async function verifyAffordabilityFlow() {
     console.log('\n--- Verifying Affordability Flow ---');
@@ -18,9 +12,11 @@ async function verifyAffordabilityFlow() {
     let capturedWS = [];
 
     // 1. Mocks
-    socketService.broadcastToUser = (uid, event, data) => {
-        console.log(`[Captured WS] ${event}`, data);
-        capturedWS.push({ event, data });
+    const rabbitmq = require('../services/rabbitmq');
+    rabbitmq.publishEvent = async (routingKey, message) => {
+        console.log(`[Captured Event] ${routingKey}`, message);
+        capturedWS.push({ event: 'rg_alert', data: message });
+        return true;
     };
 
     ftService.pushEvent = async () => { }; // No-op for check

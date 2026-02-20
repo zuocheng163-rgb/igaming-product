@@ -114,8 +114,8 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
                 timestamp,
                 type: (payload.type === 'Debit' || eventType === 'withdrawal') ? 'Debit' : 'Credit',
                 user_id: userId,
-                vendor_id: payload.vendor_id || 'mock-vendor-1',
-                vendor_name: payload.vendor_name || 'MockProvider'
+                vendor_id: payload.vendor_id,
+                vendor_name: payload.vendor_name
             };
         } else if (eventType === 'bet' || eventType === 'win' || eventType === 'casino' || eventType === 'loss') {
             requestBody = {
@@ -137,8 +137,8 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
                 timestamp,
                 type: (eventType === 'win' || payload.type === 'Win') ? 'Win' : (eventType === 'loss' || payload.type === 'Loss' ? 'Loss' : 'Bet'), // ENUM: Bet, Win, Loss
                 user_id: userId,
-                vendor_id: payload.vendor_id || 'mock-vendor-1',
-                vendor_name: payload.game_provider || 'MockProvider',
+                vendor_id: payload.vendor_id,
+                vendor_name: payload.game_provider || payload.vendor_name,
                 wager_amount: parseFloat(payload.wager_amount || payload.amount || 0.0),
                 meta: payload.meta || { source: 'backend' }
             };
@@ -167,10 +167,10 @@ const pushEventWithRetry = async (userId, eventType, payload, options = {}, retr
                 required_wagering_amount: parseFloat(payload.required_wagering_amount || 0.0),
                 status: payload.status || 'Completed', // ENUM: Completed, AutoCompleted, Forfeited, Expired, Lost
                 type: payload.type || 'WelcomeBonus', // ENUM: NoDeposit, WelcomeBonus, CashbackBonus, ReloadBonus, WagerFree, FreeSpins, RiskFreeBet, Undefined
-                user_bonus_id: payload.user_bonus_id || `${userId}-${Date.now()}`,
+                user_bonus_id: payload.user_bonus_id,
                 user_id: userId,
                 timestamp,
-                fasttrack_references: payload.fasttrack_references || { source: 'backend' }
+                fasttrack_references: payload.fasttrack_references
             };
         }
 

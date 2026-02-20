@@ -105,27 +105,27 @@ const createUser = async (userData) => {
         user_id: publicUserId,
         username: userData.username,
         email: userData.email,
-        first_name: userData.first_name || 'Demo',
-        last_name: userData.last_name || 'User',
-        balance: 1000,
-        bonus_balance: 500,
-        currency: 'EUR',
+        first_name: userData.first_name,
+        last_name: userData.last_name,
+        balance: userData.balance || 0,
+        bonus_balance: userData.bonus_balance || 0,
+        currency: userData.currency || 'EUR',
         registration_date: new Date().toISOString(),
-        birth_date: userData.birth_date || '1990-01-01',
-        sex: userData.sex || 'male',
-        title: userData.title || 'Mr',
-        language: userData.language || 'en',
-        country: userData.country || 'MT',
-        city: userData.city || 'Valletta',
-        address: userData.address || '123 Casino Way',
-        postal_code: userData.postal_code || 'VLT 1234',
-        mobile: userData.mobile || '35699123456',
-        mobile_prefix: userData.mobile_prefix || '356',
-        full_mobile_number: userData.full_mobile_number || '35699123456',
-        origin: userData.origin || 'Direct',
-        market: userData.market || 'INT',
-        registration_code: userData.registration_code || 'WELCOME2026',
-        roles: ['PLAYER'],
+        birth_date: userData.birth_date,
+        sex: userData.sex,
+        title: userData.title,
+        language: userData.language,
+        country: userData.country,
+        city: userData.city,
+        address: userData.address,
+        postal_code: userData.postal_code,
+        mobile: userData.mobile,
+        mobile_prefix: userData.mobile_prefix,
+        full_mobile_number: userData.full_mobile_number,
+        origin: userData.origin,
+        market: userData.market,
+        registration_code: userData.registration_code,
+        roles: userData.roles || ['PLAYER'],
         token: userData.token,
         ...userData
     };
@@ -218,9 +218,10 @@ const getAggregatedKPIs = async (brandId) => {
         if (tx.status === 'success') successfulTxs++;
     });
     const { count: activePlayers } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('brand_id', brandId).gt('last_login', new Date(Date.now() - 86400000).toISOString());
-    const { count: eventsSent } = await supabase.from('platform_audit_logs').select('*', { count: 'exact', head: true }).eq('brand_id', brandId).gte('timestamp', new Date(Date.now() - 86400000).toISOString()).or('action.ilike.inbound:*,action.ilike.push_event*');
+    // Bug fix: count ALL outbound events within last 24h (was missing outbound:rabbitmq:publish:* pattern)
+    const { count: eventsSent } = await supabase.from('platform_audit_logs').select('*', { count: 'exact', head: true }).eq('brand_id', brandId).gte('timestamp', new Date(Date.now() - 86400000).toISOString()).not('action', 'ilike', 'inbound:%');
     const { count: complianceAlerts } = await supabase.from('platform_audit_logs').select('*', { count: 'exact', head: true }).eq('brand_id', brandId).in('level', ['warn', 'error', 'critical']).gt('timestamp', new Date(Date.now() - 86400000).toISOString());
-    const approvalRate = transactions.length > 0 ? Math.round((successfulTxs / transactions.length) * 100) : 98;
+    const approvalRate = transactions.length > 0 ? Math.round((successfulTxs / transactions.length) * 100) : 0;
     return { ggr, ngr: ggr - bonuses, deposits, transaction_count: transactions.length, active_players: activePlayers || 0, approval_rate: approvalRate, events_sent: eventsSent || 0, compliance_alerts: complianceAlerts || 0 };
 };
 
@@ -241,8 +242,37 @@ const getOperatorNotifications = async (brandId) => {
 const getOperatorStats = async (brandId) => {
     if (!supabase) return {};
     const kpis = await getAggregatedKPIs(brandId);
+
+    // Try daily_stats table first; if empty, build 30-day GGR history from audit logs
     const { data: history } = await supabase.from('daily_stats').select('*').eq('brand_id', brandId).order('date', { ascending: true }).limit(30);
-    let demoHistory = history || [];
+    let demoHistory = history && history.length > 0 ? history : [];
+
+    if (demoHistory.length === 0) {
+        // Build daily GGR from wallet:debit and wallet:credit audit logs (last 30 days)
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const { data: auditLogs } = await supabase
+            .from('platform_audit_logs')
+            .select('action, timestamp, metadata, status')
+            .eq('brand_id', brandId)
+            .in('action', ['wallet:debit', 'wallet:credit'])
+            .gte('timestamp', thirtyDaysAgo)
+            .order('timestamp', { ascending: true });
+
+        if (auditLogs && auditLogs.length > 0) {
+            const byDay = {};
+            auditLogs.forEach(log => {
+                const day = log.timestamp.substring(0, 10); // YYYY-MM-DD
+                if (!byDay[day]) byDay[day] = { date: day, ggr: 0, ngr: 0, active_players: 0, approval_rate: 100, compliance_alerts: 0, events_sent: 0 };
+                const amount = log.metadata?.request?.amount || 0;
+                if (log.action === 'wallet:debit') byDay[day].ggr += amount;
+                if (log.action === 'wallet:credit') byDay[day].ggr -= amount;
+            });
+            demoHistory = Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
+            // Compute running NGR (approximate: no bonus data here; use ggr as proxy)
+            demoHistory.forEach(d => { d.ngr = d.ggr; });
+        }
+    }
+
     const lastDay = demoHistory[demoHistory.length - 1] || { ggr: 0, active_players: 0, approval_rate: 0 };
     const prevDay = demoHistory[demoHistory.length - 2] || lastDay;
     const calculateTrend = (curr, prev) => (prev && prev !== 0) ? Math.round(((curr - prev) / prev) * 100) : 0;
@@ -250,8 +280,8 @@ const getOperatorStats = async (brandId) => {
         active_players: { value: kpis.active_players, trend: calculateTrend(kpis.active_players, prevDay.active_players), sparkline: demoHistory.slice(-7).map(d => d.active_players) },
         ggr: { value: kpis.ggr, trend: calculateTrend(kpis.ggr, prevDay.ggr), sparkline: demoHistory.slice(-7).map(d => d.ggr) },
         approval_rate: { value: kpis.approval_rate, trend: calculateTrend(kpis.approval_rate, prevDay.approval_rate), sparkline: demoHistory.slice(-7).map(d => d.approval_rate) },
-        compliance_alerts: { value: kpis.compliance_alerts, trend: kpis.compliance_alerts > 0 ? 10 : 0, sparkline: [0, 0, 0, 0, 0, 0, kpis.compliance_alerts] },
-        events_sent: { value: kpis.events_sent, trend: 5, sparkline: [0, 0, 0, 0, 0, 0, kpis.events_sent] }
+        compliance_alerts: { value: kpis.compliance_alerts, trend: calculateTrend(kpis.compliance_alerts, prevDay.compliance_alerts), sparkline: demoHistory.slice(-7).map(d => d.compliance_alerts) },
+        events_sent: { value: kpis.events_sent, trend: calculateTrend(kpis.events_sent, prevDay.events_sent), sparkline: demoHistory.slice(-7).map(d => d.events_sent) }
     };
     const recentEvents = await getActivities(brandId, 5);
     return { ...kpis, metrics: enrichment, ggr_history: demoHistory, recent_events: recentEvents };

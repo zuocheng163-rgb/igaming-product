@@ -1,4 +1,4 @@
-const { logger } = require('./logger');
+// Removed logger for isolated mock service
 
 /**
  * AffordabilityService
@@ -10,7 +10,7 @@ class AffordabilityService {
      * @param {string} userId
      */
     static async getLinkToken(userId) {
-        logger.info(`Generating Affordability Link Token`, { userId });
+        console.log(`Generating Affordability Link Token`, { userId });
         // In production, we'd call Plaid API: client.linkTokenCreate(...)
         return `link-sandbox-${Math.random().toString(36).substr(2, 9)}`;
     }
@@ -19,7 +19,7 @@ class AffordabilityService {
      * Exchange public token and perform initial verification
      */
     static async verifyAffordability(userId, publicToken) {
-        logger.info(`Verifying Affordability for user`, { userId });
+        console.log(`Verifying Affordability for user`, { userId });
 
         // Mock Plaid Asset Report logic
         // If publicToken contains 'fail', we'll mark as low liquidity
