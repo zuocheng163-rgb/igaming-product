@@ -11,7 +11,7 @@ import {
     AreaChart
 } from 'recharts';
 
-const GGRTrendChart = ({ data }) => {
+const GGRTrendChart = ({ data, dateRangeLabel = '30-Day' }) => {
     if (!data || data.length === 0) {
         return (
             <div className="ggr-chart-wrapper glass-panel" style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)' }}>
@@ -23,7 +23,7 @@ const GGRTrendChart = ({ data }) => {
     return (
         <div className="ggr-chart-wrapper glass-panel">
             <div className="chart-header">
-                <h3>30-Day GGR Performance</h3>
+                <h3>{dateRangeLabel} GGR Performance</h3>
                 <div className="legend">
                     <span className="dot-indicator ggr"></span> GGR
                     <span className="dot-indicator ngr"></span> NGR

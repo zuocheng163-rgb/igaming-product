@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Zap, CheckCircle, AlertCircle } from 'lucide-react';
 
-const FastTrackStatusWidget = ({ token, stats, onClick }) => {
+const FastTrackStatusWidget = ({ token, stats, onClick, periodLabel = '24h' }) => {
     const eventsSentValue = stats?.metrics?.events_sent?.value || 0;
 
     const [status, setStatus] = useState({
@@ -87,7 +87,7 @@ const FastTrackStatusWidget = ({ token, stats, onClick }) => {
                     onMouseLeave={(e) => onClick && (e.currentTarget.style.opacity = '1')}
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '12px' }}>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Events Sent (24h)</span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Events Sent ({periodLabel})</span>
                     </div>
                     <div style={{ fontSize: '2rem', fontWeight: '700', color: 'white', marginBottom: '16px' }}>
                         {status.eventsSent.toLocaleString()}

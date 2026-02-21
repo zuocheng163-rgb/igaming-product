@@ -310,9 +310,9 @@ const getAggregatedKPIs = async (brandId, period = 'Last 30 Days') => {
     const approvalRate = transactions.length > 0 ? Math.round((successfulTxs / transactions.length) * 100) : 0;
 
     return {
-        ggr,
-        ngr: ggr - (bonuses * 0.2), // Realistic PoC NGR: GGR minus a fraction of issued bonuses as "cost"
-        bonuses,
+        ggr: Number(ggr.toFixed(2)),
+        ngr: Number((ggr - bonuses).toFixed(2)),
+        bonuses: Number(bonuses.toFixed(2)),
         deposits,
         transaction_count: transactions.filter(t => t.action === 'wallet:debit').length,
         active_players: activePlayers || 0,
@@ -378,7 +378,9 @@ const getOperatorStats = async (brandId, period = 'Last 30 Days') => {
 
             // Calculate final NGR per day
             Object.values(byDay).forEach(d => {
-                d.ngr = d.ggr - d.bonuses;
+                d.ggr = Number(d.ggr.toFixed(2));
+                d.ngr = Number((d.ggr - d.bonuses).toFixed(2));
+                d.bonuses = Number(d.bonuses.toFixed(2));
             });
 
             demoHistory = Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));

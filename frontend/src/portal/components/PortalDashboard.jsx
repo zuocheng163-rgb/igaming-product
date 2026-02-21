@@ -129,12 +129,13 @@ const PortalDashboard = ({ user, token, onLogout }) => {
                 </div>
 
                 <div className="charts-grid">
-                    <GGRTrendChart data={stats?.ggr_history || []} />
+                    <GGRTrendChart data={stats?.ggr_history || []} dateRangeLabel={dateRange} />
 
                     <div className="side-panels" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         <FastTrackStatusWidget
                             token={token}
                             stats={stats}
+                            periodLabel={dateRange === 'Today' ? '24h' : dateRange}
                             onClick={() => {
                                 handleNavigate('/portal/operational-stream', () => {
                                     sessionStorage.setItem('operationalStreamFilters', JSON.stringify({
