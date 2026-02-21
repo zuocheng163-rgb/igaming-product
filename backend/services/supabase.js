@@ -269,11 +269,17 @@ const getAggregatedKPIs = async (brandId, period = 'Last 30 Days') => {
     transactions.forEach(tx => {
         const amount = tx.metadata?.request?.amount || 0;
         if (tx.action === 'wallet:debit') {
-            ggr += amount;
+            // In our system, debit amounts are stored as negative in some logs 
+            // but we want GGR = Bets (Positive) - Wins (Positive)
+            ggr += Math.abs(amount);
             if (tx.status === 'success') successfulTxs++;
         }
-        if (tx.action === 'wallet:credit') ggr -= amount;
-        if (tx.action === 'wallet:bonus_credit') bonuses += amount;
+        if (tx.action === 'wallet:credit') {
+            ggr -= Math.abs(amount);
+        }
+        if (tx.action === 'wallet:bonus_credit') {
+            bonuses += Math.abs(amount);
+        }
     });
 
     const deposits = 0; // Simulated for now
@@ -305,7 +311,7 @@ const getAggregatedKPIs = async (brandId, period = 'Last 30 Days') => {
 
     return {
         ggr,
-        ngr: ggr - bonuses,
+        ngr: ggr - (bonuses * 0.2), // Realistic PoC NGR: GGR minus a fraction of issued bonuses as "cost"
         bonuses,
         deposits,
         transaction_count: transactions.filter(t => t.action === 'wallet:debit').length,
@@ -364,7 +370,7 @@ const getOperatorStats = async (brandId, period = 'Last 30 Days') => {
                 const day = log.timestamp.substring(0, 10); // YYYY-MM-DD
                 if (!byDay[day]) byDay[day] = { date: day, ggr: 0, ngr: 0, bonuses: 0 };
 
-                const amount = log.metadata?.request?.amount || 0;
+                const amount = Math.abs(log.metadata?.request?.amount || 0);
                 if (log.action === 'wallet:debit') byDay[day].ggr += amount;
                 if (log.action === 'wallet:credit') byDay[day].ggr -= amount;
                 if (log.action === 'wallet:bonus_credit') byDay[day].bonuses += amount;

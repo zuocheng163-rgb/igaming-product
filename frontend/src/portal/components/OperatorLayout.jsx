@@ -18,10 +18,9 @@ import SearchOverlay from './SearchOverlay';
 import NotificationCenter from './NotificationCenter';
 import PlayerDetailsModal from './PlayerDetailsModal';
 
-const OperatorLayout = ({ children, user, token, onLogout }) => {
+const OperatorLayout = ({ children, user, token, onLogout, dateRange, setDateRange }) => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const [dateRange, setDateRange] = useState('Last 30 Days');
     const [isDateSelectorOpen, setIsDateSelectorOpen] = useState(false);
     const [selectedPlayerId, setSelectedPlayerId] = useState(null);
 
@@ -157,12 +156,7 @@ const OperatorLayout = ({ children, user, token, onLogout }) => {
                     <div className="content-breadcrumbs">
                         <span>{navItems.find(i => window.location.pathname.includes(i.id))?.label || 'Dashboard'}</span>
                     </div>
-                    {React.Children.map(children, child => {
-                        if (React.isValidElement(child)) {
-                            return React.cloneElement(child, { dateRange, setDateRange });
-                        }
-                        return child;
-                    })}
+                    {children}
                 </main>
             </div>
 
