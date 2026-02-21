@@ -13,9 +13,9 @@ const fetcher = (url, token) => fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
 }).then(res => res.json());
 
-const PortalDashboard = ({ user, token, onLogout }) => {
+const PortalDashboard = ({ user, token, onLogout, dateRange }) => {
     const { data: stats, mutate } = useSWR(
-        token ? ['/api/operator/stats', token] : null,
+        token ? [`/api/operator/stats?period=${dateRange}`, token] : null,
         ([url, t]) => fetcher(url, t),
         { refreshInterval: 60000 }
     );
@@ -71,7 +71,7 @@ const PortalDashboard = ({ user, token, onLogout }) => {
         return (
             <div className="dashboard-content">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h2 style={{ margin: 0 }}>Dashboard Overview <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>v1.1.2</span></h2>
+                    <h2 style={{ margin: 0 }}>Dashboard Overview <span style={{ fontSize: '0.9rem', opacity: 0.7, color: 'var(--accent-gold)' }}>({dateRange})</span></h2>
                     <button
                         onClick={handleRefresh}
                         disabled={refreshing}

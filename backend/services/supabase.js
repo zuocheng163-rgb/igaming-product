@@ -155,10 +155,6 @@ const createUser = async (userData) => {
     return userRecord;
 };
 
-const updateBalance = async (userId, newBalance, brandId) => {
-    return updateUser(userId, { balance: newBalance });
-};
-
 module.exports = {
     client: supabase,
     getTenantConfig,
@@ -171,8 +167,47 @@ module.exports = {
     createUser,
     updateBalance,
     getBrandId,
-    updateOperatorApiKey
+    updateOperatorApiKey,
+    getPeriodDates
 };
+
+/**
+ * Helper to convert period labels to start dates
+ */
+function getPeriodDates(periodLabel) {
+    const now = new Date();
+    const start = new Date();
+    let days = 30;
+
+    switch (periodLabel) {
+        case 'Today':
+            start.setHours(0, 0, 0, 0);
+            days = 1;
+            break;
+        case 'Yesterday':
+            start.setDate(now.getDate() - 1);
+            start.setHours(0, 0, 0, 0);
+            now.setHours(0, 0, 0, 0);
+            days = 1;
+            break;
+        case 'Last 7 Days':
+            start.setDate(now.getDate() - 7);
+            days = 7;
+            break;
+        case 'This Month':
+            start.setDate(1);
+            start.setHours(0, 0, 0, 0);
+            days = now.getDate();
+            break;
+        case 'Last 30 Days':
+        default:
+            start.setDate(now.getDate() - 30);
+            days = 30;
+            break;
+    }
+
+    return { start: start.toISOString(), end: now.toISOString(), days };
+}
 const getActivities = async (brandId, limit = 20) => {
     if (!supabase) return [];
     const { data, error } = await supabase.from('platform_audit_logs').select('*').or(`brand_id.eq.${brandId},brand_id.eq.1`).order('timestamp', { ascending: false }).limit(limit);
@@ -205,24 +240,76 @@ const getTransactionsByOperator = async (brandId, filters = {}) => {
     return data;
 };
 
-const getAggregatedKPIs = async (brandId) => {
-    if (!supabase) return { ggr: 0, ngr: 0, deposits: 0, active_players: 0, approval_rate: 0 };
-    const transactions = await getTransactionsByOperator(brandId);
-    let ggr = 0, deposits = 0, bonuses = 0, successfulTxs = 0;
+const getAggregatedKPIs = async (brandId, period = 'Last 30 Days') => {
+    if (!supabase) return {};
+
+    const { start, end } = getPeriodDates(period);
+
+    const { data: transactions, error } = await supabase
+        .from('platform_audit_logs')
+        .select('*')
+        .eq('brand_id', brandId)
+        .in('action', ['wallet:debit', 'wallet:credit', 'wallet:bonus_credit'])
+        .gte('timestamp', start)
+        .lte('timestamp', end);
+
+    if (error) {
+        logger.error('[Supabase] Failed to fetch KPIs', { error: error.message });
+        return {};
+    }
+
+    let ggr = 0;
+    let successfulTxs = 0;
+    let bonuses = 0;
+
     transactions.forEach(tx => {
         const amount = tx.metadata?.request?.amount || 0;
-        if (tx.action === 'wallet:debit') ggr += amount;
+        if (tx.action === 'wallet:debit') {
+            ggr += amount;
+            if (tx.status === 'success') successfulTxs++;
+        }
         if (tx.action === 'wallet:credit') ggr -= amount;
-        if (tx.action === 'wallet:deposit') deposits += amount;
         if (tx.action === 'wallet:bonus_credit') bonuses += amount;
-        if (tx.status === 'success') successfulTxs++;
     });
-    const { count: activePlayers } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('brand_id', brandId).gt('last_login', new Date(Date.now() - 86400000).toISOString());
-    // Bug fix: count ALL outbound events within last 24h (was missing outbound:rabbitmq:publish:* pattern)
-    const { count: eventsSent } = await supabase.from('platform_audit_logs').select('*', { count: 'exact', head: true }).eq('brand_id', brandId).gte('timestamp', new Date(Date.now() - 86400000).toISOString()).not('action', 'ilike', 'inbound:%');
-    const { count: complianceAlerts } = await supabase.from('platform_audit_logs').select('*', { count: 'exact', head: true }).eq('brand_id', brandId).in('level', ['warn', 'error', 'critical']).gt('timestamp', new Date(Date.now() - 86400000).toISOString());
+
+    const deposits = 0; // Simulated for now
+
+    const { count: activePlayers } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('brand_id', brandId)
+        .gt('last_login', start);
+
+    // Bug fix: count ALL outbound events within selected period
+    const { count: eventsSent } = await supabase
+        .from('platform_audit_logs')
+        .select('*', { count: 'exact', head: true })
+        .or(`brand_id.eq.${brandId},brand_id.eq.1`)
+        .gte('timestamp', start)
+        .lte('timestamp', end)
+        .not('action', 'ilike', 'inbound:%');
+
+    const { count: complianceAlerts } = await supabase
+        .from('platform_audit_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('brand_id', brandId)
+        .in('level', ['warn', 'error', 'critical'])
+        .gte('timestamp', start)
+        .lte('timestamp', end);
+
     const approvalRate = transactions.length > 0 ? Math.round((successfulTxs / transactions.length) * 100) : 0;
-    return { ggr, ngr: ggr - bonuses, deposits, transaction_count: transactions.length, active_players: activePlayers || 0, approval_rate: approvalRate, events_sent: eventsSent || 0, compliance_alerts: complianceAlerts || 0 };
+
+    return {
+        ggr,
+        ngr: ggr - bonuses,
+        bonuses,
+        deposits,
+        transaction_count: transactions.filter(t => t.action === 'wallet:debit').length,
+        active_players: activePlayers || 0,
+        approval_rate: approvalRate,
+        events_sent: eventsSent || 0,
+        compliance_alerts: complianceAlerts || 0
+    };
 };
 
 const getComplianceAlerts = async (brandId, limit = 50) => {
@@ -239,37 +326,65 @@ const getOperatorNotifications = async (brandId) => {
     return data.map(log => ({ id: log.id, type: log.level === 'critical' ? 'alert' : 'info', title: log.action.toUpperCase(), message: log.message, time: log.timestamp, read: false }));
 };
 
-const getOperatorStats = async (brandId) => {
+const getOperatorStats = async (brandId, period = 'Last 30 Days') => {
     if (!supabase) return {};
-    const kpis = await getAggregatedKPIs(brandId);
 
-    // Try daily_stats table first; if empty, build 30-day GGR history from audit logs
-    const { data: history } = await supabase.from('daily_stats').select('*').eq('brand_id', brandId).order('date', { ascending: true }).limit(30);
+    const kpis = await getAggregatedKPIs(brandId, period);
+    const { start, end, days } = getPeriodDates(period);
+
+    // Try daily_stats table first (PoC often uses this for speed)
+    const { data: history } = await supabase
+        .from('daily_stats')
+        .select('*')
+        .eq('brand_id', brandId)
+        .gte('date', start.substring(0, 10))
+        .lte('date', end.substring(0, 10))
+        .order('date', { ascending: true })
+        .limit(days);
+
     let demoHistory = history && history.length > 0 ? history : [];
 
     if (demoHistory.length === 0) {
-        // Build daily GGR from wallet:debit and wallet:credit audit logs (last 30 days)
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        // Build daily GGR/NGR from wallet:debit, wallet:credit, and wallet:bonus_credit audit logs
         const { data: auditLogs } = await supabase
             .from('platform_audit_logs')
-            .select('action, timestamp, metadata, status')
+            .select('*')
             .eq('brand_id', brandId)
-            .in('action', ['wallet:debit', 'wallet:credit'])
-            .gte('timestamp', thirtyDaysAgo)
-            .order('timestamp', { ascending: true });
+            .in('action', ['wallet:debit', 'wallet:credit', 'wallet:bonus_credit'])
+            .gte('timestamp', start)
+            .lte('timestamp', end);
 
         if (auditLogs && auditLogs.length > 0) {
             const byDay = {};
             auditLogs.forEach(log => {
                 const day = log.timestamp.substring(0, 10); // YYYY-MM-DD
-                if (!byDay[day]) byDay[day] = { date: day, ggr: 0, ngr: 0, active_players: 0, approval_rate: 100, compliance_alerts: 0, events_sent: 0 };
+                if (!byDay[day]) byDay[day] = { date: day, ggr: 0, ngr: 0, bonuses: 0 };
+
                 const amount = log.metadata?.request?.amount || 0;
                 if (log.action === 'wallet:debit') byDay[day].ggr += amount;
                 if (log.action === 'wallet:credit') byDay[day].ggr -= amount;
+                if (log.action === 'wallet:bonus_credit') byDay[day].bonuses += amount;
             });
+
+            // Calculate final NGR per day
+            Object.values(byDay).forEach(d => {
+                d.ngr = d.ggr - d.bonuses;
+            });
+
             demoHistory = Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
-            // Compute running NGR (approximate: no bonus data here; use ggr as proxy)
-            demoHistory.forEach(d => { d.ngr = d.ggr; });
+        }
+
+        // Final Fallback: Ensure history length matches the period requested
+        if (demoHistory.length < days) {
+            const filledHistory = [];
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date(end);
+                date.setDate(date.getDate() - i);
+                const dStr = date.toISOString().substring(0, 10);
+                const existing = demoHistory.find(d => d.date === dStr);
+                filledHistory.push(existing || { date: dStr, ggr: 0, ngr: 0, active_players: 0, approval_rate: 0, compliance_alerts: 0, events_sent: 0 });
+            }
+            demoHistory = filledHistory;
         }
     }
 

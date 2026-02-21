@@ -297,17 +297,21 @@ function Dashboard({ user: initialUser, token, onLogout }) {
                             <h3>🎁 Active Bonuses</h3>
                         </div>
                         <div className="bonus-list">
-                            {bonuses.length > 0 ? bonuses.map(b => (
-                                <div key={b.value} className="bonus-card">
-                                    <div>
-                                        <h4>{b.text}</h4>
-                                        <p>Limited time offer</p>
+                            {bonuses.length > 0 ? bonuses.map(b => {
+                                const code = b.bonus_code || b.value;
+                                const name = b.name || b.text;
+                                return (
+                                    <div key={code} className="bonus-card">
+                                        <div>
+                                            <h4>{name}</h4>
+                                            <p>{b.bonus_type || 'Limited time offer'}</p>
+                                        </div>
+                                        <button className="btn-primary" style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '0.8rem' }} onClick={() => handleClaimBonus(code, name)}>
+                                            Claim
+                                        </button>
                                     </div>
-                                    <button className="btn-primary" style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '0.8rem' }} onClick={() => handleClaimBonus(b.value)}>
-                                        Claim
-                                    </button>
-                                </div>
-                            )) : <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>No bonuses available at the moment.</p>}
+                                );
+                            }) : <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>No bonuses available at the moment.</p>}
                         </div>
                     </section>
                 </div>

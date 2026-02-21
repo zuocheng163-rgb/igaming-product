@@ -157,7 +157,12 @@ const OperatorLayout = ({ children, user, token, onLogout }) => {
                     <div className="content-breadcrumbs">
                         <span>{navItems.find(i => window.location.pathname.includes(i.id))?.label || 'Dashboard'}</span>
                     </div>
-                    {children}
+                    {React.Children.map(children, child => {
+                        if (React.isValidElement(child)) {
+                            return React.cloneElement(child, { dateRange, setDateRange });
+                        }
+                        return child;
+                    })}
                 </main>
             </div>
 

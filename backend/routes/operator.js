@@ -513,7 +513,14 @@ router.get('/bonus/list', authenticateRequest, async (req, res) => {
             .select('*')
             .eq('is_active', true);
 
-        if (error) throw error;
+        if (error) {
+            // Graceful fallback if table doesn't exist yet
+            if (error.code === 'PGRST116' || error.message.includes('relation "public.bonus_config" does not exist')) {
+                logger.warn('bonus_config table does not exist yet. Returning empty list.');
+                return res.json({ Data: [] });
+            }
+            throw error;
+        }
         res.json({ Data: data || [] });
     } catch (error) {
         logger.error('Failed to fetch bonuses', { error: error.message });
@@ -672,8 +679,9 @@ router.get('/operator/notifications', authenticateRequest, async (req, res) => {
 
 router.get('/operator/stats', authenticateRequest, async (req, res) => {
     const brandId = req.brandId || req.user?.brand_id || 1;
+    const { period } = req.query;
     try {
-        const stats = await supabaseService.getOperatorStats(brandId);
+        const stats = await supabaseService.getOperatorStats(brandId, period);
         res.json(stats);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch portal stats' });

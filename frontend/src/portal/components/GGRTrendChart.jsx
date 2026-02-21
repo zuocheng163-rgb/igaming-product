@@ -12,6 +12,14 @@ import {
 } from 'recharts';
 
 const GGRTrendChart = ({ data }) => {
+    if (!data || data.length === 0) {
+        return (
+            <div className="ggr-chart-wrapper glass-panel" style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)' }}>
+                <p>No performance data available</p>
+            </div>
+        );
+    }
+
     return (
         <div className="ggr-chart-wrapper glass-panel">
             <div className="chart-header">
