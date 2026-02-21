@@ -155,6 +155,10 @@ const createUser = async (userData) => {
     return userRecord;
 };
 
+const updateBalance = async (userId, newBalance, brandId) => {
+    return updateUser(userId, { balance: newBalance });
+};
+
 module.exports = {
     client: supabase,
     getTenantConfig,
