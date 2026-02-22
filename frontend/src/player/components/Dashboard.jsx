@@ -13,6 +13,7 @@ import {
     logout as apiLogout
 } from '../services/api';
 import { useAlerts, useBalance } from '../../sdk/hooks';
+import PlayerGameLobby from './PlayerGameLobby';
 import axios from 'axios';
 
 function Dashboard({ user: initialUser, token, onLogout }) {
@@ -249,19 +250,22 @@ function Dashboard({ user: initialUser, token, onLogout }) {
                 <div className="main-column">
                     <section className="glass-panel">
                         <div className="section-header">
-                            <h3>🎰 Game Actions</h3>
+                            <h3>⚡ Quick Actions</h3>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
-                            <button className="btn-primary" onClick={handleDeposit} style={{ height: '100px', fontSize: '1.1rem' }}>
+                            <button className="btn-primary" onClick={handleDeposit} style={{ height: '80px', fontSize: '1.1rem' }}>
                                 Deposit 100 {currency}
                             </button>
-                            <button className="btn-secondary" onClick={handlePlayRound} style={{ height: '100px', fontSize: '1.4rem' }}>
-                                Play Slot (Bet 10)
+                            <button className="btn-secondary" onClick={handlePlayRound} style={{ height: '80px', fontSize: '1.2rem' }}>
+                                Demo Spin (Bet 10)
                             </button>
                         </div>
                     </section>
 
-                    <section className="glass-panel">
+                    {/* 🎮 Game Lobby */}
+                    <PlayerGameLobby token={token} user={user} onStatusUpdate={setStatus} />
+
+                    <section className="glass-panel" style={{ marginTop: '24px' }}>
                         <div className="section-header">
                             <h3>👤 User Profile</h3>
                         </div>
