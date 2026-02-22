@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { getEnv } from '../utils';
 
 export const useBalance = (playerId, config = {}) => {
     const [balance, setBalance] = useState(0);
@@ -12,10 +13,13 @@ export const useBalance = (playerId, config = {}) => {
         if (!playerId) return;
         setLoading(true);
         try {
-            const response = await axios.get(`${process.env.VITE_NEOSTRIKE_API_URL}/api/balance`, {
+            const apiUrl = getEnv('VITE_NEOSTRIKE_API_URL');
+            const apiKey = getEnv('VITE_NEOSTRIKE_API_KEY');
+
+            const response = await axios.get(`${apiUrl}/api/balance`, {
                 params: { user_id: playerId },
                 headers: {
-                    'x-api-key': process.env.VITE_NEOSTRIKE_API_KEY,
+                    'x-api-key': apiKey,
                     'x-brand-id': config.brandId || '1'
                 }
             });

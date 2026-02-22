@@ -559,5 +559,6 @@ module.exports = {
     getFilteredTransactions,
     getOperationalStream,
     getBrandId,
-    updateOperatorApiKey
+    updateOperatorApiKey,
+    client: supabase
 };

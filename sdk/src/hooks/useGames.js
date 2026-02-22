@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { getEnv } from '../utils';
 
 export const useGames = (config = {}) => {
     const [games, setGames] = useState([]);
@@ -17,10 +18,13 @@ export const useGames = (config = {}) => {
     const fetchGames = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${process.env.VITE_NEOSTRIKE_API_URL}/api/v1/games/catalog`, {
+            const apiUrl = getEnv('VITE_NEOSTRIKE_API_URL');
+            const apiKey = getEnv('VITE_NEOSTRIKE_API_KEY');
+
+            const response = await axios.get(`${apiUrl}/api/v1/games/catalog`, {
                 params: filters,
                 headers: {
-                    'x-api-key': process.env.VITE_NEOSTRIKE_API_KEY,
+                    'x-api-key': apiKey,
                     'x-brand-id': config.brandId || '1'
                 }
             });

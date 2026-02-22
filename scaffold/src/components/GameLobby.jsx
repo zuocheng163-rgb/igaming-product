@@ -36,7 +36,8 @@ export const GameLobby = () => {
 
         try {
             // In a real app, this would be handled via the SDK or a direct API call
-            const response = await fetch(`${process.env.VITE_NEOSTRIKE_API_URL}/api/v1/games/${game.id}/launch`, {
+            const apiUrl = import.meta.env.VITE_NEOSTRIKE_API_URL;
+            const response = await fetch(`${apiUrl}/api/v1/games/${game.id}/launch`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
+import { getEnv } from '../utils';
 
 export const useAlerts = (playerId, config = {}) => {
     const [alerts, setAlerts] = useState([]);
@@ -12,10 +13,12 @@ export const useAlerts = (playerId, config = {}) => {
         try {
             // In NeoStrike, alerts are often returned in regular API responses, 
             // but we also provide a polling endpoint or a dedicated fetch.
-            const response = await axios.get(`${process.env.VITE_NEOSTRIKE_API_URL}/api/v1/players/alerts`, {
+            const apiUrl = getEnv('VITE_NEOSTRIKE_API_URL');
+            const apiKey = getEnv('VITE_NEOSTRIKE_API_KEY');
+            const response = await axios.get(`${apiUrl}/api/v1/players/alerts`, {
                 params: { player_id: playerId },
                 headers: {
-                    'x-api-key': process.env.VITE_NEOSTRIKE_API_KEY,
+                    'x-api-key': apiKey,
                     'x-brand-id': config.brandId || '1'
                 }
             });

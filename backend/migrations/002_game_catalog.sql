@@ -41,7 +41,10 @@ ALTER TABLE public.games_master ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tenant_game_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.game_sync_logs ENABLE ROW LEVEL SECURITY;
 -- 5. Policies
-CREATE POLICY "Enable read for all on games_master" ON public.games_master FOR
-SELECT USING (true);
+DROP POLICY IF EXISTS "Enable read for all on games_master" ON public.games_master;
+DROP POLICY IF EXISTS "Enable all for games_master" ON public.games_master;
+CREATE POLICY "Enable all for games_master" ON public.games_master FOR ALL USING (true);
+DROP POLICY IF EXISTS "Enable all for tenant_game_config" ON public.tenant_game_config;
 CREATE POLICY "Enable all for tenant_game_config" ON public.tenant_game_config FOR ALL USING (true);
+DROP POLICY IF EXISTS "Enable all for game_sync_logs" ON public.game_sync_logs;
 CREATE POLICY "Enable all for game_sync_logs" ON public.game_sync_logs FOR ALL USING (true);

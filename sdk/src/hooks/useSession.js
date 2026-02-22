@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
+import { getEnv } from '../utils';
 
 // In-memory token storage (XSS Mitigation)
 let authToken = null;
@@ -12,12 +13,15 @@ export const useSession = (config = {}) => {
     const login = useCallback(async (username, password) => {
         setLoading(true);
         try {
-            const response = await axios.post(`${process.env.VITE_NEOSTRIKE_API_URL}/api/authenticate`, {
+            const apiUrl = getEnv('VITE_NEOSTRIKE_API_URL');
+            const apiKey = getEnv('VITE_NEOSTRIKE_API_KEY');
+
+            const response = await axios.post(`${apiUrl}/api/authenticate`, {
                 username,
                 password
             }, {
                 headers: {
-                    'x-api-key': process.env.VITE_NEOSTRIKE_API_KEY,
+                    'x-api-key': apiKey,
                     'x-brand-id': config.brandId || '1'
                 }
             });
