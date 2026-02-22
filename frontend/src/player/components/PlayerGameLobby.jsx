@@ -12,6 +12,25 @@ const CATEGORY_LABELS = {
     'table-games': '♟️ Table Games'
 };
 
+// Per-game themed gradient + emoji icon — no broken external images
+const GAME_THEMES = {
+    'evolution:lightning-roulette': { emoji: '🎡', gradient: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #b8860b 100%)' },
+    'evolution:crazy-time': { emoji: '🎪', gradient: 'linear-gradient(135deg, #6a0dad 0%, #c70039 60%, #ff5733 100%)' },
+    'pragmatic:gates-of-olympus': { emoji: '🏛️', gradient: 'linear-gradient(135deg, #0f3460 0%, #533483 60%, #e94560 100%)' },
+    'pragmatic:sweet-bonanza': { emoji: '🍭', gradient: 'linear-gradient(135deg, #c0392b 0%, #e67e22 60%, #f1c40f 100%)' },
+    'pragmatic:wolf-gold': { emoji: '🐺', gradient: 'linear-gradient(135deg, #0d0d0d 0%, #1c1c3a 60%, #b8860b 100%)' },
+    'netent:starburst': { emoji: '💎', gradient: 'linear-gradient(135deg, #4a00e0 0%, #8e2de2 60%, #00c6ff 100%)' },
+    'netent:gonzos-quest': { emoji: '🌴', gradient: 'linear-gradient(135deg, #134e5e 0%, #11998e 60%, #b8860b 100%)' },
+    'netent:divine-fortune': { emoji: '🐴', gradient: 'linear-gradient(135deg, #8B0000 0%, #4b134f 60%, #b8860b 100%)' },
+};
+
+const DEFAULT_LIVE = { emoji: '🎥', gradient: 'linear-gradient(135deg, #0f3460 0%, #16213e 100%)' };
+const DEFAULT_SLOT = { emoji: '🎰', gradient: 'linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%)' };
+
+function getTheme(game) {
+    return GAME_THEMES[game.id] || (game.category === 'live-casino' ? DEFAULT_LIVE : DEFAULT_SLOT);
+}
+
 function PlayerGameLobby({ token, user, onStatusUpdate }) {
     const [games, setGames] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -77,7 +96,6 @@ function PlayerGameLobby({ token, user, onStatusUpdate }) {
             <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <h3>🎮 Game Lobby</h3>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {/* Category filters */}
                     {categories.map(cat => (
                         <button
                             key={cat}
@@ -99,7 +117,6 @@ function PlayerGameLobby({ token, user, onStatusUpdate }) {
                             {cat === 'all' ? '🌐 All' : CATEGORY_LABELS[cat] || cat}
                         </button>
                     ))}
-                    {/* Search */}
                     <input
                         type="text"
                         placeholder="Search games..."
@@ -125,7 +142,7 @@ function PlayerGameLobby({ token, user, onStatusUpdate }) {
                 </div>
             ) : games.length === 0 ? (
                 <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    No games found
+                    No games available in your lobby
                 </div>
             ) : (
                 <div style={{
@@ -134,62 +151,85 @@ function PlayerGameLobby({ token, user, onStatusUpdate }) {
                     gap: '16px',
                     padding: '16px 0'
                 }}>
-                    {games.map(game => (
-                        <div
-                            key={game.id}
-                            onClick={() => handleLaunch(game)}
-                            style={{
-                                borderRadius: '10px',
-                                overflow: 'hidden',
-                                background: 'rgba(255,255,255,0.03)',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                opacity: launchingId === game.id ? 0.6 : 1
-                            }}
-                            onMouseEnter={e => {
-                                e.currentTarget.style.transform = 'translateY(-4px)';
-                                e.currentTarget.style.borderColor = 'var(--primary, #00ccff)';
-                                e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,204,255,0.15)';
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.transform = 'translateY(0)';
-                                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-                                e.currentTarget.style.boxShadow = 'none';
-                            }}
-                        >
-                            {/* Thumbnail */}
-                            <div style={{ width: '100%', height: '110px', overflow: 'hidden', position: 'relative' }}>
-                                {game.thumbnail ? (
-                                    <img
-                                        src={game.thumbnail}
-                                        alt={game.name}
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                        onError={e => { e.target.style.display = 'none'; }}
-                                    />
-                                ) : (
-                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,204,255,0.05)', fontSize: '2.5rem' }}>
-                                        🎰
-                                    </div>
-                                )}
-                                {launchingId === game.id && (
-                                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '0.8rem' }}>
-                                        Launching...
-                                    </div>
-                                )}
-                            </div>
-                            {/* Info */}
-                            <div style={{ padding: '10px 12px' }}>
-                                <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {game.name}
+                    {games.map(game => {
+                        const theme = getTheme(game);
+                        return (
+                            <div
+                                key={game.id}
+                                onClick={() => handleLaunch(game)}
+                                style={{
+                                    borderRadius: '12px',
+                                    overflow: 'hidden',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    opacity: launchingId === game.id ? 0.6 : 1
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)';
+                                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
+                                    e.currentTarget.style.boxShadow = '0 12px 30px rgba(0,0,0,0.4)';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                }}
+                            >
+                                {/* Game Art: Gradient + Big Emoji */}
+                                <div style={{
+                                    width: '100%',
+                                    height: '110px',
+                                    background: theme.gradient,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '3rem',
+                                    position: 'relative'
+                                }}>
+                                    {theme.emoji}
+                                    {/* RTP badge top-right */}
+                                    {game.rtp && (
+                                        <span style={{
+                                            position: 'absolute',
+                                            top: '6px',
+                                            right: '8px',
+                                            fontSize: '0.65rem',
+                                            background: 'rgba(0,0,0,0.5)',
+                                            color: '#00ff88',
+                                            padding: '2px 6px',
+                                            borderRadius: '10px',
+                                            fontWeight: 700
+                                        }}>
+                                            {game.rtp}%
+                                        </span>
+                                    )}
+                                    {launchingId === game.id && (
+                                        <div style={{
+                                            position: 'absolute', inset: 0,
+                                            background: 'rgba(0,0,0,0.6)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            color: 'white', fontSize: '0.8rem', fontWeight: 700
+                                        }}>
+                                            Launching...
+                                        </div>
+                                    )}
                                 </div>
-                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                                    <span>{PROVIDER_LABELS[game.provider] || game.provider}</span>
-                                    {game.rtp && <span style={{ color: '#00ff88' }}>RTP {game.rtp}%</span>}
+                                {/* Info */}
+                                <div style={{ padding: '10px 12px', background: 'rgba(0,0,0,0.3)' }}>
+                                    <div style={{
+                                        fontWeight: 700, fontSize: '0.85rem', marginBottom: '3px',
+                                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                    }}>
+                                        {game.name}
+                                    </div>
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                        {PROVIDER_LABELS[game.provider] || game.provider}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </section>

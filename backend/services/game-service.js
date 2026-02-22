@@ -86,22 +86,25 @@ class GameService {
     }
 
     /**
-     * Get Game Catalog for a tenant
+     * Get Game Catalog for a tenant (whitelist mode)
+     * Only shows games explicitly enabled by the operator.
+     * If operator has never configured anything, show all games (initial state).
      */
     static async getCatalog(brandId, filters = {}) {
         const { provider, category, search, page = 1, limit = 50 } = filters;
 
-        // Step 1: Fetch disabled game IDs for this brand
+        // Step 1: Fetch all configs for this brand
         const { data: configs } = await supabase
             .from('tenant_game_config')
             .select('game_id, enabled')
             .eq('brand_id', brandId);
 
-        const disabledGameIds = new Set(
-            (configs || [])
-                .filter(c => c.enabled === false)
-                .map(c => c.game_id)
-        );
+        const hasAnyConfig = configs && configs.length > 0;
+
+        // Whitelist: only games explicitly enabled by operator
+        const enabledGameIds = hasAnyConfig
+            ? new Set((configs).filter(c => c.enabled === true).map(c => c.game_id))
+            : null; // null means "show all" (no config = initial state)
 
         // Step 2: Fetch games from master table
         let query = supabase
@@ -121,10 +124,7 @@ class GameService {
             query = query.ilike('name', `%${search}%`);
         }
 
-        const from = (page - 1) * limit;
-        const to = from + limit - 1;
-        query = query.range(from, to).order('name');
-
+        query = query.order('name');
         const { data, error, count } = await query;
 
         if (error) {
@@ -132,14 +132,22 @@ class GameService {
             throw error;
         }
 
-        // Step 3: Filter out explicitly disabled games for this tenant
-        const activeGames = (data || []).filter(game => !disabledGameIds.has(game.id));
+        // Step 3: Apply whitelist filter (or show all if unconfigured)
+        const activeGames = enabledGameIds
+            ? (data || []).filter(game => enabledGameIds.has(game.id))
+            : (data || []);
+
+        // Apply pagination after filtering
+        const page_ = parseInt(page);
+        const limit_ = parseInt(limit);
+        const from = (page_ - 1) * limit_;
+        const paginated = activeGames.slice(from, from + limit_);
 
         return {
-            games: activeGames,
-            total: count,
-            page: parseInt(page),
-            limit: parseInt(limit)
+            games: paginated,
+            total: activeGames.length,
+            page: page_,
+            limit: limit_
         };
     }
 
