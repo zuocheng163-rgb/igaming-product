@@ -183,6 +183,51 @@ class GameService {
             throw new Error('PROVIDER_UNAVAILABLE');
         }
     }
+
+    /**
+     * Get full Game Catalog for administration
+     */
+    static async getAdminCatalog(brandId) {
+        const { data, error } = await supabase
+            .from('games_master')
+            .select(`
+                *,
+                tenant_game_config!left(enabled)
+            `)
+            .order('name');
+
+        if (error) {
+            logger.error(`[GameService] Failed to fetch admin catalog: ${error.message}`);
+            throw error;
+        }
+
+        return data.map(game => ({
+            ...game,
+            enabled: game.tenant_game_config?.[0]?.enabled ?? false,
+            tenant_game_config: undefined
+        }));
+    }
+
+    /**
+     * Toggle game status for a tenant
+     */
+    static async toggleGame(brandId, gameId, enabled) {
+        const { error } = await supabase
+            .from('tenant_game_config')
+            .upsert({
+                brand_id: brandId,
+                game_id: gameId,
+                enabled,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'brand_id,game_id' });
+
+        if (error) {
+            logger.error(`[GameService] Failed to toggle game ${gameId}: ${error.message}`);
+            throw error;
+        }
+
+        return { success: true };
+    }
 }
 
 module.exports = GameService;

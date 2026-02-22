@@ -72,4 +72,40 @@ router.post('/sync', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/v1/games/admin/catalog
+ * Returns the full game library with enablement status for the operator
+ */
+router.get('/admin/catalog', async (req, res) => {
+    try {
+        const brandId = req.headers['x-brand-id'] || '1';
+        const catalog = await GameService.getAdminCatalog(brandId);
+        res.json(catalog);
+    } catch (error) {
+        logger.error('[Games API] Admin catalog fetch failed:', error);
+        res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message });
+    }
+});
+
+/**
+ * POST /api/v1/games/admin/toggle
+ * Toggle game enablement status
+ */
+router.post('/admin/toggle', async (req, res) => {
+    try {
+        const { game_id, enabled } = req.body;
+        const brandId = req.headers['x-brand-id'] || '1';
+
+        if (!game_id) {
+            return res.status(400).json({ error: 'MISSING_GAME_ID' });
+        }
+
+        const result = await GameService.toggleGame(brandId, game_id, enabled);
+        res.json(result);
+    } catch (error) {
+        logger.error('[Games API] Game toggle failed:', error);
+        res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message });
+    }
+});
+
 module.exports = router;

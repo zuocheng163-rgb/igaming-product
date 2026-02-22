@@ -484,34 +484,127 @@ export const Wallet = ({ user, token }) => {
     );
 };
 
-export const Games = () => {
+export const Games = ({ token }) => {
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    const handleRefresh = () => {
+    const fetchData = () => {
+        setLoading(true);
+        fetch('/api/v1/games/admin/catalog', {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'x-brand-id': '1'
+            }
+        })
+            .then(res => res.json())
+            .then(games => {
+                setData(games || []);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        if (token) fetchData();
+    }, [token]);
+
+    const handleToggle = async (gameId, currentState) => {
+        try {
+            const response = await fetch('/api/v1/games/admin/toggle', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'x-brand-id': '1'
+                },
+                body: JSON.stringify({ game_id: gameId, enabled: !currentState })
+            });
+
+            if (response.ok) {
+                setData(prev => prev.map(g => g.id === gameId ? { ...g, enabled: !currentState } : g));
+            }
+        } catch (err) {
+            console.error('Failed to toggle game', err);
+        }
+    };
+
+    const handleSync = async () => {
         setRefreshing(true);
-        setTimeout(() => setRefreshing(false), 500);
+        try {
+            await fetch('/api/v1/games/sync', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'x-brand-id': '1' }
+            });
+            fetchData();
+        } catch (err) {
+            console.error('Sync failed', err);
+        } finally {
+            setRefreshing(false);
+        }
     };
 
     return (
         <div className="page-container" style={{ padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 className="page-title" style={{ margin: 0 }}>Game Catalog</h2>
-                <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
-                    <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                    {refreshing ? 'Refreshing...' : 'Refresh'}
-                </button>
+                <h2 className="page-title" style={{ margin: 0 }}>Game Management</h2>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={handleSync} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                        <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                        {refreshing ? 'Syncing...' : 'Force Provider Sync'}
+                    </button>
+                    <button onClick={fetchData} className="btn-secondary" style={{ padding: '8px 16px' }}>Refresh List</button>
+                </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
-                {['Starburst', 'Book of Dead', 'Gonzo\'s Quest', 'Aviator', 'Sweet Bonanza'].map(game => (
-                    <div key={game} className="glass-panel" style={{ padding: '20px', textAlign: 'center' }}>
-                        <div style={{ width: '100%', height: '120px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Gamepad2 size={48} style={{ color: 'var(--primary)', opacity: 0.6 }} />
+
+            {loading ? (
+                <div style={{ color: 'var(--text-muted)' }}>Loading catalog...</div>
+            ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
+                    {data.map(game => (
+                        <div key={game.id} className="glass-panel" style={{
+                            padding: '20px',
+                            textAlign: 'center',
+                            border: game.enabled ? '1px solid rgba(0, 204, 255, 0.3)' : '1px solid transparent',
+                            opacity: game.enabled ? 1 : 0.6,
+                            transition: 'all 0.3s ease'
+                        }}>
+                            <div style={{
+                                width: '100%',
+                                height: '120px',
+                                background: 'rgba(255,255,255,0.05)',
+                                borderRadius: '8px',
+                                marginBottom: '12px',
+                                overflow: 'hidden',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}>
+                                {game.thumbnail ? (
+                                    <img src={game.thumbnail} alt={game.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                    <Gamepad2 size={48} style={{ color: 'var(--primary)', opacity: 0.6 }} />
+                                )}
+                            </div>
+                            <h4 style={{ margin: '0 0 4px 0' }}>{game.name}</h4>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '12px' }}>{game.provider}</div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
+                                <span style={{ fontSize: '0.75rem', color: game.enabled ? '#00ff88' : 'var(--text-muted)', fontWeight: 'bold' }}>
+                                    {game.enabled ? 'ACTIVE' : 'DISABLED'}
+                                </span>
+                                <button
+                                    onClick={() => handleToggle(game.id, game.enabled)}
+                                    className={game.enabled ? "btn-secondary" : "btn-primary"}
+                                    style={{ padding: '6px 12px', fontSize: '0.75rem', width: '80px' }}
+                                >
+                                    {game.enabled ? 'DISABLE' : 'ENABLE'}
+                                </button>
+                            </div>
                         </div>
-                        <h4>{game}</h4>
-                        <button className="btn-primary" style={{ marginTop: '12px', width: '100%' }}>Configure</button>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
