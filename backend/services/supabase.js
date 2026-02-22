@@ -180,7 +180,7 @@ module.exports = {
  */
 function getPeriodDates(periodLabel) {
     const now = new Date();
-    const start = new Date();
+    const start = new Date(now);
     let days = 30;
 
     switch (periodLabel) {
@@ -191,11 +191,13 @@ function getPeriodDates(periodLabel) {
         case 'Yesterday':
             start.setDate(now.getDate() - 1);
             start.setHours(0, 0, 0, 0);
-            now.setHours(0, 0, 0, 0);
+            now.setDate(now.getDate() - 1);
+            now.setHours(23, 59, 59, 999);
             days = 1;
             break;
         case 'Last 7 Days':
-            start.setDate(now.getDate() - 7);
+            start.setDate(now.getDate() - 6); // 7 days including today
+            start.setHours(0, 0, 0, 0);
             days = 7;
             break;
         case 'This Month':
@@ -205,7 +207,8 @@ function getPeriodDates(periodLabel) {
             break;
         case 'Last 30 Days':
         default:
-            start.setDate(now.getDate() - 30);
+            start.setDate(now.getDate() - 29); // 30 days including today
+            start.setHours(0, 0, 0, 0);
             days = 30;
             break;
     }
@@ -262,26 +265,28 @@ const getAggregatedKPIs = async (brandId, period = 'Last 30 Days') => {
         return {};
     }
 
-    let ggr = 0;
+    let totalDebits = 0;
+    let totalCredits = 0;
+    let totalBonuses = 0;
     let successfulTxs = 0;
-    let bonuses = 0;
 
     transactions.forEach(tx => {
-        const amount = tx.metadata?.request?.amount || 0;
+        const amount = Math.abs(tx.metadata?.request?.amount || 0);
+
+        if (tx.status === 'success') {
+            successfulTxs++;
+        }
+
         if (tx.action === 'wallet:debit') {
-            // In our system, debit amounts are stored as negative in some logs 
-            // but we want GGR = Bets (Positive) - Wins (Positive)
-            ggr += Math.abs(amount);
-            if (tx.status === 'success') successfulTxs++;
-        }
-        if (tx.action === 'wallet:credit') {
-            ggr -= Math.abs(amount);
-        }
-        if (tx.action === 'wallet:bonus_credit') {
-            bonuses += Math.abs(amount);
+            totalDebits += amount;
+        } else if (tx.action === 'wallet:credit') {
+            totalCredits += amount;
+        } else if (tx.action === 'wallet:bonus_credit') {
+            totalBonuses += amount;
         }
     });
 
+    const ggr = totalDebits - totalCredits;
     const deposits = 0; // Simulated for now
 
     const { count: activePlayers } = await supabase
@@ -307,12 +312,13 @@ const getAggregatedKPIs = async (brandId, period = 'Last 30 Days') => {
         .gte('timestamp', start)
         .lte('timestamp', end);
 
-    const approvalRate = transactions.length > 0 ? Math.round((successfulTxs / transactions.length) * 100) : 0;
+    // Approval Rate based on all transaction attempts in the set
+    const approvalRate = transactions.length > 0 ? Math.round((successfulTxs / transactions.length) * 100) : 100;
 
     return {
         ggr: Number(ggr.toFixed(2)),
-        ngr: Number((ggr - bonuses).toFixed(2)),
-        bonuses: Number(bonuses.toFixed(2)),
+        ngr: Number((ggr - totalBonuses).toFixed(2)),
+        bonuses: Number(totalBonuses.toFixed(2)),
         deposits,
         transaction_count: transactions.filter(t => t.action === 'wallet:debit').length,
         active_players: activePlayers || 0,
@@ -372,32 +378,32 @@ const getOperatorStats = async (brandId, period = 'Last 30 Days') => {
 
                 const amount = Math.abs(log.metadata?.request?.amount || 0);
                 if (log.action === 'wallet:debit') byDay[day].ggr += amount;
-                if (log.action === 'wallet:credit') byDay[day].ggr -= amount;
-                if (log.action === 'wallet:bonus_credit') byDay[day].bonuses += amount;
+                else if (log.action === 'wallet:credit') byDay[day].ggr -= amount;
+                else if (log.action === 'wallet:bonus_credit') byDay[day].bonuses += amount;
             });
 
             // Calculate final NGR per day
             Object.values(byDay).forEach(d => {
                 d.ggr = Number(d.ggr.toFixed(2));
-                d.ngr = Number((d.ggr - d.bonuses).toFixed(2));
                 d.bonuses = Number(d.bonuses.toFixed(2));
+                d.ngr = Number((d.ggr - d.bonuses).toFixed(2));
             });
 
             demoHistory = Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
         }
 
         // Final Fallback: Ensure history length matches the period requested
-        if (demoHistory.length < days) {
-            const filledHistory = [];
-            for (let i = days - 1; i >= 0; i--) {
-                const date = new Date(end);
-                date.setDate(date.getDate() - i);
-                const dStr = date.toISOString().substring(0, 10);
-                const existing = demoHistory.find(d => d.date === dStr);
-                filledHistory.push(existing || { date: dStr, ggr: 0, ngr: 0, active_players: 0, approval_rate: 0, compliance_alerts: 0, events_sent: 0 });
-            }
-            demoHistory = filledHistory;
+        // Using midnight-to-midnight logic
+        const filledHistory = [];
+        const endDateObj = new Date(end);
+        for (let i = days - 1; i >= 0; i--) {
+            const date = new Date(endDateObj);
+            date.setDate(date.getDate() - i);
+            const dStr = date.toISOString().substring(0, 10);
+            const existing = demoHistory.find(d => d.date === dStr);
+            filledHistory.push(existing || { date: dStr, ggr: 0, ngr: 0, bonuses: 0, active_players: 0, approval_rate: 0, compliance_alerts: 0, events_sent: 0 });
         }
+        demoHistory = filledHistory;
     }
 
     const lastDay = demoHistory[demoHistory.length - 1] || { ggr: 0, active_players: 0, approval_rate: 0 };
