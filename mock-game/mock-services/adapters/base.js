@@ -45,6 +45,25 @@ class ProviderAdapter {
     }
 
     /**
+     * Get provider game metadata
+     * @returns {Promise<Array>} List of games
+     */
+    async getMetadata() {
+        throw new Error(`getMetadata not implemented for ${this.providerName}`);
+    }
+
+    /**
+     * Create a game session / launch URL
+     * @param {string} playerId 
+     * @param {string} gameId 
+     * @param {string} mode - 'real' or 'demo'
+     * @returns {Promise<Object>} Launch details
+     */
+    async launch(playerId, gameId, mode) {
+        throw new Error(`launch not implemented for ${this.providerName}`);
+    }
+
+    /**
      * Handle error response back to the provider
      * @param {Error} error - The error caught during processing
      * @returns {Object} Provider-formatted error response

@@ -74,6 +74,62 @@ class NetEntAdapter extends ProviderAdapter {
             description: error.message
         };
     }
+
+    /**
+     * Get NetEnt Game Metadata
+     */
+    async getMetadata() {
+        return [
+            {
+                id: 'netent:starburst',
+                name: 'Starburst',
+                provider: 'netent',
+                category: 'slots',
+                thumbnail: 'https://cdn.netent.com/games/starburst.jpg',
+                rtp: 96.09,
+                min_bet: 0.10,
+                max_bet: 100.00,
+                has_demo: true,
+                tags: ['featured', 'slots', 'classic']
+            },
+            {
+                id: 'netent:gonzos-quest',
+                name: "Gonzo's Quest",
+                provider: 'netent',
+                category: 'slots',
+                thumbnail: 'https://cdn.netent.com/games/gonzos-quest.jpg',
+                rtp: 95.97,
+                min_bet: 0.20,
+                max_bet: 50.00,
+                has_demo: true,
+                tags: ['slots', 'adventure']
+            },
+            {
+                id: 'netent:divine-fortune',
+                name: 'Divine Fortune',
+                provider: 'netent',
+                category: 'slots',
+                thumbnail: 'https://cdn.netent.com/games/divine-fortune.jpg',
+                rtp: 96.59,
+                min_bet: 0.20,
+                max_bet: 100.00,
+                has_demo: true,
+                tags: ['slots', 'jackpot']
+            }
+        ];
+    }
+
+    /**
+     * Launch NetEnt Game
+     */
+    async launch(playerId, gameId, mode) {
+        const sessionId = `netent_session_${Math.random().toString(36).substr(2, 9)}`;
+        return {
+            game_url: `https://game.netent.com/launch?playerId=${playerId}&gameId=${gameId}&mode=${mode}&token=${sessionId}`,
+            session_id: sessionId,
+            expires_at: new Date(Date.now() + 3600000).toISOString()
+        };
+    }
 }
 
 module.exports = NetEntAdapter;

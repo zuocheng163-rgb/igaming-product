@@ -90,6 +90,50 @@ class EvolutionAdapter extends ProviderAdapter {
             message: error.message
         };
     }
+
+    /**
+     * Get Evolution Game Metadata
+     */
+    async getMetadata() {
+        return [
+            {
+                id: 'evolution:lightning-roulette',
+                name: 'Lightning Roulette',
+                provider: 'evolution',
+                category: 'live-casino',
+                thumbnail: 'https://cdn.evolution.com/games/lightning-roulette.jpg',
+                rtp: 97.3,
+                min_bet: 0.20,
+                max_bet: 5000.00,
+                has_demo: false,
+                tags: ['roulette', 'live', 'featured']
+            },
+            {
+                id: 'evolution:crazy-time',
+                name: 'Crazy Time',
+                provider: 'evolution',
+                category: 'live-casino',
+                thumbnail: 'https://cdn.evolution.com/games/crazy-time.jpg',
+                rtp: 96.08,
+                min_bet: 0.10,
+                max_bet: 2500.00,
+                has_demo: false,
+                tags: ['game-show', 'live', 'featured']
+            }
+        ];
+    }
+
+    /**
+     * Launch Evolution Game
+     */
+    async launch(playerId, gameId, mode) {
+        const sessionId = `evo_session_${Math.random().toString(36).substr(2, 9)}`;
+        return {
+            game_url: `https://game.evolution.com/frontend/evo/r2?token=${sessionId}&playerId=${playerId}&gameId=${gameId}&mode=${mode}`,
+            session_id: sessionId,
+            expires_at: new Date(Date.now() + 3600000).toISOString()
+        };
+    }
 }
 
 module.exports = EvolutionAdapter;

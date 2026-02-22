@@ -77,6 +77,62 @@ class PragmaticPlayAdapter extends ProviderAdapter {
             description: error.message
         };
     }
+
+    /**
+     * Get Pragmatic Play Game Metadata
+     */
+    async getMetadata() {
+        return [
+            {
+                id: 'pragmatic:gates-of-olympus',
+                name: 'Gates of Olympus',
+                provider: 'pragmatic',
+                category: 'slots',
+                thumbnail: 'https://cdn.pragmaticplay.com/games/gates-of-olympus.jpg',
+                rtp: 96.50,
+                min_bet: 0.20,
+                max_bet: 100.00,
+                has_demo: true,
+                tags: ['featured', 'high-volatility', 'slots']
+            },
+            {
+                id: 'pragmatic:sweet-bonanza',
+                name: 'Sweet Bonanza',
+                provider: 'pragmatic',
+                category: 'slots',
+                thumbnail: 'https://cdn.pragmaticplay.com/games/sweet-bonanza.jpg',
+                rtp: 96.48,
+                min_bet: 0.20,
+                max_bet: 125.00,
+                has_demo: true,
+                tags: ['featured', 'slots']
+            },
+            {
+                id: 'pragmatic:wolf-gold',
+                name: 'Wolf Gold',
+                provider: 'pragmatic',
+                category: 'slots',
+                thumbnail: 'https://cdn.pragmaticplay.com/games/wolf-gold.jpg',
+                rtp: 96.01,
+                min_bet: 0.25,
+                max_bet: 125.00,
+                has_demo: true,
+                tags: ['slots', 'jackpot']
+            }
+        ];
+    }
+
+    /**
+     * Launch Pragmatic Play Game
+     */
+    async launch(playerId, gameId, mode) {
+        const sessionId = `pragmatic_session_${Math.random().toString(36).substr(2, 9)}`;
+        return {
+            game_url: `https://game.pragmaticplay.net/gs2c/playGame.do?key=${sessionId}&playerId=${playerId}&gameId=${gameId}&mode=${mode}`,
+            session_id: sessionId,
+            expires_at: new Date(Date.now() + 3600000).toISOString()
+        };
+    }
 }
 
 module.exports = PragmaticPlayAdapter;
