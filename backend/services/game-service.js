@@ -91,16 +91,22 @@ class GameService {
     static async getCatalog(brandId, filters = {}) {
         const { provider, category, search, page = 1, limit = 50 } = filters;
 
+        // Step 1: Fetch disabled game IDs for this brand
+        const { data: configs } = await supabase
+            .from('tenant_game_config')
+            .select('game_id, enabled')
+            .eq('brand_id', brandId);
+
+        const disabledGameIds = new Set(
+            (configs || [])
+                .filter(c => c.enabled === false)
+                .map(c => c.game_id)
+        );
+
+        // Step 2: Fetch games from master table
         let query = supabase
             .from('games_master')
-            .select(`
-                *,
-                tenant_game_config!left(enabled)
-            `, { count: 'exact' });
-
-        // Filter by tenant restriction (if entry exists and is enabled=false, it's hidden)
-        // Default is enabled if no entry exists in tenant_game_config
-        // This is tricky with Supabase/PostgREST. We'll filter in JS if needed or use a view
+            .select('*', { count: 'exact' });
 
         if (provider) {
             const providers = provider.split(',');
@@ -126,17 +132,11 @@ class GameService {
             throw error;
         }
 
-        // Filter out disabled games (where tenant_game_config.enabled is explicitly false)
-        const activeGames = data.filter(game => {
-            const config = game.tenant_game_config?.[0];
-            return config ? config.enabled !== false : true;
-        });
+        // Step 3: Filter out explicitly disabled games for this tenant
+        const activeGames = (data || []).filter(game => !disabledGameIds.has(game.id));
 
         return {
-            games: activeGames.map(g => {
-                const { tenant_game_config, ...gameData } = g;
-                return gameData;
-            }),
+            games: activeGames,
             total: count,
             page: parseInt(page),
             limit: parseInt(limit)
