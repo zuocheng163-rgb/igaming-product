@@ -3,6 +3,18 @@ import DataTable from './DataTable';
 import { Save, RefreshCw, Shield, Bell, Lock, Gamepad2, Filter } from 'lucide-react';
 import PlayerDetailsModal from './PlayerDetailsModal';
 
+// Shared per-game visual identity used in Game Management cards
+const GAME_THEMES = {
+    'evolution:lightning-roulette': { emoji: '🎡', gradient: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #b8860b 100%)' },
+    'evolution:crazy-time': { emoji: '🎪', gradient: 'linear-gradient(135deg, #6a0dad 0%, #c70039 60%, #ff5733 100%)' },
+    'pragmatic:gates-of-olympus': { emoji: '🏛️', gradient: 'linear-gradient(135deg, #0f3460 0%, #533483 60%, #e94560 100%)' },
+    'pragmatic:sweet-bonanza': { emoji: '🍭', gradient: 'linear-gradient(135deg, #c0392b 0%, #e67e22 60%, #f1c40f 100%)' },
+    'pragmatic:wolf-gold': { emoji: '🐺', gradient: 'linear-gradient(135deg, #0d0d0d 0%, #1c1c3a 60%, #b8860b 100%)' },
+    'netent:starburst': { emoji: '💎', gradient: 'linear-gradient(135deg, #4a00e0 0%, #8e2de2 60%, #00c6ff 100%)' },
+    'netent:gonzos-quest': { emoji: '🌴', gradient: 'linear-gradient(135deg, #134e5e 0%, #11998e 60%, #b8860b 100%)' },
+    'netent:divine-fortune': { emoji: '🐴', gradient: 'linear-gradient(135deg, #8B0000 0%, #4b134f 60%, #b8860b 100%)' },
+};
+
 export const Players = ({ user, token }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -572,18 +584,27 @@ export const Games = ({ token }) => {
                             <div style={{
                                 width: '100%',
                                 height: '120px',
-                                background: 'rgba(255,255,255,0.05)',
+                                background: GAME_THEMES[game.id]?.gradient || (game.category === 'live-casino'
+                                    ? 'linear-gradient(135deg, #0f3460 0%, #16213e 100%)'
+                                    : 'linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%)'),
                                 borderRadius: '8px',
                                 marginBottom: '12px',
-                                overflow: 'hidden',
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'center'
+                                justifyContent: 'center',
+                                fontSize: '3rem',
+                                position: 'relative',
+                                overflow: 'hidden'
                             }}>
-                                {game.thumbnail ? (
-                                    <img src={game.thumbnail} alt={game.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                ) : (
-                                    <Gamepad2 size={48} style={{ color: 'var(--primary)', opacity: 0.6 }} />
+                                {GAME_THEMES[game.id]?.emoji || '🎮'}
+                                {game.rtp && (
+                                    <span style={{
+                                        position: 'absolute', top: '6px', right: '8px',
+                                        fontSize: '0.65rem', background: 'rgba(0,0,0,0.5)',
+                                        color: '#00ff88', padding: '2px 6px', borderRadius: '10px', fontWeight: 700
+                                    }}>
+                                        RTP {game.rtp}%
+                                    </span>
                                 )}
                             </div>
                             <h4 style={{ margin: '0 0 4px 0' }}>{game.name}</h4>
