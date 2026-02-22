@@ -63,6 +63,28 @@ class SimulatorService {
     }
 
     /**
+     * Force sync the sandbox memory cache from the actual database.
+     * Useful when demo features directly modify the database while sandbox is active.
+     */
+    static async syncBalanceFromDB(uid) {
+        if (!uid) return;
+        try {
+            // In demo environments, user\_id and username are often identical.
+            // But we use the robust getUserById to fetch the latest balance securely.
+            const user = await supabase.from('users').select('balance, bonus_balance').eq('username', uid).single();
+            if (user && user.data) {
+                sandboxBalances.set(uid, {
+                    amount: parseFloat(user.data.balance || 0),
+                    bonus: parseFloat(user.data.bonus_balance || 0)
+                });
+                logger.info(`[Simulator] Synced sandbox balance for ${uid} from DB`);
+            }
+        } catch (err) {
+            logger.error(`[Simulator] Failed to sync sandbox balance for ${uid}`, err);
+        }
+    }
+
+    /**
      * Mock Consents (FT Compliant Array Format)
      */
     static getDemoConsents() {
@@ -355,10 +377,11 @@ class SimulatorService {
         }
 
         // 9. Mock Deposit: (POST) /api/deposit
-        if (method === 'POST' && (path.endsWith('/deposit') || path.includes('/deposit'))) {
+        if (method === 'POST' && (path.endsWith('/deposit') || path.includes('/deposit')) && !path.includes('/v1/demo/')) {
             const { user_id, amount } = req.body;
             const depositAmount = parseFloat(amount || 100);
             logger.info(`[Simulator] Match: POST Deposit for ${user_id}, amount: ${depositAmount}`);
+
 
             const bal = await getBalance(user_id);
             const balanceBefore = bal.amount;

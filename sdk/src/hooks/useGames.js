@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { getEnv } from '../utils';
+import { getEnv, logSDKEvent } from '../utils';
 
 export const useGames = (config = {}) => {
     const [games, setGames] = useState([]);
@@ -31,13 +31,17 @@ export const useGames = (config = {}) => {
 
             if (filters.page === 1) {
                 setGames(response.data.games);
+                logSDKEvent('GAMES', `Loaded ${response.data.games.length} games`, { filters });
             } else {
                 setGames(prev => [...prev, ...response.data.games]);
+                logSDKEvent('GAMES', `Loaded ${response.data.games.length} more games (Page ${filters.page})`);
             }
             setTotal(response.data.total);
             setError(null);
         } catch (err) {
-            setError(err.response?.data || err.message);
+            const msg = err.response?.data?.error || err.message;
+            setError(msg);
+            logSDKEvent('ERROR', `Failed to load games: ${msg}`);
         } finally {
             setLoading(false);
         }

@@ -3,6 +3,7 @@ import { useSession } from '@neostrike/sdk';
 import { GameLobby } from './components/GameLobby';
 import { WalletDrawer } from './components/WalletDrawer';
 import { AlertModal } from './components/AlertModal';
+import { SDKConsole } from './components/SDKConsole';
 import theme from '../theme.config';
 
 function App() {
@@ -12,7 +13,8 @@ function App() {
     const handleLogin = (e) => {
         e.preventDefault();
         const username = e.target.username.value;
-        login(username, 'password123'); // Demo password
+        const token = e.target.token.value;
+        login(username, token);
     };
 
     return (
@@ -48,8 +50,14 @@ function App() {
                             <input
                                 name="username"
                                 placeholder="Username"
-                                defaultValue="demo_user"
-                                style={{ padding: '8px', borderRadius: '4px', border: 'none', background: 'rgba(0,0,0,0.2)', color: '#fff' }}
+                                defaultValue="test01"
+                                style={{ padding: '8px', borderRadius: '4px', border: 'none', background: 'rgba(0,0,0,0.2)', color: '#fff', width: '120px' }}
+                            />
+                            <input
+                                name="token"
+                                placeholder="Session Token"
+                                defaultValue="token-test01-1770476176796"
+                                style={{ padding: '8px', borderRadius: '4px', border: 'none', background: 'rgba(0,0,0,0.2)', color: '#fff', width: '180px' }}
                             />
                             <button
                                 type="submit"
@@ -66,8 +74,9 @@ function App() {
                 <GameLobby />
             </main>
 
-            <WalletDrawer isOpen={isWalletOpen} onClose={() => setWalletOpen(false)} />
+            <WalletDrawer isOpen={isWalletOpen} onClose={() => setWalletOpen(false)} player={player} />
             <AlertModal />
+            <SDKConsole />
         </div>
     );
 }

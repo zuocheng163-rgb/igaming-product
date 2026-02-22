@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
-import { getEnv } from '../utils';
+import { getEnv, logSDKEvent } from '../utils';
 
 export const usePayments = (playerId, config = {}) => {
     const [loading, setLoading] = useState(false);
@@ -23,9 +23,12 @@ export const usePayments = (playerId, config = {}) => {
                 }
             });
             setError(null);
+            logSDKEvent('PAYMENT', `Deposit of ${amount} ${method} successful`, { transactionId: response.data.transaction_id });
             return response.data;
         } catch (err) {
-            setError(err.response?.data || err.message);
+            const msg = err.response?.data?.error || err.message;
+            setError(msg);
+            logSDKEvent('ERROR', `Deposit failed: ${msg}`);
             throw err;
         } finally {
             setLoading(false);

@@ -142,17 +142,19 @@ const requireAdmin = (req, res, next) => {
 router.post('/authenticate', async (req, res) => {
     const correlationId = req.headers['x-correlation-id'] || generateCorrelationId();
     try {
-        const { username } = req.body;
+        const { username, password } = req.body;
+        const isDemo = process.env.DEMO_MODE === 'true';
+
         const sessionToken = req.headers['authorization']?.startsWith('Bearer ')
             ? req.headers['authorization'].slice(7)
-            : req.headers['authorization'];
+            : (req.headers['authorization'] || (isDemo ? password : null));
 
         let user = await supabaseService.getUser(username, sessionToken);
 
-        // Fallback to Demo Token ONLY if user not in DB and sandbox/demo mode is enabled
-        const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
-        if (!user && isSandbox && sessionToken?.startsWith('token-')) {
-            const targetUsername = username || sessionToken.replace('token-', '').split('-')[0];
+        // Fallback to Demo Login if user not in DB and sandbox/demo mode is enabled
+        const isSandbox = req.headers['x-sandbox-mode'] === 'true' || isDemo;
+        if (!user && isSandbox && (sessionToken?.startsWith('token-') || username)) {
+            const targetUsername = username || sessionToken?.replace('token-', '').split('-')[0];
 
             logger.info('Using Sandbox Fallback for Auth (JIT)', { targetUsername, correlationId });
 
@@ -201,7 +203,7 @@ router.post('/authenticate', async (req, res) => {
             currency: user.currency
         }, { correlationId, brandId });
 
-        res.json({
+        const authResponse = {
             sid: sessionId,
             user_id: user.user_id,
             currency: user.currency,
@@ -216,7 +218,14 @@ router.post('/authenticate', async (req, res) => {
                 last_name: user.last_name,
                 email: user.email
             }
-        });
+        };
+
+        // Add 'token' field ONLY in demo mode to keep clean
+        if (isDemo) {
+            authResponse.token = sessionId;
+        }
+
+        res.json(authResponse);
     } catch (error) {
         logger.error('Authentication failure', { correlationId, error: error.message });
         res.status(500).json({ error: 'Internal Server Error' });
@@ -931,9 +940,35 @@ router.post('/operator/config/api-key', authenticateRequest, async (req, res) =>
             res.status(500).json({ error: 'Failed to update Operator API key' });
         }
     } catch (error) {
-        logger.error('API key update failed', { error: error.message });
-        res.status(500).json({ error: 'Internal server error' });
+        logger.error('Failed to update config', { error: error.message });
+        res.status(500).json({ error: 'Failed to update operator config' });
     }
 });
+
+// --- DEMO / SHOWCASE ONLY ENDPOINTS ---
+if (process.env.DEMO_MODE === 'true') {
+    router.post('/v1/demo/deposit', async (req, res) => {
+        const { user_id, amount } = req.body;
+        if (!user_id || !amount) return res.status(400).json({ error: 'Missing user_id or amount' });
+
+        try {
+            const user = await supabaseService.getUserById(user_id);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+
+            const newBalance = (user.balance || 0) + parseFloat(amount);
+            await supabaseService.updateUser(user.id, { balance: newBalance });
+
+            // Sync the Simulator's in-memory sandbox cache if active
+            const SimulatorService = require('../services/simulator-service');
+            await SimulatorService.syncBalanceFromDB(user.username);
+
+            logger.info('[Demo] Manual deposit applied (Cache Synced)', { username: user.username, amount, newBalance });
+            res.json({ success: true, balance: newBalance });
+        } catch (error) {
+            logger.error('[Demo] Deposit failed', { error: error.message });
+            res.status(500).json({ error: 'Simulation error' });
+        }
+    });
+}
 
 module.exports = router;

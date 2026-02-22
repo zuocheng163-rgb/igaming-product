@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { getEnv } from '../utils';
+import { getEnv, logSDKEvent } from '../utils';
 
 export const useBalance = (playerId, config = {}) => {
     const [balance, setBalance] = useState(0);
@@ -27,8 +27,14 @@ export const useBalance = (playerId, config = {}) => {
             setBonusBalance(response.data.bonus_balance || response.data.bonus_amount || 0);
             setCurrency(response.data.currency || 'EUR');
             setError(null);
+            logSDKEvent('WALLET', 'Balance updated', {
+                balance: response.data.balance || response.data.amount,
+                bonus: response.data.bonus_balance || response.data.bonus_amount
+            });
         } catch (err) {
-            setError(err.response?.data || err.message);
+            const msg = err.response?.data?.error || err.message;
+            setError(msg);
+            logSDKEvent('ERROR', `Balance fetch failed: ${msg}`);
         } finally {
             setLoading(false);
         }
