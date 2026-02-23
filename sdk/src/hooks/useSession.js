@@ -22,11 +22,16 @@ export const useSession = (config = {}) => {
             }, {
                 headers: {
                     'x-api-key': apiKey,
-                    'x-brand-id': config.brandId || '1'
+                    'x-brand-id': config.brandId || '1',
+                    // Pass the token as Authorization Bearer header so the backend
+                    // can authenticate regardless of DEMO_MODE setting
+                    ...(password ? { 'Authorization': `Bearer ${password}` } : {})
                 }
             });
 
-            authToken = response.data.token;
+            // Store the ORIGINAL token (the one in the DB), not the session SID returned
+            // by the server. The backend's authenticateRequest validates by DB token column.
+            authToken = password || response.data.token;
             setPlayer(response.data.user);
             setError(null);
             logSDKEvent('AUTH', `User ${username} logged in successfully`, { userId: response.data.user.id });

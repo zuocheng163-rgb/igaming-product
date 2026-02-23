@@ -19,8 +19,11 @@ export const useBalance = (playerId, config = {}) => {
             const response = await axios.get(`${apiUrl}/api/balance`, {
                 params: { user_id: playerId },
                 headers: {
-                    'x-api-key': apiKey,
-                    'x-brand-id': config.brandId || '1'
+                    // Only send Bearer token (not x-api-key) for player-facing requests.
+                    // Sending the operator API key takes a different auth path that
+                    // doesn't populate req.user, causing the balance endpoint to crash.
+                    'x-brand-id': config.brandId || '1',
+                    ...(config.token ? { 'Authorization': `Bearer ${config.token}` } : { 'x-api-key': apiKey })
                 }
             });
             setBalance(response.data.balance || response.data.amount);
@@ -38,7 +41,7 @@ export const useBalance = (playerId, config = {}) => {
         } finally {
             setLoading(false);
         }
-    }, [playerId, config.brandId]);
+    }, [playerId, config.brandId, config.token]);
 
     useEffect(() => {
         fetchBalance();

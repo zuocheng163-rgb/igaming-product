@@ -18,8 +18,8 @@ export const usePayments = (playerId, config = {}) => {
                 method
             }, {
                 headers: {
-                    'x-api-key': apiKey,
-                    'x-brand-id': config.brandId || '1'
+                    'x-brand-id': config.brandId || '1',
+                    ...(config.token ? { 'Authorization': `Bearer ${config.token}` } : { 'x-api-key': apiKey })
                 }
             });
             setError(null);

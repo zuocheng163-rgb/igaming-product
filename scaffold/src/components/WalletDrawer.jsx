@@ -4,8 +4,10 @@ import { logSDKEvent } from '@neostrike/sdk/src/utils';
 import theme from '../../theme.config';
 
 export const WalletDrawer = ({ isOpen, onClose, player }) => {
-    const { balance, bonusBalance, currency, refresh } = useBalance(player?.user_id);
-    const { deposit, loading, error } = usePayments(player?.user_id);
+    const { getToken } = useSession();
+    const sessionToken = getToken();
+    const { balance, bonusBalance, currency, refresh } = useBalance(player?.user_id, { token: sessionToken });
+    const { deposit, loading, error } = usePayments(player?.user_id, { token: sessionToken });
     const [step, setStep] = useState('MAIN'); // MAIN, DEPOSIT, SUCCESS
     const [amount, setAmount] = useState('50');
 
