@@ -634,10 +634,15 @@ export const Compliance = ({ user, token }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [filters, setFilters] = useState({ id: '' });
 
-    const fetchData = () => {
+    const fetchData = (appliedFilters = {}) => {
         setLoading(true);
-        fetch('/api/operator/compliance/alerts', {
+        // Build query params for filtering
+        const params = new URLSearchParams();
+        if (appliedFilters.id) params.append('id', appliedFilters.id);
+
+        fetch(`/api/operator/compliance/alerts?${params.toString()}`, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'x-username': user?.username
@@ -652,13 +657,27 @@ export const Compliance = ({ user, token }) => {
     };
 
     useEffect(() => {
-        if (token) fetchData();
+        if (!token) return;
+        const savedFilters = sessionStorage.getItem('complianceFilters');
+        if (savedFilters) {
+            const parsed = JSON.parse(savedFilters);
+            setFilters(parsed);
+            fetchData(parsed);
+        } else {
+            fetchData();
+        }
     }, [token]);
 
     const handleRefresh = () => {
         setRefreshing(true);
-        fetchData();
+        fetchData(filters);
         setTimeout(() => setRefreshing(false), 500);
+    };
+
+    const clearFilters = () => {
+        setFilters({ id: '' });
+        sessionStorage.removeItem('complianceFilters');
+        fetchData({});
     };
 
     const columns = [
@@ -684,7 +703,17 @@ export const Compliance = ({ user, token }) => {
     return (
         <div className="page-container" style={{ padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 className="page-title" style={{ margin: 0 }}>Compliance & Risk</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <h2 className="page-title" style={{ margin: 0 }}>Compliance & Risk</h2>
+                    {filters.id && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.3)', padding: '4px 12px', borderRadius: '16px' }}>
+                            <span style={{ fontSize: '0.8rem', color: '#ffd700' }}>Viewing Alert: {filters.id}</span>
+                            <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: '#ffd700', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                                <RefreshCw size={12} />
+                            </button>
+                        </div>
+                    )}
+                </div>
                 <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
                     <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
                     {refreshing ? 'Refreshing...' : 'Refresh'}

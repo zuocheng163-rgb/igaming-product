@@ -194,8 +194,15 @@ const NotificationCenter = ({ token }) => {
                                 Dismiss Alert
                             </button>
                             <button className="btn-secondary" style={{ flex: 1 }} onClick={() => {
+                                const alertId = selectedNotification.id;
                                 setSelectedNotification(null);
                                 setIsOpen(false);
+
+                                // Set the filter so Compliance page opens this specific alert
+                                sessionStorage.setItem('complianceFilters', JSON.stringify({
+                                    id: alertId
+                                }));
+
                                 window.history.pushState({}, '', '/portal/compliance');
                                 window.dispatchEvent(new PopStateEvent('popstate'));
                             }}>
