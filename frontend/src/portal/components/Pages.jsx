@@ -662,14 +662,30 @@ export const Compliance = ({ user, token }) => {
 
     useEffect(() => {
         if (!token) return;
-        const savedFilters = sessionStorage.getItem('complianceFilters');
-        if (savedFilters) {
-            const parsed = JSON.parse(savedFilters);
-            setFilters(parsed);
-            fetchData(parsed);
-        } else {
-            fetchData();
-        }
+
+        const loadFilters = () => {
+            const savedFilters = sessionStorage.getItem('complianceFilters');
+            if (savedFilters) {
+                const parsed = JSON.parse(savedFilters);
+                setFilters(parsed);
+                fetchData(parsed);
+            } else {
+                setFilters({ id: '' });
+                fetchData({});
+            }
+        };
+
+        // Initial load
+        loadFilters();
+
+        // Listen for navigation events (like from Notification Center)
+        window.addEventListener('complianceFilterUpdated', loadFilters);
+        window.addEventListener('popstate', loadFilters);
+
+        return () => {
+            window.removeEventListener('complianceFilterUpdated', loadFilters);
+            window.removeEventListener('popstate', loadFilters);
+        };
     }, [token]);
 
     const handleRefresh = () => {
@@ -682,6 +698,8 @@ export const Compliance = ({ user, token }) => {
         setFilters({ id: '' });
         sessionStorage.removeItem('complianceFilters');
         fetchData({});
+        // Notify other windows/components if needed
+        window.dispatchEvent(new CustomEvent('complianceFilterUpdated'));
     };
 
     const columns = [

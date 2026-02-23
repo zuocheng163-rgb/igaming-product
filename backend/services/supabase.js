@@ -332,14 +332,14 @@ const getComplianceAlerts = async (brandId, limit = 50) => {
     if (!supabase) return [];
     const { data, error } = await supabase.from('platform_audit_logs').select('*').eq('brand_id', brandId).in('level', ['warn', 'error', 'critical']).order('timestamp', { ascending: false }).limit(limit);
     if (error) return [];
-    return data.map(log => ({ id: log.id, user: log.actor_id || 'System', trigger: log.action, risk: log.level === 'critical' ? 'High' : log.level === 'error' ? 'Medium' : 'Low', status: 'Open', date: log.timestamp, message: log.message }));
+    return data.map(log => ({ id: log.id, user: log.actor_id || 'System', trigger: log.action, risk: log.level === 'critical' ? 'High' : log.level === 'error' ? 'Medium' : 'Low', status: 'Open', date: log.timestamp, message: log.message, metadata: log.metadata }));
 };
 
 const getOperatorNotifications = async (brandId) => {
     if (!supabase) return [];
     const { data, error } = await supabase.from('platform_audit_logs').select('*').eq('brand_id', brandId).in('level', ['warn', 'error', 'critical']).order('timestamp', { ascending: false }).limit(10);
     if (error) return [];
-    return data.map(log => ({ id: log.id, type: log.level === 'critical' ? 'alert' : 'info', title: log.action.toUpperCase(), message: log.message, time: log.timestamp, read: false }));
+    return data.map(log => ({ id: log.id, type: log.level === 'critical' ? 'alert' : 'info', title: log.action.toUpperCase(), message: log.message, time: log.timestamp, read: false, metadata: log.metadata, severity: log.level === 'critical' ? 'Critical' : log.level === 'error' ? 'Warning' : 'Info' }));
 };
 
 const getOperatorStats = async (brandId, period = 'Last 30 Days') => {

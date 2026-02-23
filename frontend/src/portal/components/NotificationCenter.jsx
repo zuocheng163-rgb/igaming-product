@@ -204,6 +204,7 @@ const NotificationCenter = ({ token }) => {
                                 }));
 
                                 window.history.pushState({}, '', '/portal/compliance');
+                                window.dispatchEvent(new CustomEvent('complianceFilterUpdated'));
                                 window.dispatchEvent(new PopStateEvent('popstate'));
                             }}>
                                 View Evidence Console
