@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import DataTable from './DataTable';
-import { Save, RefreshCw, Shield, Bell, Lock, Gamepad2, Filter } from 'lucide-react';
+import { Save, RefreshCw, Shield, Bell, Lock, Gamepad2, Filter, X } from 'lucide-react';
 import PlayerDetailsModal from './PlayerDetailsModal';
 
 // Shared per-game visual identity used in Game Management cards
@@ -635,10 +635,11 @@ export const Compliance = ({ user, token }) => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filters, setFilters] = useState({ id: '' });
+    const [selectedAlert, setSelectedAlert] = useState(null);
 
     const fetchData = (appliedFilters = {}) => {
         setLoading(true);
-        // Build query params for filtering
+        // Build query params for filtering (if backend adds support later)
         const params = new URLSearchParams();
         if (appliedFilters.id) params.append('id', appliedFilters.id);
 
@@ -650,7 +651,10 @@ export const Compliance = ({ user, token }) => {
         })
             .then(res => res.json())
             .then(alerts => {
-                setData(alerts || []);
+                const list = alerts || [];
+                // Filter locally just in case backend ignores the ID param
+                const filtered = appliedFilters.id ? list.filter(a => a.id === appliedFilters.id) : list;
+                setData(filtered);
                 setLoading(false);
             })
             .catch(() => setLoading(false));
@@ -725,7 +729,69 @@ export const Compliance = ({ user, token }) => {
                 loading={loading}
                 pagination={{ page: 1, totalPages: 1 }}
                 searchPlaceholder="Search alerts..."
+                onRowDoubleClick={(row) => setSelectedAlert(row)}
             />
+
+            {selectedAlert && (
+                <div className="modal-overlay" onClick={() => setSelectedAlert(null)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <button className="modal-close-prominent" onClick={() => setSelectedAlert(null)}>
+                            <X size={18} />
+                        </button>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                            <Bell className={selectedAlert.risk === 'High' ? 'text-danger' : 'text-warning'} size={24} />
+                            <h2 style={{ margin: 0, fontSize: '1.4rem', color: 'white' }}>Alert Investigation</h2>
+                        </div>
+
+                        <div style={{ background: 'rgba(255,255,255,0.03)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Event Message</label>
+                                <div style={{ fontSize: '1.1rem', fontWeight: '500', color: 'white', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{selectedAlert.message}</div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Timestamp</label>
+                                    <div style={{ color: 'white' }}>{new Date(selectedAlert.date || selectedAlert.created_at).toLocaleString()}</div>
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>User</label>
+                                    <div style={{ color: 'white', fontFamily: 'monospace' }}>{selectedAlert.user || 'System'}</div>
+                                </div>
+                            </div>
+
+                            {selectedAlert.metadata && (
+                                <div>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Metadata / Raw Evidence</label>
+                                    <pre style={{
+                                        margin: 0,
+                                        padding: '12px',
+                                        background: '#111',
+                                        borderRadius: '8px',
+                                        fontSize: '0.8rem',
+                                        color: '#ffd700',
+                                        overflow: 'auto',
+                                        maxHeight: '200px',
+                                        border: '1px solid rgba(255, 215, 0, 0.1)',
+                                        whiteSpace: 'pre-wrap !important',
+                                        wordBreak: 'break-all !important',
+                                        overflowWrap: 'anywhere !important'
+                                    }}>
+                                        {JSON.stringify(selectedAlert.metadata, null, 2)}
+                                    </pre>
+                                </div>
+                            )}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                            <button className="btn-primary" style={{ flex: 1 }} onClick={() => setSelectedAlert(null)}>
+                                Close Investigation
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
