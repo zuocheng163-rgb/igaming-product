@@ -39,6 +39,7 @@ const OperatorLayout = ({ children, user, token, onLogout, dateRange, setDateRan
         { icon: LayoutDashboard, label: 'Dashboard', id: 'dashboard' },
         { icon: Users, label: 'Players', id: 'players' },
         { icon: Wallet, label: 'Wallet', id: 'wallet' },
+        { icon: Bell, label: 'Bonuses', id: 'bonuses' },
         { icon: Gamepad2, label: 'Games', id: 'games' },
         { icon: ShieldAlert, label: 'Compliance', id: 'compliance' },
         { icon: Activity, label: 'Operational Stream', id: 'operational-stream' },

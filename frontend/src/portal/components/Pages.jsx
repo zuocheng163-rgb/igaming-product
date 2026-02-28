@@ -926,3 +926,82 @@ export const Settings = ({ token }) => {
         </div>
     );
 };
+
+export const Bonuses = ({ token }) => {
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const fetchData = () => {
+        setLoading(true);
+        fetch('/api/bonus/list', {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+            .then(res => res.json())
+            .then(result => {
+                setData(result.bonuses || []);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        if (token) fetchData();
+    }, [token]);
+
+    const handleRefresh = () => {
+        setRefreshing(true);
+        fetchData();
+        setTimeout(() => setRefreshing(false), 500);
+    };
+
+    return (
+        <div className="page-container" style={{ padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 className="page-title" style={{ margin: 0 }}>Bonus Management</h2>
+                <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+                    <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                    {refreshing ? 'Refreshing...' : 'Refresh'}
+                </button>
+            </div>
+
+            {loading ? (
+                <div style={{ color: 'var(--text-muted)' }}>Loading bonus templates...</div>
+            ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                    {data.length > 0 ? data.map(bonus => (
+                        <div key={bonus.id} className="glass-panel" style={{ padding: '24px', borderLeft: '4px solid var(--accent-gold)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
+                                <h3 style={{ margin: 0, color: 'white' }}>{bonus.name}</h3>
+                                <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem', background: 'rgba(0, 255, 136, 0.1)', color: '#00ff88' }}>ACTIVE</span>
+                            </div>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>{bonus.description || 'No description provided'}</p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.85rem' }}>
+                                <div>
+                                    <label style={{ color: 'var(--text-muted)', display: 'block' }}>Code</label>
+                                    <code style={{ color: 'var(--accent-gold)' }}>{bonus.bonus_code}</code>
+                                </div>
+                                <div>
+                                    <label style={{ color: 'var(--text-muted)', display: 'block' }}>Amount</label>
+                                    <span style={{ color: 'white' }}>{bonus.amount} {bonus.currency || 'EUR'}</span>
+                                </div>
+                                <div>
+                                    <label style={{ color: 'var(--text-muted)', display: 'block' }}>Type</label>
+                                    <span style={{ color: 'white' }}>{bonus.bonus_type}</span>
+                                </div>
+                                <div>
+                                    <label style={{ color: 'var(--text-muted)', display: 'block' }}>Vagering</label>
+                                    <span style={{ color: 'white' }}>{bonus.wagering_requirement}x</span>
+                                </div>
+                            </div>
+                        </div>
+                    )) : (
+                        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                            No active bonus templates found.
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};

@@ -4,7 +4,7 @@ import OperatorLayout from './OperatorLayout';
 import GGRTrendChart from './GGRTrendChart';
 import KPICard from './KPICard';
 import { Users, TrendingUp, CheckCircle, ShieldAlert, RefreshCw } from 'lucide-react';
-import { Players, Wallet, Games, Compliance, Settings } from './Pages';
+import { Players, Wallet, Games, Compliance, Settings, Bonuses } from './Pages';
 import OperationalStream from './OperationalStream';
 import FastTrackStatusWidget from './FastTrackStatusWidget';
 import ActiveProvidersWidget from './ActiveProvidersWidget';
@@ -66,6 +66,7 @@ const PortalDashboard = ({ user, token, onLogout }) => {
         if (currentPath.includes('/portal/wallet')) return <Wallet user={user} token={token} />;
         if (currentPath.includes('/portal/games')) return <Games user={user} token={token} />;
         if (currentPath.includes('/portal/compliance')) return <Compliance user={user} token={token} />;
+        if (currentPath.includes('/portal/bonuses')) return <Bonuses token={token} />;
         if (currentPath.includes('/portal/settings')) return <Settings user={user} token={token} />;
         if (currentPath.includes('/portal/operational-stream')) return <OperationalStream user={user} token={token} />;
 
