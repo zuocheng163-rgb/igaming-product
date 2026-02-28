@@ -46,7 +46,7 @@ function Dashboard({ user: initialUser, token, onLogout }) {
     const loadBonuses = async () => {
         try {
             const res = await getBonusList(token);
-            setBonuses(res.Data || []);
+            setBonuses(res.bonuses || []);
         } catch (err) {
             console.error('Failed to load bonuses');
         }
