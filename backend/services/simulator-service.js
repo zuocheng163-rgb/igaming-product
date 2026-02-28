@@ -246,6 +246,7 @@ class SimulatorService {
             // Include timestamp to force uniqueness
             const bonuses = this.getDemoBonuses();
             res.json({
+                bonuses: bonuses,
                 Data: bonuses,
                 timestamp: Date.now()
             });
