@@ -582,6 +582,90 @@ router.get('/bonus/list', authenticateRequest, async (req, res) => {
     }
 });
 
+const BonusManagementService = require('../services/bonus-management-service');
+
+// --- Operator Bonus Management Endpoints ---
+
+router.get('/operator/bonuses/templates', authenticateRequest, requireAdmin, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    try {
+        const templates = await BonusManagementService.listTemplates(brandId);
+        res.json(templates);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch templates' });
+    }
+});
+
+router.post('/operator/bonuses/templates', authenticateRequest, requireAdmin, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    try {
+        const template = await BonusManagementService.createTemplate(brandId, req.body);
+        res.json(template);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create template' });
+    }
+});
+
+router.patch('/operator/bonuses/templates/:id', authenticateRequest, requireAdmin, async (req, res) => {
+    try {
+        const template = await BonusManagementService.updateTemplate(req.params.id, req.body);
+        res.json(template);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update template' });
+    }
+});
+
+router.get('/operator/bonuses/instances', authenticateRequest, requireAdmin, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    try {
+        const instances = await BonusManagementService.listActiveInstances(brandId, req.query);
+        res.json(instances);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch instances' });
+    }
+});
+
+router.post('/operator/bonuses/instances/:id/forfeit', authenticateRequest, requireAdmin, async (req, res) => {
+    try {
+        const result = await BonusManagementService.forfeitBonus(req.params.id);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post('/operator/bonuses/instances/:id/extend', authenticateRequest, requireAdmin, async (req, res) => {
+    const { days } = req.body;
+    try {
+        const result = await BonusManagementService.extendExpiry(req.params.id, days || 7);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post('/operator/bonuses/issue', authenticateRequest, requireAdmin, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    const { player_id, template_id, amount } = req.body;
+    try {
+        const result = await BonusManagementService.issueManualBonus(brandId, player_id, template_id, amount);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/operator/bonuses/analytics', authenticateRequest, requireAdmin, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    try {
+        const stats = await BonusManagementService.getAnalytics(brandId);
+        res.json(stats);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch analytics' });
+    }
+});
+
+
 router.post('/bonus/credit', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
     const {

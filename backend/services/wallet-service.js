@@ -108,8 +108,27 @@ class WalletService {
                         newState = 'ONGOING';
                     }
 
-                    // Calculate wagering progress (default 100% contribution in v1 for slots)
-                    const contributionRate = 1.0;
+                    // F8 Wagering Contribution Logic: Use rates from template if available
+                    let contributionRate = 1.0; // Default
+                    if (bonus.bonus_template_id) {
+                        const { data: template } = await supabaseService.client
+                            .from('bonus_templates')
+                            .select('contribution_rates')
+                            .eq('id', bonus.bonus_template_id)
+                            .single();
+
+                        if (template && template.contribution_rates) {
+                            // Map gameId to category if we had a mapping, for now use 'slots' default or check if gameId is excluded
+                            const rates = template.contribution_rates;
+                            // Basic logic: if games is 'slots', use 'slots' rate. Extension: check game index.
+                            contributionRate = rates.slots || 1.0;
+
+                            if (rates.excluded && Array.isArray(rates.excluded) && rates.excluded.includes(gameId)) {
+                                contributionRate = 0;
+                            }
+                        }
+                    }
+
                     const wageringContribution = amount * contributionRate;
                     const newProgress = (bonus.wagering_progress || 0) + wageringContribution;
 
@@ -499,8 +518,8 @@ class WalletService {
         }
 
 
-            // F10: KYC Gating
-            this.checkKycGating(user, "BONUS_CREDIT");
+        // F10: KYC Gating
+        this.checkKycGating(user, "BONUS_CREDIT");
         try {
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
@@ -515,9 +534,14 @@ class WalletService {
                 .eq('bonus_code', bonusCode)
                 .single();
 
-            const wageringMultiplier = template ? template.wagering_req : 35;
+            const wageringMultiplier = template ? (template.wagering_req || 35) : 35;
             const wageringRequired = amount * wageringMultiplier;
             const newBonusBalance = (user.bonus_balance || 0) + (parseFloat(amount) || 0);
+
+            // Calculate expiry
+            const wageringExpiryDays = template ? (template.wagering_expiry_days || 30) : 30;
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + wageringExpiryDays);
 
             await supabaseService.updateUser(user.id, { bonus_balance: newBonusBalance });
 
@@ -532,6 +556,7 @@ class WalletService {
                     amount_credited: parseFloat(amount),
                     wagering_required: wageringRequired,
                     state: 'CREATED',
+                    expires_at: expiresAt.toISOString(),
                     ft_idempotency_key: idempotencyKey,
                     ft_activity_id: fasttrackReferences?.activity_id,
                     ft_action_id: fasttrackReferences?.action_id,

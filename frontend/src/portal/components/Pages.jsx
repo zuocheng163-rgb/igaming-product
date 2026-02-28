@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import DataTable from './DataTable';
-import { Save, RefreshCw, Shield, Bell, Lock, Gamepad2, Filter, X } from 'lucide-react';
+import { Save, RefreshCw, Shield, Bell, Lock, Gamepad2, Filter, X, Plus, Trash2, Edit, Users, BarChart2, Settings as SettingsIcon, AlertCircle, CheckCircle, Calendar, ChevronRight, ChevronLeft, Search, Award, History, TrendingUp, DollarSign } from 'lucide-react';
 import PlayerDetailsModal from './PlayerDetailsModal';
 
 // Shared per-game visual identity used in Game Management cards
@@ -927,81 +927,470 @@ export const Settings = ({ token }) => {
     );
 };
 
-export const Bonuses = ({ token }) => {
-    const [data, setData] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+// --- Bonus Management Sub-components ---
 
-    const fetchData = () => {
-        setLoading(true);
-        fetch('/api/bonus/list', {
+const BonusWizard = ({ isOpen, onClose, onSave, token }) => {
+    const [step, setStep] = useState(1);
+    const [formData, setFormData] = useState({
+        name: '',
+        bonus_code: '',
+        type: 'deposit_match',
+        description: '',
+        max_amount: 100,
+        match_percentage: 100,
+        wagering_req: 35,
+        wagering_type: 'both',
+        min_deposit: 10,
+        currency: 'EUR',
+        expiry_days: 30,
+        wagering_expiry_days: 30,
+        claim_expiry_days: 7,
+        active: true,
+        contribution_rates: { slots: 1.0, live: 0.1, table: 0.1, excluded: [] },
+        eligibility_rules: { countries: [], segments: [] }
+    });
+
+    if (!isOpen) return null;
+
+    const nextStep = () => setStep(s => Math.min(6, s + 1));
+    const prevStep = () => setStep(s => Math.max(1, s - 1));
+
+    const handleSave = () => {
+        onSave(formData);
+        onClose();
+    };
+
+    const renderStep = () => {
+        switch (step) {
+            case 1:
+                return (
+                    <div className="wizard-step">
+                        <h3>Step 1: Basic Information</h3>
+                        <div className="form-group" style={{ marginBottom: '16px' }}>
+                            <label>Campaign Name</label>
+                            <input type="text" className="input-field" placeholder="e.g. Welcome Pack 2026" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} style={{ width: '100%', padding: '10px' }} />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: '16px' }}>
+                            <label>Bonus Code</label>
+                            <input type="text" className="input-field" placeholder="WELCOME100" value={formData.bonus_code} onChange={e => setFormData({ ...formData, bonus_code: e.target.value })} style={{ width: '100%', padding: '10px' }} />
+                        </div>
+                        <div className="form-group">
+                            <label>Description</label>
+                            <textarea className="input-field" rows="3" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} style={{ width: '100%', padding: '10px' }} />
+                        </div>
+                    </div>
+                );
+            case 2:
+                return (
+                    <div className="wizard-step">
+                        <h3>Step 2: Value & Wagering</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                            <div className="form-group">
+                                <label>Bonus Type</label>
+                                <select className="input-field" value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })} style={{ width: '100%', padding: '10px' }}>
+                                    <option value="deposit_match">Deposit Match</option>
+                                    <option value="no_deposit">No-Deposit</option>
+                                    <option value="free_spins">Free Spins</option>
+                                    <option value="cashback">Cashback</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Max Amount ({formData.currency})</label>
+                                <input type="number" className="input-field" value={formData.max_amount} onChange={e => setFormData({ ...formData, max_amount: e.target.value })} style={{ width: '100%', padding: '10px' }} />
+                            </div>
+                            <div className="form-group">
+                                <label>Wagering Multiplier</label>
+                                <input type="number" className="input-field" value={formData.wagering_req} onChange={e => setFormData({ ...formData, wagering_req: e.target.value })} style={{ width: '100%', padding: '10px' }} />
+                            </div>
+                            <div className="form-group">
+                                <label>Wagering Type</label>
+                                <select className="input-field" value={formData.wagering_type} onChange={e => setFormData({ ...formData, wagering_type: e.target.value })} style={{ width: '100%', padding: '10px' }}>
+                                    <option value="both">Capital + Bonus</option>
+                                    <option value="bonus">Bonus Only</option>
+                                    <option value="real">Real Only</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                );
+            case 3:
+                return (
+                    <div className="wizard-step">
+                        <h3>Step 3: Game Contributions</h3>
+                        <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>Define how much each game category contributes to wagering.</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            {['slots', 'live', 'table'].map(cat => (
+                                <div key={cat} className="form-group">
+                                    <label style={{ textTransform: 'capitalize' }}>{cat} (%)</label>
+                                    <input
+                                        type="number"
+                                        className="input-field"
+                                        value={formData.contribution_rates[cat] * 100}
+                                        onChange={e => setFormData({
+                                            ...formData,
+                                            contribution_rates: { ...formData.contribution_rates, [cat]: Number(e.target.value) / 100 }
+                                        })}
+                                        style={{ width: '100%', padding: '10px' }}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            case 4:
+                return (
+                    <div className="wizard-step">
+                        <h3>Step 4: Scheduling & Expiry</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                            <div className="form-group">
+                                <label>Claim Expiry (Days)</label>
+                                <input type="number" className="input-field" value={formData.claim_expiry_days} onChange={e => setFormData({ ...formData, claim_expiry_days: e.target.value })} style={{ width: '100%', padding: '10px' }} />
+                            </div>
+                            <div className="form-group">
+                                <label>Wagering Expiry (Days)</label>
+                                <input type="number" className="input-field" value={formData.wagering_expiry_days} onChange={e => setFormData({ ...formData, wagering_expiry_days: e.target.value })} style={{ width: '100%', padding: '10px' }} />
+                            </div>
+                        </div>
+                    </div>
+                );
+            case 5:
+                return (
+                    <div className="wizard-step">
+                        <h3>Step 5: Eligibility</h3>
+                        <p style={{ color: 'var(--text-muted)' }}>Player targeting rules (Optional for PoC)</p>
+                        <div className="glass-panel" style={{ padding: '12px', marginTop: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                            <Users size={24} style={{ marginBottom: '8px' }} />
+                            <p>Global availability is active. All players can claim this bonus.</p>
+                        </div>
+                    </div>
+                );
+            case 6:
+                return (
+                    <div className="wizard-step">
+                        <h3>Step 6: Review & Finalize</h3>
+                        <div className="glass-panel" style={{ padding: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <span>Bonus Name</span>
+                                <span style={{ color: 'var(--accent-gold)' }}>{formData.name}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <span>Bonus Code</span>
+                                <code style={{ color: '#00ff88' }}>{formData.bonus_code}</code>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <span>Wagering Requirement</span>
+                                <span>{formData.wagering_req}x</span>
+                            </div>
+                        </div>
+                    </div>
+                );
+            default: return null;
+        }
+    };
+
+    return (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
+            <div className="modal-content glass-panel" style={{ width: '100%', maxWidth: '600px', padding: '32px', position: 'relative' }}>
+                <button onClick={onClose} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>
+                    <X size={24} />
+                </button>
+                <div style={{ marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                        {[1, 2, 3, 4, 5, 6].map(i => (
+                            <div key={i} style={{ flex: 1, height: '4px', background: step >= i ? 'var(--accent-gold)' : 'rgba(255,255,255,0.1)', borderRadius: '2px' }} />
+                        ))}
+                    </div>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Step {step} of 6</span>
+                </div>
+
+                {renderStep()}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '32px' }}>
+                    <button onClick={prevStep} disabled={step === 1} className="btn-secondary" style={{ padding: '10px 20px' }}>Back</button>
+                    {step < 6 ? (
+                        <button onClick={nextStep} className="btn-primary" style={{ padding: '10px 20px' }}>Next Step</button>
+                    ) : (
+                        <button onClick={handleSave} className="btn-primary" style={{ background: '#00ff88', color: '#000', padding: '10px 20px' }}>Create Template</button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const TemplateCard = ({ template }) => (
+    <div className="glass-panel" style={{ padding: '20px', borderLeft: '4px solid var(--accent-gold)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{template.name}</h3>
+            <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.65rem', background: template.active ? 'rgba(0, 255, 136, 0.1)' : 'rgba(255,255,255,0.1)', color: template.active ? '#00ff88' : 'var(--text-muted)' }}>
+                {template.active ? 'ACTIVE' : 'INACTIVE'}
+            </span>
+        </div>
+        <code style={{ color: 'var(--accent-gold)', display: 'block', marginBottom: '12px' }}>{template.bonus_code}</code>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px', height: '40px', overflow: 'hidden' }}>{template.description}</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.8rem' }}>
+            <div><label style={{ color: 'var(--text-muted)' }}>Wagering</label><br />{template.wagering_req}x</div>
+            <div><label style={{ color: 'var(--text-muted)' }}>Max Amt</label><br />{template.max_amount} {template.currency}</div>
+            <div><label style={{ color: 'var(--text-muted)' }}>Type</label><br />{template.type}</div>
+            <div style={{ display: 'flex', gap: '8px', alignSelf: 'end', justifyContent: 'flex-end' }}>
+                <Edit size={14} style={{ cursor: 'pointer' }} />
+                <Trash2 size={14} style={{ cursor: 'pointer', color: '#ff4444' }} />
+            </div>
+        </div>
+    </div>
+);
+
+const ActiveBonusesTable = ({ token }) => {
+    const [instances, setInstances] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetch('/api/operator/bonuses/instances', {
             headers: { Authorization: `Bearer ${token}` }
         })
             .then(res => res.json())
-            .then(result => {
-                setData(result.bonuses || []);
+            .then(data => {
+                setInstances(data);
+                setLoading(false);
+            });
+    }, [token]);
+
+    const handleForfeit = (id) => {
+        if (!window.confirm('Are you sure you want to forfeit this bonus? Player balance will be updated.')) return;
+        fetch(`/api/operator/bonuses/instances/${id}/forfeit`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` }
+        }).then(res => {
+            if (res.ok) setInstances(instances.map(i => i.id === id ? { ...i, state: 'FORFEITED' } : i));
+        });
+    };
+
+    return (
+        <div className="glass-panel" style={{ overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ background: 'rgba(255,255,255,0.05)', textAlign: 'left' }}>
+                    <tr>
+                        <th style={{ padding: '12px' }}>Player</th>
+                        <th style={{ padding: '12px' }}>Bonus</th>
+                        <th style={{ padding: '12px' }}>Progress</th>
+                        <th style={{ padding: '12px' }}>Status</th>
+                        <th style={{ padding: '12px' }}>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {instances.map(ins => (
+                        <tr key={ins.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <td style={{ padding: '12px' }}>
+                                <div style={{ fontSize: '0.9rem' }}>{ins.users?.username}</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{ins.player_id}</div>
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                                <div style={{ fontWeight: 'bold' }}>{ins.bonus_code}</div>
+                                <div style={{ fontSize: '0.8rem' }}>{ins.amount_credited} EUR</div>
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                                <div style={{ width: '100px', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px' }}>
+                                    <div style={{ width: `${Math.min(100, (ins.wagering_progress / ins.wagering_required) * 100)}%`, height: '100%', background: 'var(--accent-gold)', borderRadius: '3px' }} />
+                                </div>
+                                <span style={{ fontSize: '0.7rem' }}>{ins.wagering_progress} / {ins.wagering_required}</span>
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                                <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', background: ins.state === 'ONGOING' ? 'rgba(0,150,255,0.1)' : 'rgba(255,255,255,0.1)' }}>{ins.state}</span>
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button onClick={() => handleForfeit(ins.id)} disabled={ins.state === 'FORFEITED'} className="btn-secondary" style={{ padding: '4px 8px', fontSize: '0.7rem' }}>Forfeit</button>
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+const ManualIssuanceForm = ({ templates, token }) => {
+    const [playerId, setPlayerId] = useState('');
+    const [selectedTemplate, setSelectedTemplate] = useState('');
+    const [amount, setAmount] = useState('');
+    const [issuing, setIssuing] = useState(false);
+
+    const handleIssue = async (e) => {
+        e.preventDefault();
+        setIssuing(true);
+        try {
+            const res = await fetch('/api/operator/bonuses/issue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ player_id: playerId, template_id: selectedTemplate, amount: Number(amount) })
+            });
+            if (res.ok) alert('Bonus issued successfully');
+            else throw new Error('Failed to issue bonus');
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            setIssuing(false);
+        }
+    };
+
+    return (
+        <div className="glass-panel" style={{ padding: '24px', maxWidth: '500px' }}>
+            <h3 style={{ marginBottom: '20px' }}>Manual Bonus Issuance</h3>
+            <form onSubmit={handleIssue}>
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label>Player Username / ID</label>
+                    <input type="text" className="input-field" required value={playerId} onChange={e => setPlayerId(e.target.value)} style={{ width: '100%', padding: '10px' }} />
+                </div>
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label>Select Template</label>
+                    <select className="input-field" required value={selectedTemplate} onChange={e => setSelectedTemplate(e.target.value)} style={{ width: '100%', padding: '10px' }}>
+                        <option value="">Select a template...</option>
+                        {templates.map(t => <option key={t.id} value={t.id}>{t.name} ({t.bonus_code})</option>)}
+                    </select>
+                </div>
+                <div className="form-group" style={{ marginBottom: '24px' }}>
+                    <label>Amount (Override Template Default)</label>
+                    <input type="number" className="input-field" value={amount} onChange={e => setAmount(e.target.value)} style={{ width: '100%', padding: '10px' }} />
+                </div>
+                <button type="submit" disabled={issuing} className="btn-primary" style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                    <Award size={18} />
+                    {issuing ? 'ISSUING...' : 'ISSUE BONUS'}
+                </button>
+            </form>
+        </div>
+    );
+};
+
+const BonusAnalytics = ({ token }) => {
+    const [stats, setStats] = useState(null);
+
+    useEffect(() => {
+        fetch('/api/operator/bonuses/analytics', {
+            headers: { Authorization: `Bearer ${token}` }
+        }).then(res => res.json()).then(setStats);
+    }, [token]);
+
+    if (!stats) return <div>Loading reports...</div>;
+
+    return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
+            <div className="glass-panel" style={{ padding: '20px' }}>
+                <TrendingUp size={20} color="#00ff88" style={{ marginBottom: '10px' }} />
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total Awarded</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{stats.total_credited} EUR</div>
+            </div>
+            <div className="glass-panel" style={{ padding: '20px' }}>
+                <Users size={20} color="var(--accent-gold)" style={{ marginBottom: '10px' }} />
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Active Instances</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{stats.active_count}</div>
+            </div>
+            <div className="glass-panel" style={{ padding: '20px' }}>
+                <CheckCircle size={20} color="#00ccff" style={{ marginBottom: '10px' }} />
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Conversion Rate</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{Math.round(stats.avg_wagering_completion * 100)}%</div>
+            </div>
+        </div>
+    );
+};
+export const Bonuses = ({ token }) => {
+    const [activeTab, setActiveTab] = useState('templates');
+    const [templates, setTemplates] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [isWizardOpen, setIsWizardOpen] = useState(false);
+
+    const fetchTemplates = () => {
+        setLoading(true);
+        fetch('/api/operator/bonuses/templates', {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+            .then(res => res.json())
+            .then(data => {
+                setTemplates(data || []);
                 setLoading(false);
             })
             .catch(() => setLoading(false));
     };
 
     useEffect(() => {
-        if (token) fetchData();
+        if (token) fetchTemplates();
     }, [token]);
 
-    const handleRefresh = () => {
-        setRefreshing(true);
-        fetchData();
-        setTimeout(() => setRefreshing(false), 500);
+    const handleCreateTemplate = async (templateData) => {
+        try {
+            const res = await fetch('/api/operator/bonuses/templates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ ...templateData, active: true })
+            });
+            if (res.ok) fetchTemplates();
+        } catch (err) {
+            console.error('Failed to create template', err);
+        }
     };
+
+    const tabs = [
+        { id: 'templates', label: 'Templates', icon: SettingsIcon },
+        { id: 'active', label: 'Active Bonuses', icon: Award },
+        { id: 'manual', label: 'Manual Issuance', icon: Users },
+        { id: 'analytics', label: 'Analytics', icon: BarChart2 },
+    ];
 
     return (
         <div className="page-container" style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <h2 className="page-title" style={{ margin: 0 }}>Bonus Management</h2>
-                <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
-                    <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                    {refreshing ? 'Refreshing...' : 'Refresh'}
-                </button>
+                {activeTab === 'templates' && (
+                    <button onClick={() => setIsWizardOpen(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Plus size={18} />
+                        New Template
+                    </button>
+                )}
             </div>
 
-            {loading ? (
-                <div style={{ color: 'var(--text-muted)' }}>Loading bonus templates...</div>
-            ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-                    {data.length > 0 ? data.map(bonus => (
-                        <div key={bonus.id} className="glass-panel" style={{ padding: '24px', borderLeft: '4px solid var(--accent-gold)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
-                                <h3 style={{ margin: 0, color: 'white' }}>{bonus.name}</h3>
-                                <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.7rem', background: 'rgba(0, 255, 136, 0.1)', color: '#00ff88' }}>ACTIVE</span>
-                            </div>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>{bonus.description || 'No description provided'}</p>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.85rem' }}>
-                                <div>
-                                    <label style={{ color: 'var(--text-muted)', display: 'block' }}>Code</label>
-                                    <code style={{ color: 'var(--accent-gold)' }}>{bonus.bonus_code}</code>
-                                </div>
-                                <div>
-                                    <label style={{ color: 'var(--text-muted)', display: 'block' }}>Amount</label>
-                                    <span style={{ color: 'white' }}>{bonus.amount} {bonus.currency || 'EUR'}</span>
-                                </div>
-                                <div>
-                                    <label style={{ color: 'var(--text-muted)', display: 'block' }}>Type</label>
-                                    <span style={{ color: 'white' }}>{bonus.bonus_type}</span>
-                                </div>
-                                <div>
-                                    <label style={{ color: 'var(--text-muted)', display: 'block' }}>Vagering</label>
-                                    <span style={{ color: 'white' }}>{bonus.wagering_requirement}x</span>
-                                </div>
-                            </div>
-                        </div>
-                    )) : (
-                        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                            No active bonus templates found.
+            {/* Tabs Navigation */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px' }}>
+                {tabs.map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={activeTab === tab.id ? 'btn-primary' : 'btn-secondary'}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: activeTab === tab.id ? 'var(--accent-gold)' : 'transparent', color: activeTab === tab.id ? '#000' : 'white', border: activeTab === tab.id ? 'none' : '1px solid rgba(255,255,255,0.1)' }}
+                    >
+                        <tab.icon size={16} />
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'templates' && (
+                <div>
+                    {loading ? (
+                        <div style={{ color: 'var(--text-muted)' }}>Loading templates...</div>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+                            {templates.map(t => <TemplateCard key={t.id} template={t} />)}
+                            {templates.length === 0 && <div style={{ color: 'var(--text-muted)' }}>No templates created yet.</div>}
                         </div>
                     )}
                 </div>
             )}
+
+            {activeTab === 'active' && <ActiveBonusesTable token={token} />}
+
+            {activeTab === 'manual' && <ManualIssuanceForm templates={templates} token={token} />}
+
+            {activeTab === 'analytics' && <BonusAnalytics token={token} />}
+
+            {/* Creation Wizard */}
+            <BonusWizard
+                isOpen={isWizardOpen}
+                onClose={() => setIsWizardOpen(false)}
+                onSave={handleCreateTemplate}
+                token={token}
+            />
         </div>
     );
 };
+
