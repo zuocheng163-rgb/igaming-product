@@ -16,6 +16,25 @@ const PaymentAnalyticsService = require('./payment-analytics');
  * 3. Unified Fast Track event triggering
  */
 class WalletService {
+    /**
+     * F10: KYC Gating Helper
+     * Blocks operations based on user's kyc_status and wallet_blocked flag.
+     */
+    static checkKycGating(user, operation) {
+        if (user.wallet_blocked) {
+            logger.warn(`[KYC Gate] Operation ${operation} blocked: Wallet is BLOCKED`, { userId: user.id });
+            throw new Error('PLAYER_BLOCKED');
+        }
+
+        // Example gating: Withdrawal requires VERIFIED
+        if (operation === 'WITHDRAWAL' && user.kyc_status !== 'VERIFIED') {
+            logger.warn(`[KYC Gate] Withdrawal blocked: KYC status is ${user.kyc_status}`, { userId: user.id });
+            throw new Error('KYC_REQUIRED');
+        }
+
+        return true;
+    }
+
 
     /**
      * Standardized Debit (Bet) operation
@@ -43,6 +62,9 @@ class WalletService {
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
 
+            // F10: KYC Gating
+            this.checkKycGating(user, 'DEBIT');
+
             // Use the actual brand_id from the user record
             const playerBrandId = user.brand_id || normalizedBrandId;
 
@@ -55,14 +77,84 @@ class WalletService {
             let bonusWager = 0;
             let realWager = 0;
 
-            if (newBonusBalance > 0) {
-                bonusWager = Math.min(newBonusBalance, remainingDebit);
-                newBonusBalance -= bonusWager;
-                remainingDebit -= bonusWager;
-            }
-            if (remainingDebit > 0) {
+            // F8 Wagering Order: Real balance is ALWAYS staked first
+            if (newBalance >= remainingDebit) {
                 realWager = remainingDebit;
-                newBalance -= realWager;
+                newBalance -= remainingDebit;
+                remainingDebit = 0;
+            } else {
+                realWager = newBalance;
+                remainingDebit -= newBalance;
+                newBalance = 0;
+
+                bonusWager = remainingDebit;
+                newBonusBalance -= remainingDebit;
+                remainingDebit = 0;
+            }
+
+            // F8 Wagering Contribution Logic
+            const { data: activeBonuses } = await supabaseService.client
+                .from('bonus_instances')
+                .select('*')
+                .eq('player_id', user.id)
+                .in('state', ['CREATED', 'ONGOING'])
+                .order('created_at', { ascending: true });
+
+            if (activeBonuses && activeBonuses.length > 0) {
+                for (const bonus of activeBonuses) {
+                    // Update state to ONGOING if it was CREATED
+                    let newState = bonus.state;
+                    if (newState === 'CREATED') {
+                        newState = 'ONGOING';
+                    }
+
+                    // Calculate wagering progress (default 100% contribution in v1 for slots)
+                    const contributionRate = 1.0;
+                    const wageringContribution = amount * contributionRate;
+                    const newProgress = (bonus.wagering_progress || 0) + wageringContribution;
+
+                    let updatedBonusBalance = newBonusBalance;
+                    let updatedRealBalance = newBalance;
+
+                    if (newProgress >= bonus.wagering_required) {
+                        newState = 'COMPLETED';
+                        // Release bonus funds to real balance
+                        updatedRealBalance += updatedBonusBalance;
+                        updatedBonusBalance = 0;
+                        newBalance = updatedRealBalance;
+                        newBonusBalance = updatedBonusBalance;
+
+                        await rabbitmq.publishEvent(`user.${userId}.bonus`, {
+                            type: 'BONUS_CONVERTED',
+                            bonus_code: bonus.bonus_code,
+                            player_id: user.id
+                        });
+                    }
+
+                    const { error: updateError } = await supabaseService.client
+                        .from('bonus_instances')
+                        .update({
+                            wagering_progress: newProgress,
+                            state: newState,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', bonus.id);
+                    if (updateError) logger.error(`[Wallet SPI] Wagering Progress DB Error`, { error: updateError.message });
+
+                    // Audit event
+                    const { error: eventError } = await supabaseService.client.from('bonus_events').insert([{
+                        bonus_instance_id: bonus.id,
+                        tenant_id: bonus.tenant_id,
+                        brand_id: bonus.brand_id,
+                        player_id: user.id,
+                        event_type: 'WAGER_CONTRIBUTION',
+                        amount: wageringContribution,
+                        wagering_progress: newProgress,
+                        balance_after: updatedBonusBalance,
+                        created_at: new Date().toISOString()
+                    }]);
+                    if (eventError) logger.error(`[Wallet SPI] Bonus Event DB Error`, { error: eventError.message });
+                }
             }
 
             // Perform Update
@@ -160,6 +252,9 @@ class WalletService {
 
         try {
             const user = await supabaseService.getUserById(userId);
+
+            // F10: KYC Gating
+            this.checkKycGating(user, "CREDIT");
             if (!user) throw new Error('USER_NOT_FOUND');
 
             const playerBrandId = user.brand_id || normalizedBrandId;
@@ -235,6 +330,9 @@ class WalletService {
         const transactionId = `dep-${Date.now()}`;
 
         try {
+
+            // F10: KYC Gating
+            this.checkKycGating(user, "DEPOSIT");
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
 
@@ -373,32 +471,93 @@ class WalletService {
     }
 
     /**
-     * Standardized Bonus Credit operation
+     * Standardized Bonus Credit operation (F8)
      */
     static async creditBonus(userId, amount, bonusCode, brandId, correlationId, fasttrackReferences = null) {
         const normalizedBrandId = supabaseService.getBrandId(brandId);
         logger.debug(`[Wallet SPI] Processing Bonus Credit`, { userId, amount, bonusCode, normalizedBrandId, correlationId });
         const transactionId = `bon-${Date.now()}`;
 
+        // Idempotency: X-Fasttrack-Id
+        const idempotencyKey = fasttrackReferences?.id || transactionId;
+        const { data: existingBonus } = await supabaseService.client
+            .from('bonus_instances')
+            .select('*')
+            .eq('ft_idempotency_key', idempotencyKey)
+            .single();
+
+        if (existingBonus) {
+            logger.warn(`[Wallet SPI] Duplicate FT bonus credit ignored`, { idempotencyKey, userId });
+            const user = await supabaseService.getUserById(userId);
+            return {
+                transaction_id: existingBonus.id,
+                balance: user?.balance,
+                bonus_balance: user?.bonus_balance,
+                currency: user?.currency,
+                duplicate: true
+            };
+        }
+
+
+            // F10: KYC Gating
+            this.checkKycGating(user, "BONUS_CREDIT");
         try {
             const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
 
             const playerBrandId = user.brand_id || normalizedBrandId;
+
+            // Fetch bonus template
+            const { data: template } = await supabaseService.client
+                .from('bonus_templates')
+                .select('*')
+                .eq('brand_id', playerBrandId)
+                .eq('bonus_code', bonusCode)
+                .single();
+
+            const wageringMultiplier = template ? template.wagering_req : 35;
+            const wageringRequired = amount * wageringMultiplier;
             const newBonusBalance = (user.bonus_balance || 0) + (parseFloat(amount) || 0);
 
             await supabaseService.updateUser(user.id, { bonus_balance: newBonusBalance });
 
-            // Persist Transaction record
-            await supabaseService.createTransaction({
-                transaction_id: transactionId,
-                brand_id: playerBrandId,
-                user_id: user.id,
-                type: 'BONUS_CREDIT',
-                amount: parseFloat(amount) || 0,
-                currency: user.currency,
-                metadata: { correlationId, bonusCode, bonus_balance_after: newBonusBalance }
-            });
+            // Create Bonus Instance
+            const { data: newBonusInst, error: bonusError } = await supabaseService.client
+                .from('bonus_instances')
+                .insert([{
+                    brand_id: playerBrandId,
+                    player_id: user.id,
+                    bonus_template_id: template ? template.id : null,
+                    bonus_code: bonusCode,
+                    amount_credited: parseFloat(amount),
+                    wagering_required: wageringRequired,
+                    state: 'CREATED',
+                    ft_idempotency_key: idempotencyKey,
+                    ft_activity_id: fasttrackReferences?.activity_id,
+                    ft_action_id: fasttrackReferences?.action_id,
+                    ft_action_group_id: fasttrackReferences?.action_group_id,
+                    ft_trigger_hash: fasttrackReferences?.trigger_hash
+                }])
+                .select()
+                .single();
+
+            if (bonusError) {
+                logger.error('[Wallet SPI] Failed to insert bonus_instances', { error: bonusError.message });
+                throw bonusError;
+            }
+
+            // Log Bonus Event
+            if (newBonusInst) {
+                const { error: eventError } = await supabaseService.client.from('bonus_events').insert([{
+                    bonus_instance_id: newBonusInst.id,
+                    brand_id: playerBrandId,
+                    player_id: user.id,
+                    event_type: 'CREDITED',
+                    amount: parseFloat(amount),
+                    balance_after: newBonusBalance
+                }]);
+                if (eventError) logger.error('[Wallet SPI] Failed to log CREDITED bonus_events', { error: eventError.message });
+            }
 
             await auditLog({
                 correlationId,
@@ -421,6 +580,15 @@ class WalletService {
                 fasttrack_references: fasttrackReferences || { source: 'backend' }
             }, { correlationId, brandId });
 
+            // RabbitMQ
+            await rabbitmq.publishEvent(`user.${userId}.bonus`, {
+                type: 'BONUS_AWARDED',
+                bonus_code: bonusCode,
+                amount: parseFloat(amount),
+                player_id: user.id,
+                ft_idempotency_key: idempotencyKey
+            });
+
             // Balance Sync
             await ftService.pushEvent(user.user_id, 'balance', {
                 balances: [
@@ -430,15 +598,192 @@ class WalletService {
             }, { correlationId, brandId });
 
             return {
-                transaction_id: transactionId,
+                bonus_instance_id: newBonusInst ? newBonusInst.id : transactionId,
                 balance: user.balance,
                 bonus_balance: newBonusBalance,
+                wagering_required: wageringRequired,
+                wagering_progress: 0,
                 currency: user.currency
             };
         } catch (error) {
             logger.error(`[Wallet SPI] Bonus Credit Failed`, { error: error.message, correlationId });
             throw error;
         }
+    }
+
+    /**
+     * Bonus Funds Credit (No Wagering, direct to real/bonus balance)
+     */
+    static async creditBonusFunds(userId, amount, reason, brandId, correlationId, fasttrackReferences = null) {
+        const normalizedBrandId = supabaseService.getBrandId(brandId);
+        logger.debug(`[Wallet SPI] Processing Bonus Funds`, { userId, amount, reason, correlationId });
+        const transactionId = `funds-${Date.now()}`;
+
+        // Idempotency
+        const idempotencyKey = fasttrackReferences?.id || transactionId;
+        const { data: existingEvent } = await supabaseService.client
+            .from('bonus_events')
+            .select('*')
+            .eq('metadata->>ft_idempotency_key', idempotencyKey)
+            .single();
+
+        if (existingEvent) {
+            const user = await supabaseService.getUserById(userId);
+            return { transaction_id: transactionId, balance: user?.balance, duplicate: true };
+        }
+
+        try {
+            const user = await supabaseService.getUserById(userId);
+            if (!user) throw new Error('USER_NOT_FOUND');
+
+            // F10: KYC Gating
+            this.checkKycGating(user, 'BONUS_FUNDS');
+
+            // Funds credit directly adds to balance (as per PRD: POST /bonus/credit/funds adds to bonus balance but released on next wager, or just directly to wallet depending on operator config. We credit bonus_balance and let it be used).
+            const newBonusBalance = (user.bonus_balance || 0) + parseFloat(amount);
+            await supabaseService.updateUser(user.id, { bonus_balance: newBonusBalance });
+
+            const { error: eventError } = await supabaseService.client.from('bonus_events').insert([{
+                brand_id: user.brand_id || normalizedBrandId,
+                player_id: user.id,
+                event_type: 'FUNDS_CREDITED',
+                amount: parseFloat(amount),
+                balance_after: newBonusBalance,
+                metadata: { reason, ft_idempotency_key: idempotencyKey }
+            }]);
+            if (eventError) {
+                logger.error('[Wallet SPI] Failed to insert bonus_events for funds', { error: eventError.message });
+                throw eventError;
+            }
+
+            // RabbitMQ
+            await rabbitmq.publishEvent(`user.${userId}.bonus`, {
+                type: 'FUNDS_CREDITED',
+                amount: parseFloat(amount),
+                player_id: user.id
+            });
+
+            return {
+                transaction_id: transactionId,
+                bonus_balance: newBonusBalance,
+                real_balance: user.balance
+            };
+        } catch (error) {
+            logger.error(`[Wallet SPI] Bonus Funds Failed`, { error: error.message });
+            throw error;
+        }
+    }
+
+    /**
+     * Initiate Deposit (F9)
+     */
+    static async initiateDeposit(userId, amount, currency, returnUrl, brandId, correlationId) {
+        const normalizedBrandId = supabaseService.getBrandId(brandId);
+        const transactionId = `pmt-${Date.now()}`;
+
+        const user = await supabaseService.getUserById(userId);
+        if (!user) throw new Error('USER_NOT_FOUND');
+
+        // F10: KYC Gating
+        this.checkKycGating(user, 'DEPOSIT_INIT');
+
+        // Create pending payment transaction
+        const { error: pmtError } = await supabaseService.client.from('payment_transactions').insert([{
+            brand_id: user.brand_id || normalizedBrandId,
+            player_id: user.id,
+            transaction_id: transactionId,
+            event_type: 'DEPOSIT',
+            amount: parseFloat(amount),
+            currency: currency || 'EUR',
+            status: 'PENDING'
+        }]);
+
+        if (pmtError) {
+            logger.error('[Wallet SPI] Failed to insert payment_transactions', { error: pmtError.message });
+            throw pmtError;
+        }
+
+        // Mocking Nuvei checkout URL generation for v0.6
+        return {
+            transaction_id: transactionId,
+            checkout_url: `https://checkout.nuvei.com/test?session=${transactionId}`,
+            expires_at: new Date(Date.now() + 3600000).toISOString() // +1h
+        };
+    }
+
+    /**
+     * Confirm Deposit from PSP Webhook (F9)
+     */
+    static async confirmDeposit(pspTxId, transactionId, amount, netAmount, paymentMethod, pspAdapter, vendorId) {
+        const { data: pmt } = await supabaseService.client
+            .from('payment_transactions')
+            .select('*')
+            .eq('transaction_id', transactionId)
+            .single();
+
+        if (!pmt) throw new Error('TRANSACTION_NOT_FOUND');
+        if (pmt.status === 'CONFIRMED') return pmt; // Idempotent
+
+        const user = await supabaseService.getUserById(pmt.player_id);
+        if (!user) throw new Error('USER_NOT_FOUND');
+
+        // F10: KYC Gating
+        this.checkKycGating(user, 'DEPOSIT_CONFIRM');
+
+        const newBalance = (user.balance || 0) + parseFloat(amount);
+
+        // Update Wallet
+        await supabaseService.updateUser(user.id, { balance: newBalance });
+
+        // Update Transaction
+        const { data: updatedPmt } = await supabaseService.client.from('payment_transactions').update({
+            status: 'CONFIRMED',
+            psp_tx_id: pspTxId,
+            psp_adapter: pspAdapter,
+            net_amount: netAmount,
+            payment_method: paymentMethod,
+            balance_before: user.balance,
+            balance_after: newBalance,
+            confirmed_at: new Date().toISOString()
+        }).eq('id', pmt.id).select().single();
+
+        // Audit & RabbitMQ
+        await auditLog({
+            correlationId: `sys-${Date.now()}`,
+            brandId: pmt.brand_id,
+            actor_id: user.user_id,
+            action: 'wallet:deposit_webhook',
+            entity_type: 'payment_transactions',
+            entity_id: transactionId,
+            message: `SPI Deposit Confirmed via webhook: ${amount} via ${pspAdapter}`
+        });
+
+        // Publish F9 DEPOSIT Event to RabbitMQ (Triggering Fast Track)
+        await rabbitmq.publishEvent('payments.confirmed', {
+            type: 'DEPOSIT',
+            transaction_id: transactionId,
+            psp_tx_id: pspTxId,
+            player_id: user.id,
+            amount: parseFloat(amount),
+            net_amount: netAmount,
+            currency: pmt.currency,
+            payment_method: paymentMethod,
+            vendor_id: vendorId || pspAdapter,
+            vendor_name: pspAdapter,
+            status: 'CONFIRMED',
+            timestamp: new Date().toISOString()
+        });
+
+        // Fast Track API integration
+        await ftService.pushEvent(user.user_id, 'deposit', {
+            amount,
+            transaction_id: transactionId,
+            currency: pmt.currency,
+            status: 'Approved',
+            provider: pspAdapter
+        });
+
+        return updatedPmt;
     }
 }
 

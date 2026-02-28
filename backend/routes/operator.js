@@ -58,6 +58,7 @@ const authenticateRequest = async (req, res, next) => {
                 req.user = user;
                 req.brandId = user.brand_id || 1;
                 req.role = user.role || 'PLAYER';
+                req.kycStatus = user.kyc_status || 'NONE';
                 return next();
             }
 
@@ -76,6 +77,7 @@ const authenticateRequest = async (req, res, next) => {
 
                 // JIT: Find or Create User in DB
                 let dbUser = await supabaseService.getUserById(targetUsername);
+                let isNewUser = false;
                 if (!dbUser) {
                     logger.info('[Auth] Sandbox: User not found, creating JIT user', { targetUsername });
                     try {
@@ -85,6 +87,25 @@ const authenticateRequest = async (req, res, next) => {
                             token: sessionToken,
                             brand_id: 1
                         });
+                        isNewUser = true;
+
+                        await supabaseService.upsertPlayerProfile({
+                            player_id: dbUser.id,
+                            tenant_id: null,
+                            email: dbUser.email,
+                            display_name: dbUser.username,
+                            country: 'XX', // Unknown mockup
+                            language: 'en-GB'
+                        });
+
+                        if (typeof rabbitmq !== 'undefined' && rabbitmq.publishEvent) {
+                            await rabbitmq.publishEvent(`user.${dbUser.id}.registration`, {
+                                player_id: dbUser.id,
+                                tenant_id: dbUser.brand_id,
+                                type: 'REGISTRATION',
+                                timestamp: new Date().toISOString()
+                            });
+                        }
                     } catch (err) {
                         logger.error('[Auth] JIT Creation Failed', { error: err.message });
                         // Last resort fallback (will likely fail wallet ops but allows read-only)
@@ -93,6 +114,15 @@ const authenticateRequest = async (req, res, next) => {
                         req.role = 'PLAYER';
                         return next();
                     }
+                }
+
+                if (typeof rabbitmq !== 'undefined' && rabbitmq.publishEvent) {
+                    await rabbitmq.publishEvent(`user.${dbUser.id}.login`, {
+                        player_id: dbUser.id,
+                        session_id: sessionToken,
+                        type: 'LOGIN',
+                        timestamp: new Date().toISOString()
+                    });
                 }
 
                 req.user = dbUser;
@@ -308,6 +338,26 @@ router.post('/register', async (req, res) => {
             token, brand_id: parseInt(brand_id)
         });
 
+        // F10: Create Player Profile & Pub Event
+        await supabaseService.upsertPlayerProfile({
+            player_id: newUser.id,
+            tenant_id: newUser.brand_id,
+            email: newUser.email,
+            first_name: newUser.first_name,
+            last_name: newUser.last_name,
+            language: newUser.language || 'en-GB',
+            country: 'XX' // To be updated via KYC
+        });
+
+        if (typeof rabbitmq !== 'undefined' && rabbitmq.publishEvent) {
+            await rabbitmq.publishEvent(`user.${newUser.id}.registration`, {
+                player_id: newUser.id,
+                tenant_id: newUser.brand_id,
+                type: 'REGISTRATION',
+                timestamp: new Date().toISOString()
+            });
+        }
+
         await ftService.pushEvent(newUser.user_id, 'registration', {
             ip_address: req.ip,
             user_agent: req.headers['user-agent']
@@ -485,21 +535,21 @@ router.post('/logout', authenticateRequest, async (req, res) => {
     }
 });
 
-// Wallet Operations
-router.post('/deposit', authenticateRequest, async (req, res) => {
+// F9: Wallet Payment Operations
+router.post('/deposit/initiate', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
-    const { amount } = req.body;
+    const { amount, currency, return_url } = req.body;
 
     if (!amount) return res.status(400).json({ error: 'Amount is required' });
 
     try {
-        const result = await WalletService.deposit(
-            user.id, parseFloat(amount),
-            user.brand_id, correlationId
+        const result = await WalletService.initiateDeposit(
+            user.id, parseFloat(amount), currency || 'EUR',
+            return_url, user.brand_id, correlationId
         );
         res.json(result);
     } catch (error) {
-        const errorMessage = typeof error === 'string' ? error : (error.message || 'Deposit failed');
+        const errorMessage = typeof error === 'string' ? error : (error.message || 'Deposit initiation failed');
         res.status(500).json({ error: errorMessage });
     }
 });
@@ -513,24 +563,19 @@ router.get('/activities', authenticateRequest, async (req, res) => {
     }
 });
 
-// Bonus Operations
+// F8: Bonus Operations
 router.get('/bonus/list', authenticateRequest, async (req, res) => {
     try {
         // Fetch available bonuses from DB
         const { data, error } = await supabaseService.client
-            .from('bonus_config')
+            .from('bonus_templates')
             .select('*')
-            .eq('is_active', true);
+            .eq('active', true);
 
         if (error) {
-            // Graceful fallback if table doesn't exist yet
-            if (error.code === 'PGRST116' || error.message.includes('relation "public.bonus_config" does not exist')) {
-                logger.warn('bonus_config table does not exist yet. Returning empty list.');
-                return res.json({ Data: [] });
-            }
             throw error;
         }
-        res.json({ Data: data || [] });
+        res.json({ bonuses: data || [] }); // FT API format requires 'bonuses'
     } catch (error) {
         logger.error('Failed to fetch bonuses', { error: error.message });
         res.status(500).json({ error: 'Failed to fetch bonuses' });
@@ -543,12 +588,19 @@ router.post('/bonus/credit', authenticateRequest, async (req, res) => {
         bonus_code,
         bonus_contract_id,
         amount,
-        currency,
-        fasttrack_references
+        currency
     } = req.body;
 
-    // FT Documentation: bonus_contract_id is used to identify the reward
-    const targetBonusCode = bonus_contract_id || bonus_code;
+    // Fast Track ID Tracking
+    const fasttrack_references = {
+        id: req.headers['x-fasttrack-id'],
+        activity_id: req.headers['x-fasttrack-activityid'],
+        action_id: req.headers['x-fasttrack-actionid'],
+        action_group_id: req.headers['x-fasttrack-actiongroupid'],
+        trigger_hash: req.headers['x-fasttrack-triggerhash']
+    };
+
+    const targetBonusCode = bonus_contract_id || bonus_code || req.body.reason;
     const creditAmount = amount !== undefined ? parseFloat(amount) : 100;
 
     try {
@@ -563,6 +615,35 @@ router.post('/bonus/credit', authenticateRequest, async (req, res) => {
         res.json({ success: true, message: `Bonus ${targetBonusCode} credited`, ...result });
     } catch (error) {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Bonus credit failed');
+        res.status(500).json({ error: errorMessage });
+    }
+});
+
+router.post('/bonus/credit/funds', authenticateRequest, async (req, res) => {
+    const { correlationId, user } = req;
+    const { amount, currency, reason } = req.body;
+
+    // Fast Track ID Tracking
+    const fasttrack_references = {
+        id: req.headers['x-fasttrack-id'],
+        activity_id: req.headers['x-fasttrack-activityid'],
+        action_id: req.headers['x-fasttrack-actionid']
+    };
+
+    if (!amount) return res.status(400).json({ error: 'Amount is required' });
+
+    try {
+        const result = await WalletService.creditBonusFunds(
+            user.id,
+            parseFloat(amount),
+            reason || 'cashback',
+            user.brand_id,
+            correlationId,
+            fasttrack_references
+        );
+        res.json({ success: true, ...result });
+    } catch (error) {
+        const errorMessage = typeof error === 'string' ? error : (error.message || 'Bonus funds credit failed');
         res.status(500).json({ error: errorMessage });
     }
 });

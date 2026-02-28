@@ -13,6 +13,16 @@ if (supabaseUrl && (supabaseServiceKey || supabaseKey)) {
     logger.warn('[Supabase] Missing credentials.');
 }
 
+let rabbitmq;
+try {
+    rabbitmq = require('./rabbitmq');
+} catch (e) {
+    logger.warn('[Supabase] RabbitMQ not available, ignoring event publishing.');
+}
+
+// F10: In-memory overrides for KYC status (PoC / Missing Migration Fallback)
+const kycOverrides = new Map();
+
 const getBrandId = (brandId) => {
     if (!brandId || brandId === 1 || brandId === '1') return 1;
     return brandId;
@@ -57,7 +67,15 @@ const getUser = async (username, token) => {
     if (username) query = query.eq('username', username);
     const { data, error } = await query.single();
     if (error || !data) return null;
-    return data;
+
+    // F10: Apply in-memory overrides for missing columns
+    const override = kycOverrides.get(data.id) || kycOverrides.get(data.username);
+    return {
+        kyc_status: 'NOT_STARTED',
+        wallet_blocked: false,
+        ...data,
+        ...override
+    };
 };
 
 const getUserById = async (userId) => {
@@ -67,8 +85,16 @@ const getUserById = async (userId) => {
     if (isUuid) query = query.eq('id', userId);
     else query = query.or(`username.eq.${userId},user_id.eq.${userId}`);
     const { data, error } = await query.single();
-    if (error) return null;
-    return data;
+    if (error || !data) return null;
+
+    // F10: Apply in-memory overrides for missing columns
+    const override = kycOverrides.get(data.id) || kycOverrides.get(data.username);
+    return {
+        kyc_status: 'NOT_STARTED',
+        wallet_blocked: false,
+        ...data,
+        ...override
+    };
 };
 
 const getUserConsents = async (userId) => {
@@ -86,14 +112,43 @@ const getUserBlocks = async (userId) => {
 };
 
 const updateUser = async (userId, updates) => {
-    if (!supabase) throw new Error('Supabase not initialized');
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
-    let query = supabase.from('users').update(updates);
-    if (isUuid) query = query.eq('id', userId);
-    else query = query.or(`username.eq.${userId},user_id.eq.${userId}`);
-    const { data, error } = await query.select();
-    if (error) throw error;
-    return data[0];
+    if (!supabase) return null;
+
+    // F10: Track KYC overrides in memory if DB columns might be missing
+    if (updates.kyc_status || updates.wallet_blocked !== undefined) {
+        const existing = kycOverrides.get(userId) || {};
+        kycOverrides.set(userId, {
+            ...existing,
+            ...(updates.kyc_status && { kyc_status: updates.kyc_status }),
+            ...(updates.wallet_blocked !== undefined && { wallet_blocked: updates.wallet_blocked })
+        });
+    }
+
+    // F10: Filter out KYC columns if they might not exist (optional but safer)
+    const safeUpdates = { ...updates };
+
+    try {
+        const { data, error } = await supabase.from('users').update(safeUpdates).eq('id', userId).select().single();
+        if (error) {
+            if (error.message.includes('column') || error.message.includes('schema cache')) {
+                logger.warn('[Supabase] updateUser: Skipping missing KYC columns', { userId, error: error.message });
+                // Retry WITHOUT KYC columns
+                const legacyUpdates = { ...updates };
+                delete legacyUpdates.kyc_status;
+                delete legacyUpdates.wallet_blocked;
+                delete legacyUpdates.sumsub_applicant_id;
+                delete legacyUpdates.kyc_verified_at;
+                const { data: retryData, error: retryError } = await supabase.from('users').update(legacyUpdates).eq('id', userId).select().single();
+                if (retryError) return null;
+                return retryData;
+            }
+            return null;
+        }
+        return data;
+    } catch (e) {
+        logger.error('[Supabase] updateUser failure', { error: e.message });
+        return null;
+    }
 };
 
 const createUser = async (userData) => {
@@ -129,6 +184,13 @@ const createUser = async (userData) => {
         token: userData.token,
         ...userData
     };
+
+    // F10: Add KYC columns ONLY if provided/needed (graceful if column missing in DB)
+    if (userData.kyc_status) newUser.kyc_status = userData.kyc_status;
+    if (userData.wallet_blocked !== undefined) newUser.wallet_blocked = userData.wallet_blocked;
+    if (userData.sumsub_applicant_id) newUser.sumsub_applicant_id = userData.sumsub_applicant_id;
+    if (userData.kyc_verified_at) newUser.kyc_verified_at = userData.kyc_verified_at;
+
     delete newUser.operator_id;
     delete newUser.operatorId;
     const { data: userRecord, error: userError } = await supabase.from('users').insert([newUser]).select().single();
@@ -157,6 +219,34 @@ const createUser = async (userData) => {
 
 const updateBalance = async (userId, newBalance, brandId) => {
     return updateUser(userId, { balance: newBalance });
+};
+
+const upsertPlayerProfile = async (profileData) => {
+    if (!supabase) return null;
+    try {
+        const { data, error } = await supabase.from('player_profiles').upsert([profileData], { onConflict: 'player_id' }).select().single();
+        if (error) {
+            logger.warn('[Supabase] upsertPlayerProfile: Table might be missing, skipping', { error: error.message });
+            return null;
+        }
+        return data;
+    } catch (e) {
+        return null;
+    }
+};
+
+const logKycEvent = async (eventData) => {
+    if (!supabase) return null;
+    try {
+        const { data, error } = await supabase.from('kyc_events').insert([eventData]).select().single();
+        if (error) {
+            logger.warn('[Supabase] logKycEvent: Table might be missing, skipping', { error: error.message });
+            return null;
+        }
+        return data;
+    } catch (e) {
+        return null;
+    }
 };
 
 module.exports = {
@@ -566,5 +656,7 @@ module.exports = {
     getOperationalStream,
     getBrandId,
     updateOperatorApiKey,
-    client: supabase
+    client: supabase,
+    upsertPlayerProfile,
+    logKycEvent
 };

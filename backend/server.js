@@ -65,6 +65,7 @@ app.use('/api/authenticate', authLimiter);
 app.use('/api/register', authLimiter);
 app.use('/api', operatorRoutes);
 app.use('/api/v1/games', require('./routes/games'));
+app.use('/api/v1/kyc', require('./routes/kyc'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 
 app.get('/', (req, res) => {
