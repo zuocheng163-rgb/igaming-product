@@ -271,10 +271,10 @@ class WalletService {
 
         try {
             const user = await supabaseService.getUserById(userId);
+            if (!user) throw new Error('USER_NOT_FOUND');
 
             // F10: KYC Gating
             this.checkKycGating(user, "CREDIT");
-            if (!user) throw new Error('USER_NOT_FOUND');
 
             const playerBrandId = user.brand_id || normalizedBrandId;
             const newBalance = user.balance + amount;
@@ -350,9 +350,11 @@ class WalletService {
 
         try {
 
+            const user = await supabaseService.getUserById(userId);
+            if (!user) throw new Error('USER_NOT_FOUND');
+
             // F10: KYC Gating
             this.checkKycGating(user, "DEPOSIT");
-            const user = await supabaseService.getUserById(userId);
             if (!user) throw new Error('USER_NOT_FOUND');
 
             const playerBrandId = user.brand_id || normalizedBrandId;
@@ -518,10 +520,12 @@ class WalletService {
         }
 
 
-        // F10: KYC Gating
-        this.checkKycGating(user, "BONUS_CREDIT");
         try {
             const user = await supabaseService.getUserById(userId);
+            if (!user) throw new Error('USER_NOT_FOUND');
+
+            // F10: KYC Gating
+            this.checkKycGating(user, "BONUS_CREDIT");
             if (!user) throw new Error('USER_NOT_FOUND');
 
             const playerBrandId = user.brand_id || normalizedBrandId;

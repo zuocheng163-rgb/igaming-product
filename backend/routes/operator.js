@@ -117,6 +117,15 @@ const authenticateRequest = async (req, res, next) => {
                     }
                 }
 
+                // Final sanity check for dbUser before accessing properties
+                if (!dbUser) {
+                    logger.warn('[Auth] No dbUser available for sandbox session, using JIT fallback', { username: targetUsername });
+                    req.user = { user_id: targetUsername, username: targetUsername, brand_id: 1, role: 'ADMIN' };
+                    req.brandId = 1;
+                    req.role = 'ADMIN';
+                    return next();
+                }
+
                 if (typeof rabbitmq !== 'undefined' && rabbitmq.publishEvent) {
                     await rabbitmq.publishEvent(`user.${dbUser.id}.login`, {
                         player_id: dbUser.id,
@@ -654,6 +663,7 @@ router.post('/operator/bonuses/issue', authenticateRequest, requireAdmin, async 
         const result = await BonusManagementService.issueManualBonus(brandId, player_id, template_id, amount);
         res.json(result);
     } catch (error) {
+        logger.error('[Operator API] Bonus Issue Failed', { error: error.message, stack: error.stack, player_id });
         res.status(500).json({ error: error.message });
     }
 });
