@@ -614,6 +614,7 @@ router.post('/operator/bonuses/templates', authenticateRequest, requireAdmin, as
         const template = await BonusManagementService.createTemplate(brandId, req.body);
         res.json(template);
     } catch (error) {
+        logger.error('[Operator API] Template Creation Failed', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to create template' });
     }
 });
@@ -623,6 +624,7 @@ router.patch('/operator/bonuses/templates/:id', authenticateRequest, requireAdmi
         const template = await BonusManagementService.updateTemplate(req.params.id, req.body);
         res.json(template);
     } catch (error) {
+        logger.error('[Operator API] Template Update Failed', { error: error.message, stack: error.stack, id: req.params.id });
         res.status(500).json({ error: 'Failed to update template' });
     }
 });

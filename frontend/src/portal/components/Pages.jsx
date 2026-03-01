@@ -955,9 +955,13 @@ const BonusWizard = ({ isOpen, onClose, onSave, token }) => {
     const nextStep = () => setStep(s => Math.min(6, s + 1));
     const prevStep = () => setStep(s => Math.max(1, s - 1));
 
-    const handleSave = () => {
-        onSave(formData);
-        onClose();
+    const handleSave = async () => {
+        try {
+            await onSave(formData);
+            onClose();
+        } catch (err) {
+            alert('Failed to save template: ' + err.message);
+        }
     };
 
     const renderStep = () => {
@@ -1058,9 +1062,19 @@ const BonusWizard = ({ isOpen, onClose, onSave, token }) => {
                     <div className="wizard-step">
                         <h3>Step 5: Eligibility</h3>
                         <p style={{ color: 'var(--text-muted)' }}>Player targeting rules (Optional for PoC)</p>
-                        <div className="glass-panel" style={{ padding: '12px', marginTop: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                            <Users size={24} style={{ marginBottom: '8px' }} />
-                            <p>Global availability is active. All players can claim this bonus.</p>
+
+                        <div style={{ marginTop: '16px' }}>
+                            <label>Restricted Countries (ISO 2-letter)</label>
+                            <input type="text" className="input-field" placeholder="e.g. US, UK, FR"
+                                value={formData.eligibility_rules.countries?.join(', ') || ''}
+                                onChange={e => setFormData({ ...formData, eligibility_rules: { ...formData.eligibility_rules, countries: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } })}
+                                style={{ width: '100%', padding: '10px', marginTop: '4px' }}
+                            />
+                        </div>
+
+                        <div className="glass-panel" style={{ padding: '12px', marginTop: '16px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                            <Users size={24} style={{ marginBottom: '8px', color: 'var(--accent-gold)' }} />
+                            <p>Global availability is active. All segments can claim this bonus if not restricted by country.</p>
                         </div>
                     </div>
                 );
@@ -1118,7 +1132,7 @@ const BonusWizard = ({ isOpen, onClose, onSave, token }) => {
     );
 };
 
-const TemplateCard = ({ template }) => (
+const TemplateCard = ({ template, onEdit }) => (
     <div className="glass-panel" style={{ padding: '20px', borderLeft: '4px solid var(--accent-gold)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
             <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{template.name}</h3>
@@ -1127,13 +1141,13 @@ const TemplateCard = ({ template }) => (
             </span>
         </div>
         <code style={{ color: 'var(--accent-gold)', display: 'block', marginBottom: '12px' }}>{template.bonus_code}</code>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px', height: '40px', overflow: 'hidden' }}>{template.description}</p>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px', height: '40px', overflow: 'hidden' }}>{template.description || 'No description provided'}</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.8rem' }}>
             <div><label style={{ color: 'var(--text-muted)' }}>Wagering</label><br />{template.wagering_req}x</div>
             <div><label style={{ color: 'var(--text-muted)' }}>Max Amt</label><br />{template.max_amount} {template.currency}</div>
             <div><label style={{ color: 'var(--text-muted)' }}>Type</label><br />{template.type}</div>
             <div style={{ display: 'flex', gap: '8px', alignSelf: 'end', justifyContent: 'flex-end' }}>
-                <Edit size={14} style={{ cursor: 'pointer' }} />
+                <Edit size={14} style={{ cursor: 'pointer' }} onClick={() => onEdit(template)} />
                 <Trash2 size={14} style={{ cursor: 'pointer', color: '#ff4444' }} />
             </div>
         </div>
@@ -1161,7 +1175,12 @@ const ActiveBonusesTable = ({ token }) => {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` }
         }).then(res => {
-            if (res.ok) setInstances(instances.map(i => i.id === id ? { ...i, state: 'FORFEITED' } : i));
+            if (res.ok) {
+                // Bug 1 Fix: Remove record from list immediately after forfeit success
+                setInstances(instances.filter(i => i.id !== id));
+            } else {
+                alert('Forfeit failed');
+            }
         });
     };
 
@@ -1318,14 +1337,35 @@ export const Bonuses = ({ token }) => {
 
     const handleCreateTemplate = async (templateData) => {
         try {
+            // Ensure numeric fields are numbers
+            const payload = {
+                ...templateData,
+                max_amount: Number(templateData.max_amount),
+                match_percentage: Number(templateData.match_percentage),
+                wagering_req: Number(templateData.wagering_req),
+                min_deposit: Number(templateData.min_deposit),
+                expiry_days: Number(templateData.expiry_days),
+                wagering_expiry_days: Number(templateData.wagering_expiry_days),
+                claim_expiry_days: Number(templateData.claim_expiry_days),
+                active: true
+            };
+
             const res = await fetch('/api/operator/bonuses/templates', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ ...templateData, active: true })
+                body: JSON.stringify(payload)
             });
-            if (res.ok) fetchTemplates();
+
+            if (res.ok) {
+                fetchTemplates();
+                return await res.json();
+            } else {
+                const errData = await res.json();
+                throw new Error(errData.error || 'Failed to create template');
+            }
         } catch (err) {
             console.error('Failed to create template', err);
+            throw err;
         }
     };
 
@@ -1378,7 +1418,16 @@ export const Bonuses = ({ token }) => {
                         <div style={{ color: 'var(--text-muted)' }}>Loading templates...</div>
                     ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-                            {templates.map(t => <TemplateCard key={t.id} template={t} />)}
+                            {templates.map(t => (
+                                <TemplateCard
+                                    key={t.id}
+                                    template={t}
+                                    onEdit={(tmpl) => {
+                                        // Bonus: Provide feedback when editing is not fully implemented
+                                        alert('Edit feature for template "' + tmpl.name + '" is coming soon! For now, please create a new template with the updated settings.');
+                                    }}
+                                />
+                            ))}
                             {templates.length === 0 && <div style={{ color: 'var(--text-muted)' }}>No templates created yet.</div>}
                         </div>
                     )}
