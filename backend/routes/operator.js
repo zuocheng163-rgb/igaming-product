@@ -716,8 +716,9 @@ router.get('/operator/bonuses/analytics', authenticateRequest, requireAdmin, asy
 
 
 router.post('/bonus/credit', authenticateRequest, async (req, res) => {
-    const { correlationId, user } = req;
+    const { correlationId } = req;
     const {
+        user_id,
         bonus_code,
         bonus_contract_id,
         amount,
@@ -735,49 +736,59 @@ router.post('/bonus/credit', authenticateRequest, async (req, res) => {
 
     const targetBonusCode = bonus_contract_id || bonus_code || req.body.reason;
     const creditAmount = amount !== undefined ? parseFloat(amount) : 100;
+    const targetUserId = user_id || req.user?.id;
+
+    if (!targetUserId) return res.status(400).json({ Success: false, Errors: ['user_id is required'] });
+    if (!targetBonusCode) return res.status(400).json({ Success: false, Errors: ['bonus_code is required'] });
 
     try {
         const result = await WalletService.creditBonus(
-            user.id,
+            targetUserId,
             creditAmount,
             targetBonusCode,
-            user.brand_id,
+            req.brandId || req.user?.brand_id || 1,
             correlationId,
             fasttrack_references
         );
-        res.json({ success: true, message: `Bonus ${targetBonusCode} credited`, ...result });
+        res.json({ Success: true, Errors: [], ...result });
     } catch (error) {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Bonus credit failed');
-        res.status(500).json({ error: errorMessage });
+        logger.error('Bonus credit failed', { error: errorMessage, targetUserId, targetBonusCode });
+        res.status(500).json({ Success: false, Errors: [errorMessage] });
     }
 });
 
 router.post('/bonus/credit/funds', authenticateRequest, async (req, res) => {
-    const { correlationId, user } = req;
-    const { amount, currency, reason } = req.body;
+    const { correlationId } = req;
+    const { user_id, bonus_code, amount, currency, reason } = req.body;
 
     // Fast Track ID Tracking
     const fasttrack_references = {
         id: req.headers['x-fasttrack-id'],
         activity_id: req.headers['x-fasttrack-activityid'],
-        action_id: req.headers['x-fasttrack-actionid']
+        action_id: req.headers['x-fasttrack-actionid'],
+        action_group_id: req.headers['x-fasttrack-actiongroupid'],
+        trigger_hash: req.headers['x-fasttrack-triggerhash']
     };
 
-    if (!amount) return res.status(400).json({ error: 'Amount is required' });
+    const targetUserId = user_id || req.user?.id;
+    if (!targetUserId) return res.status(400).json({ Success: false, Errors: ['user_id is required'] });
+    if (!amount) return res.status(400).json({ Success: false, Errors: ['Amount is required'] });
 
     try {
         const result = await WalletService.creditBonusFunds(
-            user.id,
+            targetUserId,
             parseFloat(amount),
-            reason || 'cashback',
-            user.brand_id,
+            bonus_code || reason || 'cashback',
+            req.brandId || req.user?.brand_id || 1,
             correlationId,
             fasttrack_references
         );
-        res.json({ success: true, ...result });
+        res.json({ Success: true, Errors: [], ...result });
     } catch (error) {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Bonus funds credit failed');
-        res.status(500).json({ error: errorMessage });
+        logger.error('Bonus funds credit failed', { error: errorMessage, targetUserId });
+        res.status(500).json({ Success: false, Errors: [errorMessage] });
     }
 });
 
