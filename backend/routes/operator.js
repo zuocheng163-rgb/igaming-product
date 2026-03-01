@@ -598,7 +598,7 @@ router.get('/bonus/list', authenticateRequest, async (req, res) => {
         // Fetch available bonuses from DB
         const { data, error } = await supabaseService.client
             .from('bonus_templates')
-            .select('id, name')
+            .select('bonus_code, name')
             .eq('active', true);
 
         if (error) {
@@ -607,7 +607,7 @@ router.get('/bonus/list', authenticateRequest, async (req, res) => {
 
         const formattedData = (data || []).map(item => ({
             text: item.name,
-            value: item.id
+            value: item.bonus_code
         }));
 
         res.json({
