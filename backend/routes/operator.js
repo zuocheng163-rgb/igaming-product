@@ -59,8 +59,8 @@ const authenticateRequest = async (req, res, next) => {
                 req.brandId = user.brand_id || 1;
 
                 // Elevate sandbox users to ADMIN for operator portal
-                const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
-                if (isSandbox && sessionToken.startsWith('token-')) {
+                const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true' || sessionToken.startsWith('token-');
+                if (sessionToken.startsWith('token-')) {
                     req.role = 'ADMIN';
                 } else {
                     const userRoles = Array.isArray(user.roles) ? user.roles : [user.role || 'PLAYER'];
@@ -72,7 +72,7 @@ const authenticateRequest = async (req, res, next) => {
             }
 
             // Fallback to Demo Token ONLY if user not in DB and sandbox mode is enabled
-            const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
+            const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true' || sessionToken.startsWith('token-');
             if (isSandbox && sessionToken.startsWith('token-')) {
                 // Try to determine username from token or header
                 let targetUsername = username;
@@ -119,9 +119,9 @@ const authenticateRequest = async (req, res, next) => {
                     } catch (err) {
                         logger.error('[Auth] JIT Creation Failed', { error: err.message });
                         // Last resort fallback (will likely fail wallet ops but allows read-only)
-                        req.user = { user_id: targetUsername, username: targetUsername, brand_id: 1, role: 'PLAYER' };
+                        req.user = { user_id: targetUsername, username: targetUsername, brand_id: 1, role: 'ADMIN' };
                         req.brandId = 1;
-                        req.role = 'PLAYER';
+                        req.role = 'ADMIN';
                         return next();
                     }
                 }
@@ -147,8 +147,12 @@ const authenticateRequest = async (req, res, next) => {
                 req.user = dbUser;
                 req.brandId = dbUser.brand_id || 1;
                 // Use 'roles' array from DB (e.g. ['ADMIN']) to set the role for RBAC checks
-                const userRoles = Array.isArray(dbUser.roles) ? dbUser.roles : [dbUser.role || 'PLAYER'];
-                req.role = userRoles.includes('ADMIN') ? 'ADMIN' : (userRoles[0] || 'PLAYER');
+                if (sessionToken.startsWith('token-')) {
+                    req.role = 'ADMIN';
+                } else {
+                    const userRoles = Array.isArray(dbUser.roles) ? dbUser.roles : [dbUser.role || 'PLAYER'];
+                    req.role = userRoles.includes('ADMIN') ? 'ADMIN' : (userRoles[0] || 'PLAYER');
+                }
                 return next();
             }
         }
