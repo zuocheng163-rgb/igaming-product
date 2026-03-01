@@ -929,7 +929,7 @@ export const Settings = ({ token }) => {
 
 // --- Bonus Management Sub-components ---
 
-const BonusWizard = ({ isOpen, onClose, onSave, token }) => {
+const BonusWizard = ({ isOpen, onClose, onSave, token, initialData }) => {
     const [step, setStep] = useState(1);
     const [formData, setFormData] = useState({
         name: '',
@@ -943,12 +943,41 @@ const BonusWizard = ({ isOpen, onClose, onSave, token }) => {
         min_deposit: 10,
         currency: 'EUR',
         expiry_days: 30,
-        wagering_expiry_days: 30,
-        claim_expiry_days: 7,
         active: true,
         contribution_rates: { slots: 1.0, live: 0.1, table: 0.1, excluded: [] },
         eligibility_rules: { countries: [], segments: [] }
     });
+
+    useEffect(() => {
+        if (isOpen) {
+            if (initialData) {
+                setFormData({
+                    ...formData,
+                    ...initialData,
+                    contribution_rates: initialData.contribution_rates || { slots: 1.0, live: 0.1, table: 0.1, excluded: [] },
+                    eligibility_rules: initialData.eligibility_rules || { countries: [], segments: [] }
+                });
+            } else {
+                setFormData({
+                    name: '',
+                    bonus_code: '',
+                    type: 'deposit_match',
+                    description: '',
+                    max_amount: 100,
+                    match_percentage: 100,
+                    wagering_req: 35,
+                    wagering_type: 'both',
+                    min_deposit: 10,
+                    currency: 'EUR',
+                    expiry_days: 30,
+                    active: true,
+                    contribution_rates: { slots: 1.0, live: 0.1, table: 0.1, excluded: [] },
+                    eligibility_rules: { countries: [], segments: [] }
+                });
+            }
+            setStep(1);
+        }
+    }, [isOpen, initialData]);
 
     if (!isOpen) return null;
 
@@ -1045,14 +1074,10 @@ const BonusWizard = ({ isOpen, onClose, onSave, token }) => {
                 return (
                     <div className="wizard-step">
                         <h3>Step 4: Scheduling & Expiry</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
                             <div className="form-group">
-                                <label>Claim Expiry (Days)</label>
-                                <input type="number" className="input-field" value={formData.claim_expiry_days} onChange={e => setFormData({ ...formData, claim_expiry_days: e.target.value })} style={{ width: '100%', padding: '10px' }} />
-                            </div>
-                            <div className="form-group">
-                                <label>Wagering Expiry (Days)</label>
-                                <input type="number" className="input-field" value={formData.wagering_expiry_days} onChange={e => setFormData({ ...formData, wagering_expiry_days: e.target.value })} style={{ width: '100%', padding: '10px' }} />
+                                <label>Bonus Expiry (Days)</label>
+                                <input type="number" className="input-field" value={formData.expiry_days} onChange={e => setFormData({ ...formData, expiry_days: e.target.value })} style={{ width: '100%', padding: '10px' }} />
                             </div>
                         </div>
                     </div>
@@ -1124,7 +1149,9 @@ const BonusWizard = ({ isOpen, onClose, onSave, token }) => {
                     {step < 6 ? (
                         <button onClick={nextStep} className="btn-primary" style={{ padding: '10px 20px' }}>Next Step</button>
                     ) : (
-                        <button onClick={handleSave} className="btn-primary" style={{ background: '#00ff88', color: '#000', padding: '10px 20px' }}>Create Template</button>
+                        <button onClick={handleSave} className="btn-primary" style={{ background: '#00ff88', color: '#000', padding: '10px 20px' }}>
+                            {initialData ? 'Update Template' : 'Create Template'}
+                        </button>
                     )}
                 </div>
             </div>
@@ -1147,8 +1174,8 @@ const TemplateCard = ({ template, onEdit }) => (
             <div><label style={{ color: 'var(--text-muted)' }}>Max Amt</label><br />{template.max_amount} {template.currency}</div>
             <div><label style={{ color: 'var(--text-muted)' }}>Type</label><br />{template.type}</div>
             <div style={{ display: 'flex', gap: '8px', alignSelf: 'end', justifyContent: 'flex-end' }}>
-                <Edit size={14} style={{ cursor: 'pointer' }} onClick={() => onEdit(template)} />
-                <Trash2 size={14} style={{ cursor: 'pointer', color: '#ff4444' }} />
+                <Edit size={16} style={{ cursor: 'pointer', color: 'var(--accent-gold)' }} onClick={() => onEdit(template)} />
+                <Trash2 size={16} style={{ cursor: 'pointer', color: '#ff4444' }} />
             </div>
         </div>
     </div>
@@ -1317,6 +1344,7 @@ export const Bonuses = ({ token }) => {
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
+    const [editingTemplate, setEditingTemplate] = useState(null);
 
     const fetchTemplates = () => {
         setLoading(true);
@@ -1336,23 +1364,31 @@ export const Bonuses = ({ token }) => {
         if (token) fetchTemplates();
     }, [token]);
 
-    const handleCreateTemplate = async (templateData) => {
+    const handleSaveTemplate = async (templateData) => {
         try {
-            // Ensure numeric fields are numbers
+            const isEdit = !!templateData.id;
+            // Ensure numeric fields are numbers and ONLY include DB-compatible columns
             const payload = {
-                ...templateData,
+                name: templateData.name,
+                bonus_code: templateData.bonus_code,
+                type: templateData.type,
                 max_amount: Number(templateData.max_amount),
-                match_percentage: Number(templateData.match_percentage),
                 wagering_req: Number(templateData.wagering_req),
                 min_deposit: Number(templateData.min_deposit),
                 expiry_days: Number(templateData.expiry_days),
-                wagering_expiry_days: Number(templateData.wagering_expiry_days),
-                claim_expiry_days: Number(templateData.claim_expiry_days),
+                currency: templateData.currency || 'EUR',
+                contribution_rates: templateData.contribution_rates,
                 active: true
             };
 
-            const res = await fetch('/api/operator/bonuses/templates', {
-                method: 'POST',
+            const url = isEdit
+                ? `/api/operator/bonuses/templates/${templateData.id}`
+                : '/api/operator/bonuses/templates';
+
+            const method = isEdit ? 'PATCH' : 'POST';
+
+            const res = await fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
@@ -1362,12 +1398,17 @@ export const Bonuses = ({ token }) => {
                 return await res.json();
             } else {
                 const errData = await res.json();
-                throw new Error(errData.error || 'Failed to create template');
+                throw new Error(errData.error || `Failed to ${isEdit ? 'update' : 'create'} template`);
             }
         } catch (err) {
-            console.error('Failed to create template', err);
+            console.error('Failed to save template', err);
             throw err;
         }
+    };
+
+    const handleEditClick = (template) => {
+        setEditingTemplate(template);
+        setIsWizardOpen(true);
     };
 
     const tabs = [
@@ -1423,10 +1464,7 @@ export const Bonuses = ({ token }) => {
                                 <TemplateCard
                                     key={t.id}
                                     template={t}
-                                    onEdit={(tmpl) => {
-                                        // Bonus: Provide feedback when editing is not fully implemented
-                                        alert('Edit feature for template "' + tmpl.name + '" is coming soon! For now, please create a new template with the updated settings.');
-                                    }}
+                                    onEdit={handleEditClick}
                                 />
                             ))}
                             {templates.length === 0 && <div style={{ color: 'var(--text-muted)' }}>No templates created yet.</div>}
@@ -1441,11 +1479,15 @@ export const Bonuses = ({ token }) => {
 
             {activeTab === 'analytics' && <BonusAnalytics token={token} />}
 
-            {/* Creation Wizard */}
+            {/* Creation/Edit Wizard */}
             <BonusWizard
                 isOpen={isWizardOpen}
-                onClose={() => setIsWizardOpen(false)}
-                onSave={handleCreateTemplate}
+                onClose={() => {
+                    setIsWizardOpen(false);
+                    setEditingTemplate(null);
+                }}
+                onSave={handleSaveTemplate}
+                initialData={editingTemplate}
                 token={token}
             />
         </div>
