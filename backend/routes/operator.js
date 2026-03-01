@@ -223,11 +223,15 @@ router.post('/authenticate', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized: Invalid API Token or Username' });
         }
 
-        // Update Last Login (Graceful degradation)
+        // Update Last Login & Token (Graceful degradation)
         try {
-            await supabaseService.updateUser(user.id, { last_login: new Date().toISOString() });
+            const updates = { last_login: new Date().toISOString() };
+            if (sessionToken && user.token !== sessionToken) {
+                updates.token = sessionToken;
+            }
+            await supabaseService.updateUser(user.id, updates);
         } catch (e) {
-            logger.warn(`Failed to update last_login for user ${user.id}`, { error: e.message });
+            logger.warn(`Failed to update user session data for ${user.id}`, { error: e.message });
         }
 
         const brandId = user.brand_id || 1;
@@ -600,10 +604,13 @@ const BonusManagementService = require('../services/bonus-management-service');
 
 router.get('/operator/bonuses/templates', authenticateRequest, requireAdmin, async (req, res) => {
     const brandId = req.brandId || req.user?.brand_id || 1;
+    logger.info('[Operator API] Fetching templates', { brandId, correlationId: req.correlationId });
     try {
         const templates = await BonusManagementService.listTemplates(brandId);
+        logger.info('[Operator API] Fetched templates', { count: templates.length, brandId });
         res.json(templates);
     } catch (error) {
+        logger.error('[Operator API] Failed to fetch templates', { error: error.message, brandId });
         res.status(500).json({ error: 'Failed to fetch templates' });
     }
 });

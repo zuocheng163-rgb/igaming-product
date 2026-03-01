@@ -1325,6 +1325,7 @@ export const Bonuses = ({ token }) => {
         })
             .then(res => res.json())
             .then(data => {
+                console.log('[Bonuses] Fetched templates from API:', data);
                 setTemplates(Array.isArray(data) ? data : []);
                 setLoading(false);
             })
