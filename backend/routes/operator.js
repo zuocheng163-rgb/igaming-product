@@ -598,16 +598,30 @@ router.get('/bonus/list', authenticateRequest, async (req, res) => {
         // Fetch available bonuses from DB
         const { data, error } = await supabaseService.client
             .from('bonus_templates')
-            .select('*')
+            .select('id, name')
             .eq('active', true);
 
         if (error) {
             throw error;
         }
-        res.json({ bonuses: data || [] }); // FT API format requires 'bonuses'
+
+        const formattedData = (data || []).map(item => ({
+            text: item.name,
+            value: item.id
+        }));
+
+        res.json({
+            Data: formattedData,
+            Success: true,
+            Errors: []
+        });
     } catch (error) {
         logger.error('Failed to fetch bonuses', { error: error.message });
-        res.status(500).json({ error: 'Failed to fetch bonuses' });
+        res.status(500).json({
+            Data: [],
+            Success: false,
+            Errors: [error.message]
+        });
     }
 });
 
