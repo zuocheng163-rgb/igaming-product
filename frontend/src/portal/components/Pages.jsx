@@ -1306,7 +1306,7 @@ export const Bonuses = ({ token }) => {
         })
             .then(res => res.json())
             .then(data => {
-                setTemplates(data || []);
+                setTemplates(Array.isArray(data) ? data : []);
                 setLoading(false);
             })
             .catch(() => setLoading(false));

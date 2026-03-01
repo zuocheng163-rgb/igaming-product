@@ -57,7 +57,8 @@ const authenticateRequest = async (req, res, next) => {
             if (user) {
                 req.user = user;
                 req.brandId = user.brand_id || 1;
-                req.role = user.role || 'PLAYER';
+                const userRoles = Array.isArray(user.roles) ? user.roles : [user.role || 'PLAYER'];
+                req.role = userRoles.includes('ADMIN') ? 'ADMIN' : (userRoles[0] || 'PLAYER');
                 req.kycStatus = user.kyc_status || 'NONE';
                 return next();
             }
@@ -127,7 +128,9 @@ const authenticateRequest = async (req, res, next) => {
 
                 req.user = dbUser;
                 req.brandId = dbUser.brand_id || 1;
-                req.role = 'PLAYER'; // Force player role for sandbox users
+                // Use 'roles' array from DB (e.g. ['ADMIN']) to set the role for RBAC checks
+                const userRoles = Array.isArray(dbUser.roles) ? dbUser.roles : [dbUser.role || 'PLAYER'];
+                req.role = userRoles.includes('ADMIN') ? 'ADMIN' : (userRoles[0] || 'PLAYER');
                 return next();
             }
         }
