@@ -1349,13 +1349,21 @@ export const Bonuses = ({ token }) => {
             </div>
 
             {/* Tabs Navigation */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px', flexWrap: 'wrap' }}>
                 {tabs.map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={activeTab === tab.id ? 'btn-primary' : 'btn-secondary'}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: activeTab === tab.id ? 'var(--accent-gold)' : 'transparent', color: activeTab === tab.id ? '#000' : 'white', border: activeTab === tab.id ? 'none' : '1px solid rgba(255,255,255,0.1)' }}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',
+                            fontWeight: activeTab === tab.id ? '700' : '400',
+                            background: activeTab === tab.id ? 'var(--accent-gold, #f59e0b)' : 'rgba(255,255,255,0.06)',
+                            color: activeTab === tab.id ? '#000' : 'rgba(255,255,255,0.8)',
+                            border: activeTab === tab.id ? '2px solid var(--accent-gold, #f59e0b)' : '1px solid rgba(255,255,255,0.1)',
+                            transition: 'all 0.2s ease',
+                            fontSize: '0.9rem'
+                        }}
                     >
                         <tab.icon size={16} />
                         {tab.label}

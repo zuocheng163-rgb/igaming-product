@@ -56,16 +56,21 @@ class BonusManagementService {
     static async listActiveInstances(brandId, filters = {}) {
         let query = supabaseService.client
             .from('bonus_instances')
-            .select('*, users!inner(username, email)')
+            .select('*')
             .eq('brand_id', brandId);
 
-        if (filters.state) query = query.eq('state', filters.state);
+        // Default to active states if no state filter provided
+        if (filters.state) {
+            query = query.eq('state', filters.state);
+        } else {
+            query = query.in('state', ['CREATED', 'ONGOING']);
+        }
         if (filters.player_id) query = query.eq('player_id', filters.player_id);
 
         const { data, error } = await query.order('created_at', { ascending: false });
 
         if (error) throw error;
-        return data;
+        return data || [];
     }
 
     static async forfeitBonus(instanceId) {
