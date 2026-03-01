@@ -57,8 +57,16 @@ const authenticateRequest = async (req, res, next) => {
             if (user) {
                 req.user = user;
                 req.brandId = user.brand_id || 1;
-                const userRoles = Array.isArray(user.roles) ? user.roles : [user.role || 'PLAYER'];
-                req.role = userRoles.includes('ADMIN') ? 'ADMIN' : (userRoles[0] || 'PLAYER');
+
+                // Elevate sandbox users to ADMIN for operator portal
+                const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
+                if (isSandbox && sessionToken.startsWith('token-')) {
+                    req.role = 'ADMIN';
+                } else {
+                    const userRoles = Array.isArray(user.roles) ? user.roles : [user.role || 'PLAYER'];
+                    req.role = userRoles.includes('ADMIN') ? 'ADMIN' : (userRoles[0] || 'PLAYER');
+                }
+
                 req.kycStatus = user.kyc_status || 'NONE';
                 return next();
             }
@@ -86,7 +94,8 @@ const authenticateRequest = async (req, res, next) => {
                             username: targetUsername,
                             email: `${targetUsername}@example.com`,
                             token: sessionToken,
-                            brand_id: 1
+                            brand_id: 1,
+                            roles: ['ADMIN'] // Sandbox users are admins in operator portal
                         });
                         isNewUser = true;
 
@@ -211,7 +220,7 @@ router.post('/authenticate', async (req, res) => {
                         email: `${targetUsername}@example.com`,
                         token: sessionToken,
                         brand_id: 1,
-                        role: targetUsername === 'admin' ? 'ADMIN' : 'PLAYER'
+                        roles: ['ADMIN'] // Sandbox users are admins in operator portal
                     });
                 } catch (e) {
                     logger.error('Sandbox JIT User Creation Failed', { error: e.message });
