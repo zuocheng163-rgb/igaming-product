@@ -46,7 +46,7 @@ function Dashboard({ user: initialUser, token, onLogout }) {
     const loadBonuses = async () => {
         try {
             const res = await getBonusList(token);
-            setBonuses(res.bonuses || []);
+            setBonuses(res.Data || res.bonuses || []);
         } catch (err) {
             console.error('Failed to load bonuses');
         }
@@ -108,23 +108,27 @@ function Dashboard({ user: initialUser, token, onLogout }) {
             <h3>🎁 Active Bonuses</h3>
         </div>
         <div className="bonus-list">
-            {bonuses.length > 0 ? bonuses.map(b => (
-                <div key={b.bonus_code} className="bonus-card">
-                    <div style={{ flex: 1 }}>
-                        <h4>{b.name}</h4>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            {b.amount} {currency}
-                        </p>
+            {bonuses.length > 0 ? bonuses.map(b => {
+                const code = b.bonus_code || b.value || b.id;
+                const name = b.name || b.text || code;
+                return (
+                    <div key={code} className="bonus-card">
+                        <div style={{ flex: 1 }}>
+                            <h4>{name}</h4>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                {b.expiry_days ? `${b.expiry_days} days` : (b.amount ? `${b.amount} ${currency}` : 'Special Offer')}
+                            </p>
+                        </div>
+                        <button
+                            className="btn-primary"
+                            style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+                            onClick={() => handleClaimBonus(code, name)}
+                        >
+                            Claim
+                        </button>
                     </div>
-                    <button
-                        className="btn-primary"
-                        style={{ padding: '8px 16px', fontSize: '0.9rem' }}
-                        onClick={() => handleClaimBonus(b.bonus_code, b.name)}
-                    >
-                        Claim
-                    </button>
-                </div>
-            )) : (
+                );
+            }) : (
                 <div style={{ padding: '20px', color: 'var(--text-muted)', textAlign: 'center' }}>
                     No active bonuses
                 </div>
