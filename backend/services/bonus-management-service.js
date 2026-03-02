@@ -8,6 +8,12 @@ const { logger } = require('./logger');
  * 3. Manual & Bulk Issuance
  * 4. Analytics aggregation
  */
+const getTenantId = (brandId) => {
+    // brand_id 1 maps to 37562b54-0c91-491c-b996-2efb68e7baf3 as per tenant_configs
+    if (brandId === 1 || brandId === '1') return '37562b54-0c91-491c-b996-2efb68e7baf3';
+    return null; // Handle other brands as needed
+};
+
 class BonusManagementService {
     /**
      * Templates
@@ -29,6 +35,7 @@ class BonusManagementService {
             .insert([{
                 ...templateData,
                 brand_id: brandId,
+                tenant_id: getTenantId(brandId),
                 created_at: new Date().toISOString()
             }])
             .select()
@@ -98,6 +105,7 @@ class BonusManagementService {
             bonus_instance_id: instanceId,
             player_id: instance.player_id,
             brand_id: instance.brand_id,
+            tenant_id: instance.tenant_id || getTenantId(instance.brand_id),
             event_type: 'FORFEITED',
             amount: 0,
             metadata: { reason: 'Operator Forfeit' }

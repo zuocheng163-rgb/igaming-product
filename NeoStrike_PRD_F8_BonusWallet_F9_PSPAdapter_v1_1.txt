@@ -1,0 +1,749 @@
+  NeoStrike   Product Requirements Document
+
+Bonus Wallet Module
+& PSP Adapter (BYOC)
+Version 1.0  ·  February 2026
+Status: Draft for Review
+
+Feature
+Owner
+Target Release
+Priority
+Depends On
+F8: Bonus Wallet Module
+Platform Team
+Sprint 4 (Apr 2026)
+P0 — Critical
+F3: Fast Track RabbitMQ
+F9: PSP Adapter BYOC
+Platform Team
+Sprint 4 (Apr 2026)
+P0 — Critical
+F8: Bonus Wallet Module
+
+
+
+This PRD specifies two features that together close NeoStrike's final competitive gap against one-stop-shop platforms such as Softswiss and EveryMatrix for greenfield operators.
+
+F8 — Bonus Wallet Module: implements the three Fast Track bonus endpoints (GET /bonus/list, POST /bonus/credit, POST /bonus/credit/funds) and all underlying bonus execution mechanics. This is a mandatory Fast Track integration requirement — without it NeoStrike cannot claim to be a complete Fast Track integration.
+
+F9 — PSP Adapter BYOC: implements a standardised payment adapter interface. Operators bring their own licensed PSP contract. NeoStrike provides the integration layer, captures structured payment events, and publishes them to Fast Track via RabbitMQ. NeoStrike never touches settlement funds.
+
+BUSINESS POSITIONING: Both features are scoped as Technical Service Provider capabilities. NeoStrike never issues bonuses on its own initiative, never holds a merchant account, and never assumes chargeback liability. All decisions remain with the operator and their licensed partners. NeoStrike executes and logs.
+
+
+1. Strategic Context
+
+1.1 The Competitive Gap
+NeoStrike's 2-week launch promise and serverless cost model are compelling for greenfield Type A and Type B operators. However, these operators also need a bonus engine and payment processing to run a viable casino. Without these, they must choose a bundled platform (Softswiss, EveryMatrix, Pragmatic Solutions) that includes these capabilities — despite much higher GGR-based fees.
+
+F8 and F9 close this gap entirely. With both features live, a greenfield operator gets game providers, payments, bonus campaigns, CRM, and responsible gambling compliance from a single €54–79/month serverless stack.
+
+1.2 Fast Track as the Bonus Brain
+Fast Track Rewards (powered by the January 2026 Greco acquisition) handles campaign logic: which players qualify for a bonus, when, and why. Fast Track communicates bonus decisions to NeoStrike via three defined API endpoints. NeoStrike executes the bonus mechanics — balance crediting, wagering tracking, and fund release — and publishes outcomes back to Fast Track for Data Studio reporting.
+
+Layer
+Owner
+Responsibility
+Campaign Rules
+Operator (via Fast Track)
+Which players get bonuses, what triggers them, campaign budgets, expiry dates
+Bonus Execution
+NeoStrike (F8)
+Balance crediting, wagering requirement tracking, win cap, fund release, audit log
+Payment Events
+NeoStrike (F9)
+PSP deposit/withdrawal confirmation capture, event normalisation, RabbitMQ publish
+Settlement
+Operator + PSP
+NeoStrike never touches settlement funds, never holds merchant account
+
+1.3 Business Risk Position
+NeoStrike's TSP (Technical Service Provider) position means it never faces the player and holds no gambling licence. The operator is accountable to regulators for all bonus and payment outcomes. NeoStrike's liability is purely contractual — limited to software correctness, which is managed through immutable audit logging and idempotent API design.
+
+Fast Track's own API design reinforces this: the X-Fasttrack-Id header acts as an idempotency key, meaning every bonus credit request is traceable to a specific Fast Track campaign action. NeoStrike executed this request exactly once at this timestamp and returned this result. That is NeoStrike's complete defence against any operator dispute.
+
+
+  Feature F8: Bonus Wallet Module
+
+Implements the Fast Track bonus API contract and all underlying bonus execution mechanics. Makes NeoStrike a complete Fast Track integration.
+
+2.1 Problem Statement
+NeoStrike's existing wallet tracks real balance only. When Fast Track calls /bonus/credit, NeoStrike currently has no endpoint to receive it — the request fails with 404. This means operators cannot run any Fast Track campaign that awards a bonus, which covers welcome bonuses, deposit matches, free spin credits, loyalty rewards, and cashback. Without F8, NeoStrike operators cannot use Fast Track Rewards at all.
+
+2.2 Goals & Non-Goals
+Goals
+	•	Implement all three Fast Track bonus endpoints: GET /bonus/list, POST /bonus/credit, POST /bonus/credit/funds
+	•	Maintain a separate bonus balance ledger alongside real balance in Supabase
+	•	Track wagering requirement progress per player per active bonus in real time
+	•	Enforce bonus rules: wagering requirements, game contribution rates, win cap, expiry
+	•	Release bonus funds to real balance automatically when wagering is complete
+	•	Store all Fast Track correlation headers for campaign cost reporting in Fast Track Data Studio
+	•	Log every bonus event immutably for operator dispute resolution and regulatory audit
+
+Non-Goals
+	•	NeoStrike will not decide which players receive bonuses — that is Fast Track's domain
+	•	NeoStrike will not build a campaign management UI — operators use Fast Track back-office
+	•	NeoStrike will not implement free spins mechanics — free spin round values are credited as bonus balance
+	•	NeoStrike will not support bonus chaining (bonus triggering another bonus) in v1
+
+2.3 Fast Track Bonus API Contract
+Fast Track calls NeoStrike's bonus endpoints as part of campaign execution. NeoStrike must implement these endpoints exactly as Fast Track specifies. All requests from Fast Track include correlation headers that NeoStrike must store and echo back in RabbitMQ events.
+
+Fast Track Correlation Headers — All Bonus Endpoints
+Header
+Purpose
+NeoStrike Action
+X-Fasttrack-Id
+Idempotency key — unique per bonus action
+Store in bonus_events table. Reject duplicate with 200 (not 4xx) — idempotent by design.
+X-Fasttrack-Activityid
+Fast Track activity identifier
+Store in bonus_events. Echo in BONUS_AWARDED RabbitMQ event.
+X-Fasttrack-Actionid
+Specific action within activity
+Store in bonus_events. Echo in BONUS_AWARDED RabbitMQ event.
+X-Fasttrack-Actiongroupid
+Action group identifier
+Store for Data Studio campaign cost attribution.
+X-Fasttrack-Triggerhash
+Campaign trigger fingerprint
+Store for audit trail. Used by Fast Track to validate campaign execution.
+
+Endpoint 1: GET /bonus/list
+Fast Track calls this endpoint to populate the bonus selector in its campaign back-office. Returns all active bonus templates configured by the operator for this tenant.
+
+GET /bonus/list
+Authorization: Bearer {NEOSTRIKE_API_KEY}
+
+// Response 200 OK
+{
+  "bonuses": [
+    {
+      "bonus_code":           "WELCOME100",
+      "name":                 "100% Welcome Bonus",
+      "type":                 "deposit_match",
+      "max_bonus_amount":     200.00,
+      "wagering_requirement": 35,
+      "win_cap":              500.00,
+      "expiry_days":          30,
+      "min_deposit":          20.00,
+      "currency":             "EUR",
+      "active":               true
+    }
+  ]
+}
+
+Bonus templates are created and managed by the operator via Tenant Portal > Bonus Management. The GET /bonus/list endpoint reads from the bonus_templates table in Supabase, filtered by tenant_id. Response is cached in Upstash Redis (TTL: 60 seconds).
+
+Endpoint 2: POST /bonus/credit
+Fast Track calls this when a campaign fires and a player qualifies for a structured bonus. NeoStrike must credit the player's bonus balance, activate the bonus rules, and begin wagering requirement tracking.
+
+POST /bonus/credit
+Authorization: Bearer {NEOSTRIKE_API_KEY}
+X-Fasttrack-Id:            {unique_idempotency_key}
+X-Fasttrack-Activityid:    {activity_id}
+X-Fasttrack-Actionid:      {action_id}
+X-Fasttrack-Actiongroupid: {action_group_id}
+X-Fasttrack-Triggerhash:   {trigger_hash}
+
+// Request body
+{
+  "player_id":   "player_123",
+  "bonus_code":  "WELCOME100",
+  "amount":      100.00,
+  "currency":    "EUR"
+}
+
+// Response 200 OK
+{
+  "success":           true,
+  "bonus_instance_id": "bonus_inst_abc123",
+  "bonus_balance":     100.00,
+  "real_balance":      50.00,
+  "wagering_required": 3500.00,
+  "wagering_progress": 0.00,
+  "expires_at":        "2026-03-19T00:00:00Z"
+}
+
+IDEMPOTENCY: If X-Fasttrack-Id has been seen before, return the original 200 response immediately without reprocessing. Do not return 4xx — Fast Track retries on non-2xx responses, which would create duplicate bonus credits.
+
+Endpoint 3: POST /bonus/credit/funds
+Fast Track calls this for immediate fund crediting — primarily for cashback automation and loyalty point conversions. Unlike /bonus/credit, there are no wagering requirements. Funds are credited directly to bonus balance and released to real balance immediately upon the next real-money wager or on a configurable release trigger.
+
+POST /bonus/credit/funds
+Authorization: Bearer {NEOSTRIKE_API_KEY}
+X-Fasttrack-Id:            {unique_idempotency_key}
+X-Fasttrack-Activityid:    {activity_id}
+X-Fasttrack-Actionid:      {action_id}
+
+// Request body
+{
+  "player_id": "player_123",
+  "amount":    25.00,
+  "currency":  "EUR",
+  "reason":    "cashback_weekly"
+}
+
+// Response 200 OK
+{
+  "success":       true,
+  "transaction_id":"txn_funds_xyz",
+  "bonus_balance": 25.00,
+  "real_balance":  50.00
+}
+
+2.4 Bonus Execution Mechanics
+Bonus Balance Ledger
+NeoStrike maintains two wallet balances per player: real_balance (existing) and bonus_balance (new). They are stored as separate columns in the existing player_wallets table. The combined_balance exposed in API responses equals real_balance + bonus_balance but the two are tracked separately.
+
+Wagering order: real balance is always staked first. Bonus balance is only staked when real balance reaches zero. This is the standard iGaming wagering order and is non-configurable in v1.
+
+Bonus Instance Lifecycle
+State
+Trigger
+Action
+PENDING
+POST /bonus/credit received, awaiting processing
+Bonus request received from Fast Track. Idempotency check in progress. Transitions to CREATED on successful balance credit.
+CREATED
+Bonus balance successfully credited
+Bonus instance created. Bonus balance credited to player wallet. Wagering rules loaded. BONUS_AWARDED event published to RabbitMQ. Awaiting first qualifying wager to transition to ONGOING.
+ONGOING
+First qualifying wager placed
+Wagering progress updated on every debit callback that matches game contribution rules. Win cap monitored on every credit callback. Transitions to COMPLETED when wagering_progress >= wagering_required, or to FORFEITED if win cap is hit.
+COMPLETED
+Wagering requirement met (wagering_progress >= wagering_required)
+Bonus balance released in full to real balance. BONUS_CONVERTED event published to RabbitMQ. Terminal state.
+FORFEITED
+Operator cancels via Tenant Portal, OR player winnings exceed win_cap
+Bonus balance forfeited. On win cap: winnings up to win_cap released to real balance, remainder forfeited. On operator cancel: full bonus balance forfeited. BONUS_FORFEITED event published. Mandatory reason field logged. Terminal state.
+EXPIRED
+expiry_days elapsed without reaching COMPLETED
+Remaining bonus balance forfeited. BONUS_EXPIRED event published to RabbitMQ. Real balance unaffected. Terminal state.
+
+Wagering Requirement Tracking
+On every debit callback, NeoStrike calculates the wagering contribution using the game's contribution rate defined in the bonus template. The contribution is added to wagering_progress. When wagering_progress >= wagering_required, the bonus transitions to COMPLETED.
+
+wagering_contribution = bet_amount × game_contribution_rate
+wagering_progress    += wagering_contribution
+if wagering_progress >= wagering_required: → release bonus to real balance
+
+Game Contribution Rates
+Game Category
+Default Rate
+Configurable?
+Notes
+Slots
+100%
+Yes
+Standard full contribution. Most slots qualify at 100%.
+Live Casino
+10%
+Yes
+Reduced contribution — standard industry practice.
+Table Games (RNG)
+10%
+Yes
+Blackjack, Roulette, Baccarat.
+Video Poker
+10%
+Yes
+High RTP games typically lower contribution.
+Excluded Games
+0%
+Yes — per bonus template
+Operator can exclude specific game IDs from contributing.
+
+Contribution rates are configured per bonus template in the Tenant Portal and stored in the bonus_templates table. Game category is determined from the game catalog metadata (category field from F6: Game Catalog API).
+
+Win Cap Enforcement
+When a win credit arrives and the player has an active bonus, NeoStrike checks whether total winnings on the active bonus would exceed win_cap. Winnings above win_cap are credited to real balance. Winnings up to win_cap accumulate in bonus balance and are subject to wagering requirements. If win_cap is reached, the bonus transitions to FORFEITED state.
+
+2.5 Database Schema
+bonus_templates
+bonus_templates (per-tenant, RLS enforced)
+  id              UUID PK
+  tenant_id       UUID FK
+  bonus_code      VARCHAR(64) UNIQUE per tenant
+  name            VARCHAR(255)
+  type            ENUM(deposit_match, free_credit, cashback, loyalty)
+  max_amount      DECIMAL(12,2)
+  wagering_req    INTEGER        -- multiplier e.g. 35
+  win_cap         DECIMAL(12,2)
+  expiry_days     INTEGER
+  min_deposit     DECIMAL(12,2)
+  currency        CHAR(3)
+  contribution_rates JSONB       -- {slots:1.0, live:0.1, table:0.1, excluded:[...]}
+  active          BOOLEAN DEFAULT TRUE
+  created_at      TIMESTAMPTZ
+
+bonus_instances
+bonus_instances (per-player bonus activation)
+  id                  UUID PK
+  tenant_id           UUID FK
+  player_id           VARCHAR(255)
+  bonus_template_id   UUID FK
+  bonus_code          VARCHAR(64)
+  amount_credited     DECIMAL(12,2)
+  wagering_required   DECIMAL(12,2)
+  wagering_progress   DECIMAL(12,2) DEFAULT 0
+  win_cap             DECIMAL(12,2)
+  winnings_accrued    DECIMAL(12,2) DEFAULT 0
+  state               ENUM(PENDING,CREATED,ONGOING,COMPLETED,FORFEITED,EXPIRED)
+  ft_idempotency_key  VARCHAR(255) UNIQUE  -- X-Fasttrack-Id
+  ft_activity_id      VARCHAR(255)
+  ft_action_id        VARCHAR(255)
+  ft_action_group_id  VARCHAR(255)
+  ft_trigger_hash     VARCHAR(255)
+  expires_at          TIMESTAMPTZ
+  created_at          TIMESTAMPTZ
+  updated_at          TIMESTAMPTZ
+
+bonus_events (immutable audit log)
+bonus_events
+  id                  UUID PK
+  bonus_instance_id   UUID FK
+  tenant_id           UUID FK
+  player_id           VARCHAR(255)
+  event_type          ENUM(CREDITED,WAGER_CONTRIBUTION,WIN_RECORDED,
+                           RELEASED,EXPIRED,FORFEITED,FUNDS_CREDITED)
+  amount              DECIMAL(12,2)
+  balance_after       DECIMAL(12,2)
+  wagering_progress   DECIMAL(12,2)
+  metadata            JSONB
+  created_at          TIMESTAMPTZ   -- immutable, never updated
+
+2.6 RabbitMQ Events Published
+Event
+Trigger
+Fast Track Use
+BONUS_AWARDED
+POST /bonus/credit processed successfully
+Campaign cost tracking in Data Studio. Includes all FT correlation IDs.
+BONUS_CONVERTED
+Wagering requirement met, funds released
+Player value signal. Triggers next campaign eligibility.
+BONUS_EXPIRED
+Bonus expires without completion
+Re-engagement campaign trigger.
+BONUS_FORFEITED
+Operator cancels bonus
+Audit trail.
+BONUS_FORFEITED (win cap)
+Win cap reached
+High-value player signal. Potential VIP campaign trigger.
+FUNDS_CREDITED
+POST /bonus/credit/funds processed
+Cashback campaign completion tracking.
+
+2.7 Tenant Portal — Bonus Management
+	•	Bonus Templates: create, edit, activate/deactivate bonus templates with all rule parameters
+	•	Active Bonuses: view all active bonus instances across players — state, progress, expiry
+	•	Bonus Event Log: immutable per-bonus audit trail — every CREDITED, WAGER_CONTRIBUTION, RELEASED event
+	•	Cancel Bonus: operator can cancel an active bonus instance with mandatory reason field
+	•	Contribution Rate Override: per-bonus-template game contribution rate configuration
+	•	Compliance Report: exportable bonus activity report for regulatory submission
+
+2.8 Compliance Considerations
+UKGC — 10x Wagering Cap: UKGC regulations require that bonus wagering requirements do not exceed 10x the bonus amount. The Tenant Portal must enforce a maximum wagering_requirement of 10 for UK-licensed tenants. Attempts to set higher values are blocked with a clear error message referencing the UKGC requirement.
+
+Germany / Netherlands — Bonus Restrictions: Some regulated markets restrict bonus types by payment method or prohibit bonus advertising entirely. The PSP Adapter (F9) provides payment method data that allows the Bonus Wallet Module to enforce payment-method-conditional bonus eligibility rules.
+
+2.9 Performance Requirements
+Metric
+Target
+Notes
+POST /bonus/credit response time
+< 100ms p99
+Includes Supabase write + Redis cache update + RabbitMQ publish (async).
+POST /bonus/credit/funds response time
+< 80ms p99
+Simpler path — no wagering mechanics.
+GET /bonus/list response time
+< 10ms p99
+Served from Upstash Redis cache (TTL 60s).
+Wagering progress update (per debit)
+< 20ms added latency
+Inline with existing debit callback processing. Must not increase debit p99 beyond 55ms.
+Idempotency check
+< 5ms
+Redis lookup on X-Fasttrack-Id.
+
+
+  Feature F9: PSP Adapter (BYOC)
+
+Standardised payment adapter interface. Operators bring their own licensed PSP contract. NeoStrike captures payment events, updates the wallet, and publishes to Fast Track. NeoStrike never touches settlement.
+
+3.1 Problem Statement
+NeoStrike's current wallet has no payment processing layer. Operators must handle deposits and withdrawals entirely outside NeoStrike, which means: deposit events are not captured with payment method metadata, Fast Track does not receive structured DEPOSIT events with PSP data, and the Bonus Wallet Module cannot enforce payment-method-conditional bonus rules. F9 closes all three gaps.
+
+SCOPE BOUNDARY: NeoStrike is not a payment facilitator, payment processor, or Merchant of Record. NeoStrike never holds settlement funds, never registers with card schemes, and never assumes chargeback liability. The operator and their PSP own the payment relationship entirely. NeoStrike's role is event capture, wallet update, and RabbitMQ relay.
+
+3.2 BYOC Architecture
+The operator contracts their own PSP directly. The PSP is configured to send deposit and withdrawal confirmation webhooks to NeoStrike's PSP Adapter endpoint. NeoStrike validates the webhook, credits or debits the player wallet, and publishes a structured event to RabbitMQ. The PSP handles all settlement, refunds, and chargeback management independently.
+
+Payment Flow — Deposit
+Step
+Actor
+Action
+Notes
+1
+Player + PSP
+Player initiates deposit via PSP checkout
+PSP checkout URL provided by NeoStrike deposit initiation endpoint.
+2
+PSP
+Processes payment
+Card acquiring, 3DS, fraud checks — entirely PSP's domain.
+3
+PSP → NeoStrike
+POST /api/v1/psp/webhook
+Signed deposit confirmation. NeoStrike verifies signature using PSP webhook secret.
+4
+NeoStrike
+Validate + credit wallet
+Idempotency check on PSP transaction ID. Credit real_balance. Log payment_event.
+5
+NeoStrike
+Publish DEPOSIT to RabbitMQ
+Includes payment_method, vendor_id, vendor_name, net_amount, payment_id for Fast Track.
+6
+Fast Track
+Processes DEPOSIT event
+Triggers deposit bonus campaigns. Updates player segmentation.
+
+3.3 PSPAdapter Interface
+interface PSPAdapter {
+  initiateDeposit(req: DepositRequest):      Promise<DepositInitResponse>;
+  initiateWithdrawal(req: WithdrawRequest):  Promise<WithdrawInitResponse>;
+  verifyWebhook(payload: string,             
+                signature: string): boolean; // Webhook HMAC verification
+  normaliseEvent(raw: unknown):              NormalisedPaymentEvent;
+  healthCheck():                             Promise<HealthStatus>;
+}
+
+All PSP adapters implement this interface. NeoStrike's payment processing logic is adapter-agnostic — swapping PSP requires only a new adapter class. The operator selects their PSP connector in Tenant Portal and provides credentials. No code changes required.
+
+3.4 Normalised Payment Event Schema
+Every PSP adapter normalises its raw webhook payload into NeoStrike's standard payment event schema before wallet update and RabbitMQ publish. This schema is designed to include all fields Fast Track needs for campaign segmentation.
+
+{
+  "event_type":     "DEPOSIT",            // DEPOSIT | WITHDRAWAL | REFUND | CHARGEBACK
+  "transaction_id": "neostrike_pmt_abc",  // NeoStrike-generated idempotency key
+  "psp_tx_id":      "nuvei_tx_123",       // PSP-side transaction reference
+  "player_id":      "player_123",
+  "amount":         100.00,               // Gross amount
+  "net_amount":     98.50,                // After PSP fees
+  "currency":       "EUR",
+  "payment_method": "visa_credit",        // Normalised method identifier
+  "vendor_id":      "nuvei",              // PSP identifier for Fast Track
+  "vendor_name":    "Nuvei",
+  "payment_id":     "nuvei_tx_123",       // For Fast Track Data Studio
+  "status":         "CONFIRMED",          // CONFIRMED | PENDING | FAILED
+  "timestamp":      "2026-02-17T15:30:00Z"
+}
+
+The payment_method field uses a normalised identifier taxonomy across all PSP adapters. This ensures Fast Track campaign rules based on payment method work correctly regardless of which PSP the operator uses.
+
+3.5 Named PSP Adapters
+5.1 Generic Webhook Adapter (Ships v1)
+Configurable webhook receiver for any PSP that can send signed HTTP callbacks. Operator configures the webhook URL pattern, signature verification method (HMAC-SHA256 or RSA), and field mapping in Tenant Portal. Covers any PSP not listed below.
+
+3.5.2 Nuvei Named Adapter (Ships v1)
+Property
+Value
+Why Nuvei first
+iGaming-native PSP. Globally licensed. Single integration covering cards, wallets, eCash, crypto, and local payment methods across 120+ countries. Most common PSP choice among new iGaming operators in regulated markets.
+Integration type
+Server-to-server API for deposit initiation + webhook callbacks for confirmation. HMAC-SHA256 webhook signing.
+Supported methods
+Visa, Mastercard, Apple Pay, Google Pay, Skrill, Neteller, PaySafe, bank transfer, crypto (BTC, ETH, USDT)
+Configuration
+Tenant Portal: select Nuvei adapter → enter Merchant ID, Merchant Site ID, Secret Key, Webhook Secret
+Jurisdiction notes
+Nuvei holds licences in UKGC, MGA, MIF (EU), eMoney institution. Operators do not need separate payment licences when using Nuvei — Nuvei's licence covers the payment processing.
+
+Nuvei Deposit Initiation (NeoStrike → Nuvei)
+POST https://ppp-test.nuvei.com/ppp/api/v1/openOrder
+Content-Type: application/json
+{
+  "merchantId":     "{MERCHANT_ID}",
+  "merchantSiteId": "{MERCHANT_SITE_ID}",
+  "clientRequestId":"{neostrike_pmt_abc}",  // NeoStrike idempotency key
+  "amount":         "100.00",
+  "currency":       "EUR",
+  "userId":         "player_123",
+  "notificationUrl":"https://api.neostrike.io/psp/webhook/nuvei",
+  "successUrl":     "{operator_deposit_success_url}",
+  "errorUrl":       "{operator_deposit_error_url}",
+  "timeStamp":      "20260217153000",
+  "checksum":       "{HMAC_SHA256_signature}"
+}
+
+// Nuvei response — returns sessionToken for payment page redirect
+{ "sessionToken": "abc123...", "status": "SUCCESS" }
+
+3.6 Deposit Initiation API
+NeoStrike exposes a deposit initiation endpoint that the operator's frontend calls to start a deposit flow. NeoStrike calls the PSP, gets a checkout URL or session token, and returns it to the frontend. The frontend redirects the player to the PSP checkout. All subsequent steps are PSP-to-NeoStrike server-to-server.
+
+POST /api/v1/payments/deposit/initiate
+Authorization: Bearer {NEOSTRIKE_API_KEY}
+{
+  "player_id": "player_123",
+  "amount":    100.00,
+  "currency":  "EUR",
+  "return_url":"https://mycasino.com/deposit/complete"
+}
+
+// Response 200 OK
+{
+  "transaction_id":  "neostrike_pmt_abc",
+  "checkout_url":    "https://checkout.nuvei.com/...",
+  "expires_at":      "2026-02-17T16:00:00Z"
+}
+
+The operator's frontend redirects to checkout_url. The player completes payment on the PSP's hosted page. NeoStrike receives the confirmation webhook from the PSP and credits the wallet. The operator's frontend polls GET /api/v1/payments/status/{transaction_id} to update the UI.
+
+3.7 Withdrawal Flow
+Withdrawal initiation follows the same pattern. The operator's frontend calls POST /api/v1/payments/withdrawal/initiate. NeoStrike debits the player's real balance immediately (pending state), calls the PSP to initiate the payout, and publishes a WITHDRAWAL event to RabbitMQ. PSP sends a confirmation or failure webhook. On confirmation, withdrawal moves to CONFIRMED state. On failure, the deducted balance is restored and a WITHDRAWAL_FAILED event is published.
+
+3.8 Webhook Security
+	•	All PSP webhooks verified using PSP-specific signature method before processing
+	•	Nuvei: HMAC-SHA256 of sorted request parameters using Merchant Secret Key
+	•	Generic adapter: configurable HMAC-SHA256 or RSA signature verification
+	•	Replayed webhooks detected via PSP transaction ID idempotency check in Supabase
+	•	Webhook source IP validated against PSP's published IP range (where PSP provides this)
+	•	All raw webhook payloads logged to psp_webhook_log table for 90 days
+
+3.9 Database Schema
+payment_transactions
+  id                UUID PK
+  tenant_id         UUID FK
+  player_id         VARCHAR(255)
+  transaction_id    VARCHAR(255) UNIQUE  -- NeoStrike idempotency key
+  psp_tx_id         VARCHAR(255)         -- PSP reference
+  psp_adapter       VARCHAR(64)          -- nuvei | generic
+  event_type        ENUM(DEPOSIT,WITHDRAWAL,REFUND,CHARGEBACK)
+  amount            DECIMAL(12,2)
+  net_amount        DECIMAL(12,2)
+  currency          CHAR(3)
+  payment_method    VARCHAR(64)          -- normalised method identifier
+  status            ENUM(PENDING,CONFIRMED,FAILED,REFUNDED,CHARGEDBACK)
+  balance_before    DECIMAL(12,2)
+  balance_after     DECIMAL(12,2)
+  raw_webhook       JSONB               -- stored for audit
+  created_at        TIMESTAMPTZ
+  confirmed_at      TIMESTAMPTZ
+
+3.10 Performance Requirements
+Metric
+Target
+Notes
+POST /payments/deposit/initiate
+< 500ms p99
+Includes PSP API round-trip for session token.
+Webhook processing (wallet credit)
+< 100ms p99
+Supabase write + Redis balance update + RabbitMQ publish.
+Payment status polling
+< 15ms p99
+Served from Redis cache on confirmed transactions.
+Webhook idempotency check
+< 5ms
+Supabase unique constraint lookup.
+
+
+4. F8 + F9 Integration: Deposit-Triggered Bonus Flow
+
+The most important integration between F8 and F9 is the deposit-triggered bonus flow — the most common campaign type in iGaming. This flow shows precisely how the two features work together and how Fast Track orchestrates the full sequence.
+
+Full Deposit Match Bonus Flow
+Step
+Actor
+Action
+Feature
+Notes
+1
+Frontend → NeoStrike
+POST /payments/deposit/initiate
+F9
+Player requests €100 deposit. NeoStrike calls Nuvei.
+2
+NeoStrike → Frontend
+Returns Nuvei checkout_url
+F9
+Frontend redirects player to Nuvei hosted page.
+3
+Nuvei → NeoStrike
+Webhook: deposit CONFIRMED
+F9
+NeoStrike verifies signature, credits real_balance €100.
+4
+NeoStrike → RabbitMQ
+Publishes DEPOSIT event
+F9
+Includes payment_method: visa_credit, net_amount: 98.50.
+5
+Fast Track
+Evaluates campaign rules
+FT
+Player qualifies for WELCOME100 campaign. Calls NeoStrike.
+6
+Fast Track → NeoStrike
+POST /bonus/credit
+F8
+bonus_code: WELCOME100, amount: 100.00. X-Fasttrack-Id included.
+7
+NeoStrike
+Credits bonus_balance €100
+F8
+Wagering requirement: 35x = €3,500. Expiry: 30 days.
+8
+NeoStrike → RabbitMQ
+Publishes BONUS_AWARDED
+F8
+Includes all FT correlation IDs for Data Studio.
+9
+Player
+Places bets — wagering progresses
+F8
+Each debit callback updates wagering_progress.
+10
+NeoStrike
+Wagering complete — releases funds
+F8
+bonus_balance → real_balance. BONUS_CONVERTED published.
+
+This complete flow requires no custom code from the operator. They configure the WELCOME100 bonus template in Tenant Portal, configure the campaign in Fast Track back-office, and the entire sequence runs automatically.
+
+
+5. Architecture Decisions Log
+
+#
+Decision
+Chosen
+Rejected
+Rationale
+AD-1
+Who decides bonus eligibility
+Fast Track (always)
+NeoStrike rule engine
+Fast Track Rewards owns campaign logic. NeoStrike is the execution layer. Clean liability separation.
+AD-2
+Bonus idempotency mechanism
+X-Fasttrack-Id in Supabase
+Redis-only nonce
+Supabase provides durable persistence. Redis is volatile. Bonus credits must survive Redis restart.
+AD-3
+Wagering order
+Real balance first, always
+Configurable
+Standard industry practice. Regulatory expectation in UKGC/MGA markets. Non-configurable reduces compliance risk.
+AD-4
+Free spins implementation
+Credit as bonus balance
+Native spin counter
+Spin mechanics vary by provider. Crediting EUR equivalent value as bonus balance is provider-agnostic and v1-safe.
+AD-5
+PSP model
+BYOC adapter — operator contracts PSP
+NeoStrike as payment facilitator
+Payment facilitation requires card scheme registration, chargeback liability, and financial services licensing — a different business entirely.
+AD-6
+First named PSP adapter
+Nuvei
+Stripe, Adyen
+Stripe prohibits iGaming. Adyen requires NeoStrike to register as payment facilitator. Nuvei is iGaming-native, globally licensed, single integration.
+AD-7
+Payment method normalisation
+NeoStrike taxonomy layer
+Pass-through raw PSP values
+Fast Track campaign rules reference payment_method. Consistent values across PSPs required for rules to work correctly.
+AD-8
+Bonus balance vs real balance
+Separate ledger columns
+Single balance with type tags
+Separate columns make wagering calculations atomic and audit-friendly. Type tags require complex joins.
+AD-9
+Chargeback handling
+CHARGEBACK event published to RabbitMQ only
+Auto-reverse wallet credit
+Chargeback reversal policy varies by operator and jurisdiction. NeoStrike publishes the event; operator decides reversal via Tenant Portal.
+
+
+6. Acceptance Criteria
+
+6.1 F8 — Bonus Wallet Module
+Fast Track API Contract
+	•	GET /bonus/list returns all active bonus templates for the tenant within 10ms (cached)
+	•	POST /bonus/credit with a new X-Fasttrack-Id credits bonus_balance and returns 200 within 100ms
+	•	POST /bonus/credit with a duplicate X-Fasttrack-Id returns the original 200 response — never credits twice
+	•	POST /bonus/credit/funds credits balance immediately and returns 200 within 80ms
+	•	All five Fast Track correlation headers stored on every bonus_instance record
+
+Bonus Execution Mechanics
+	•	Wagering progress correctly calculated using game contribution rates on every debit callback
+	•	Bonus transitions to COMPLETED and releases funds to real_balance when wagering_progress >= wagering_required
+	•	Bonus transitions to EXPIRED when expiry_days elapsed without completion — real_balance unaffected
+	•	Win cap enforced correctly — winnings above win_cap credited to real_balance, bonus forfeited
+	•	Real balance staked before bonus balance on all wagers
+
+Compliance
+	•	UK-licensed tenants: Tenant Portal blocks wagering_requirement > 10 with UKGC error message
+	•	All bonus events written to bonus_events table — immutable, never updated or deleted
+	•	BONUS_AWARDED RabbitMQ event published within 50ms of POST /bonus/credit success
+
+6.2 F9 — PSP Adapter
+Nuvei Adapter
+	•	POST /payments/deposit/initiate returns Nuvei checkout_url within 500ms
+	•	Nuvei deposit confirmation webhook processed within 100ms — real_balance credited correctly
+	•	Duplicate Nuvei webhook (same psp_tx_id) detected and ignored — wallet not double-credited
+	•	HMAC-SHA256 webhook signature verified — invalid signature returns 401, wallet not updated
+	•	DEPOSIT RabbitMQ event includes payment_method, vendor_id, vendor_name, net_amount, payment_id
+
+Generic Adapter
+	•	Configurable webhook receiver processes deposit confirmation and credits wallet
+	•	Field mapping configuration in Tenant Portal correctly normalises PSP-specific field names
+
+All Adapters
+	•	DEPOSIT event triggers Fast Track campaign evaluation — deposit match bonus issued within 2 seconds end-to-end
+	•	Withdrawal initiation debits real_balance immediately — balance restored if PSP returns failure
+	•	Raw webhook payload stored in psp_webhook_log for 90 days
+	•	WITHDRAWAL event published to RabbitMQ within 50ms of webhook confirmation
+
+
+7. Risks & Mitigations
+
+Risk
+Impact
+Likelihood
+Mitigation
+Wagering calculation bug releases bonus funds early
+High
+Low
+Immutable bonus_events audit log. Automated test suite covering edge cases: partial wagers, mixed real/bonus, game exclusions. Pre-release audit by Platform Team.
+Fast Track retries POST /bonus/credit on timeout — duplicate credit
+High
+Medium
+X-Fasttrack-Id idempotency stored in Supabase (durable). Duplicate detected before any wallet operation. Returns original 200.
+PSP webhook delivered twice — double deposit credit
+High
+Medium
+psp_tx_id UNIQUE constraint in Supabase. Second webhook returns 200 (idempotent) without crediting wallet.
+Nuvei field names differ from integration spec
+High
+Low
+Validate against Nuvei sandbox environment before shipping. All field mapping assumptions flagged for onboarding validation.
+Operator sets wagering_requirement > 10 for UKGC-licensed casino
+High
+Low
+Tenant Portal enforces max 10 for UKGC tenants at save time. API also validates and rejects > 10 for UKGC tenants.
+Player disputes bonus forfeiture after expiry
+Medium
+Medium
+Immutable bonus_events log shows exact expiry timestamp and final wagering progress. Operator can export per-player report. Contractually NeoStrike executed the rules the operator configured.
+PSP webhook arrives before deposit initiation record exists
+Medium
+Low
+NeoStrike creates payment_transaction record in PENDING state at initiation. Webhook matches on transaction_id. Race condition not possible.

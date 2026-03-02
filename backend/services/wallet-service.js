@@ -15,6 +15,12 @@ const PaymentAnalyticsService = require('./payment-analytics');
  * 2. Atomic updates (via Supabase)
  * 3. Unified Fast Track event triggering
  */
+const getTenantId = (brandId) => {
+    // brand_id 1 maps to 37562b54-0c91-491c-b996-2efb68e7baf3 as per tenant_configs
+    if (brandId === 1 || brandId === '1') return '37562b54-0c91-491c-b996-2efb68e7baf3';
+    return null;
+};
+
 class WalletService {
     /**
      * F10: KYC Gating Helper
@@ -163,7 +169,7 @@ class WalletService {
                     // Audit event
                     const { error: eventError } = await supabaseService.client.from('bonus_events').insert([{
                         bonus_instance_id: bonus.id,
-                        tenant_id: bonus.tenant_id,
+                        tenant_id: bonus.tenant_id || getTenantId(bonus.brand_id), // Use mapped UUID
                         brand_id: bonus.brand_id,
                         player_id: user.id,
                         event_type: 'WAGER_CONTRIBUTION',
@@ -554,6 +560,7 @@ class WalletService {
                 .from('bonus_instances')
                 .insert([{
                     brand_id: playerBrandId,
+                    tenant_id: getTenantId(playerBrandId),
                     player_id: user.id,
                     bonus_template_id: template ? template.id : null,
                     bonus_code: bonusCode,
@@ -580,6 +587,7 @@ class WalletService {
                 const { error: eventError } = await supabaseService.client.from('bonus_events').insert([{
                     bonus_instance_id: newBonusInst.id,
                     brand_id: playerBrandId,
+                    tenant_id: getTenantId(playerBrandId),
                     player_id: user.id,
                     event_type: 'CREDITED',
                     amount: parseFloat(amount),
@@ -674,6 +682,7 @@ class WalletService {
 
             const { error: eventError } = await supabaseService.client.from('bonus_events').insert([{
                 brand_id: user.brand_id || normalizedBrandId,
+                tenant_id: getTenantId(user.brand_id || normalizedBrandId),
                 player_id: user.id,
                 event_type: 'FUNDS_CREDITED',
                 amount: parseFloat(amount),
