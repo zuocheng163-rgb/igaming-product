@@ -56,6 +56,8 @@ app.use((req, res, next) => {
   next();
 });
 
+const { featureGate } = require('./middleware/feature-gate');
+
 // 2. Sandbox Switch
 app.use(sandboxMiddleware);
 
@@ -64,9 +66,10 @@ app.use(sandboxMiddleware);
 app.use('/api/authenticate', authLimiter);
 app.use('/api/register', authLimiter);
 app.use('/api', operatorRoutes);
-app.use('/api/v1/games', require('./routes/games'));
-app.use('/api/v1/kyc', require('./routes/kyc'));
+app.use('/api/v1/games', featureGate('GAMES'), require('./routes/games'));
+app.use('/api/v1/kyc', featureGate('KYC'), require('./routes/kyc'));
 app.use('/api/webhooks', require('./routes/webhooks'));
+app.use('/api/providers', featureGate('PROVIDERS'), require('./routes/providers'));
 
 app.get('/', (req, res) => {
   res.send('iGaming Integration Platform Backend Running');

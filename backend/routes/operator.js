@@ -4,6 +4,7 @@ const supabaseService = require('../services/supabase');
 const ftService = require('../services/ft-integration');
 const { logger, auditLog, generateCorrelationId } = require('../services/logger');
 const rabbitmq = require('../services/rabbitmq');
+const { featureGate, getCurrentOffering } = require('../middleware/feature-gate');
 
 // Middleware to extract or generate Correlation ID
 const correlationMiddleware = (req, res, next) => {
@@ -276,7 +277,8 @@ router.post('/authenticate', async (req, res) => {
                 first_name: user.first_name,
                 last_name: user.last_name,
                 email: user.email
-            }
+            },
+            productOffering: getCurrentOffering()
         };
 
         // Add 'token' field ONLY in demo mode to keep clean
@@ -630,7 +632,7 @@ const BonusManagementService = require('../services/bonus-management-service');
 
 // --- Operator Bonus Management Endpoints ---
 
-router.get('/operator/bonuses/templates', authenticateRequest, requireAdmin, async (req, res) => {
+router.get('/operator/bonuses/templates', authenticateRequest, requireAdmin, featureGate('BONUSING'), async (req, res) => {
     const brandId = req.brandId || req.user?.brand_id || 1;
     logger.info('[Operator API] Fetching templates', { brandId, correlationId: req.correlationId });
     try {
@@ -654,7 +656,7 @@ router.post('/operator/bonuses/templates', authenticateRequest, requireAdmin, as
     }
 });
 
-router.patch('/operator/bonuses/templates/:id', authenticateRequest, requireAdmin, async (req, res) => {
+router.patch('/operator/bonuses/templates/:id', authenticateRequest, requireAdmin, featureGate('BONUSING'), async (req, res) => {
     try {
         const template = await BonusManagementService.updateTemplate(req.params.id, req.body);
         res.json(template);
@@ -683,7 +685,7 @@ router.post('/operator/bonuses/instances/:id/forfeit', authenticateRequest, requ
     }
 });
 
-router.post('/operator/bonuses/instances/:id/extend', authenticateRequest, requireAdmin, async (req, res) => {
+router.post('/operator/bonuses/instances/:id/extend', authenticateRequest, requireAdmin, featureGate('BONUSING'), async (req, res) => {
     const { days } = req.body;
     try {
         const result = await BonusManagementService.extendExpiry(req.params.id, days || 7);
@@ -716,7 +718,7 @@ router.get('/operator/bonuses/analytics', authenticateRequest, requireAdmin, asy
 });
 
 
-router.post('/bonus/credit', authenticateRequest, async (req, res) => {
+router.post('/bonus/credit', authenticateRequest, featureGate('BONUSING'), async (req, res) => {
     const { correlationId } = req;
     const {
         user_id,
@@ -759,7 +761,7 @@ router.post('/bonus/credit', authenticateRequest, async (req, res) => {
     }
 });
 
-router.post('/bonus/credit/funds', authenticateRequest, async (req, res) => {
+router.post('/bonus/credit/funds', authenticateRequest, featureGate('BONUSING'), async (req, res) => {
     const { correlationId } = req;
     const { user_id, bonus_code, amount, currency, reason } = req.body;
 

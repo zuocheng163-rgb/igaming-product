@@ -13,7 +13,7 @@ const fetcher = (url, token) => fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
 }).then(res => res.json());
 
-const PortalDashboard = ({ user, token, onLogout }) => {
+const PortalDashboard = ({ user, token, productOffering, onLogout }) => {
     const [dateRange, setDateRange] = useState('Last 30 Days');
     const { data: stats, mutate } = useSWR(
         token ? [`/api/operator/stats?period=${dateRange}`, token] : null,
@@ -145,7 +145,7 @@ const PortalDashboard = ({ user, token, onLogout }) => {
                                 });
                             }}
                         />
-                        <ActiveProvidersWidget />
+                        {productOffering === 'ADVANCED' && <ActiveProvidersWidget />}
                     </div>
                 </div>
             </div>
@@ -159,6 +159,7 @@ const PortalDashboard = ({ user, token, onLogout }) => {
             user={stats?.user}
             dateRange={dateRange}
             setDateRange={setDateRange}
+            productOffering={productOffering}
         >
             {renderContent()}
         </OperatorLayout>

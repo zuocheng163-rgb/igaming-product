@@ -18,7 +18,7 @@ import SearchOverlay from './SearchOverlay';
 import NotificationCenter from './NotificationCenter';
 import PlayerDetailsModal from './PlayerDetailsModal';
 
-const OperatorLayout = ({ children, user, token, onLogout, dateRange, setDateRange }) => {
+const OperatorLayout = ({ children, user, token, onLogout, dateRange, setDateRange, productOffering }) => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isDateSelectorOpen, setIsDateSelectorOpen] = useState(false);
@@ -39,12 +39,16 @@ const OperatorLayout = ({ children, user, token, onLogout, dateRange, setDateRan
         { icon: LayoutDashboard, label: 'Dashboard', id: 'dashboard' },
         { icon: Users, label: 'Players', id: 'players' },
         { icon: Wallet, label: 'Wallet', id: 'wallet' },
-        { icon: Bell, label: 'Bonuses', id: 'bonuses' },
-        { icon: Gamepad2, label: 'Games', id: 'games' },
+        { icon: Bell, label: 'Bonuses', id: 'bonuses', isAdvanced: true },
+        { icon: Gamepad2, label: 'Games', id: 'games', isAdvanced: true },
         { icon: ShieldAlert, label: 'Compliance', id: 'compliance' },
         { icon: Activity, label: 'Operational Stream', id: 'operational-stream' },
         { icon: Settings, label: 'Settings', id: 'settings' },
     ];
+
+    const filteredNavItems = navItems.filter(item =>
+        !item.isAdvanced || productOffering === 'ADVANCED'
+    );
 
     const handleNavigation = (path) => {
         window.history.pushState({}, '', path);
@@ -127,7 +131,7 @@ const OperatorLayout = ({ children, user, token, onLogout, dateRange, setDateRan
                     </div>
 
                     <nav className="sidebar-nav">
-                        {navItems.map((item) => {
+                        {filteredNavItems.map((item) => {
                             const isActive = window.location.pathname === (item.id === 'dashboard' ? '/portal' : `/portal/${item.id}`);
                             return (
                                 <div
@@ -155,7 +159,7 @@ const OperatorLayout = ({ children, user, token, onLogout, dateRange, setDateRan
                 {/* Main Content Area */}
                 <main className="portal-main">
                     <div className="content-breadcrumbs">
-                        <span>{navItems.find(i => window.location.pathname.includes(i.id))?.label || 'Dashboard'}</span>
+                        <span>{filteredNavItems.find(i => window.location.pathname.includes(i.id))?.label || 'Dashboard'}</span>
                     </div>
                     {children}
                 </main>

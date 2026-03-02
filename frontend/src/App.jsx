@@ -9,6 +9,7 @@ import './portal/portal.css';
 function App() {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
+  const [productOffering, setProductOffering] = useState('BASIC');
   const [error, setError] = useState('');
   const [pathname, setPathname] = useState(window.location.pathname);
 
@@ -20,6 +21,7 @@ function App() {
     // Check for saved credentials
     const savedToken = localStorage.getItem('ns_portal_token');
     const savedUser = localStorage.getItem('ns_portal_user');
+    const savedOffering = localStorage.getItem('ns_product_offering');
 
     if (savedToken && savedToken !== 'undefined' && savedToken !== 'null' && savedUser) {
       try {
@@ -28,6 +30,7 @@ function App() {
           // Optimistically set user
           setToken(savedToken);
           setUser(userData);
+          if (savedOffering) setProductOffering(savedOffering);
 
           // Verify token validity with backend
           // We dynamic import api to avoid circular dependencies if any, or just use imported
@@ -57,6 +60,7 @@ function App() {
       // Clear potential partial state
       localStorage.removeItem('ns_portal_token');
       localStorage.removeItem('ns_portal_user');
+      localStorage.removeItem('ns_product_offering');
     }
   }, []);
 
@@ -69,22 +73,27 @@ function App() {
 
   const handleLogin = (token, userData) => {
     const user = userData.user || userData;
+    const offering = userData.productOffering || 'BASIC';
     setUser(user);
     setToken(token);
+    setProductOffering(offering);
     setError('');
 
     // Save to localStorage for auto-login
     localStorage.setItem('ns_portal_token', token);
     localStorage.setItem('ns_portal_user', JSON.stringify(user));
+    localStorage.setItem('ns_product_offering', offering);
   };
 
   const handleLogout = () => {
     setUser(null);
     setToken(null);
+    setProductOffering('BASIC');
 
     // Clear localStorage
     localStorage.removeItem('ns_portal_token');
     localStorage.removeItem('ns_portal_user');
+    localStorage.removeItem('ns_product_offering');
   };
 
   const renderContent = () => {
@@ -111,7 +120,7 @@ function App() {
     }
 
     if (isPortal) {
-      return <PortalDashboard user={user} token={token} onLogout={handleLogout} />;
+      return <PortalDashboard user={user} token={token} productOffering={productOffering} onLogout={handleLogout} />;
     }
 
     return <Dashboard user={user} token={token} onLogout={handleLogout} />;
