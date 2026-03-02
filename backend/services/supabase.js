@@ -418,9 +418,15 @@ const getAggregatedKPIs = async (brandId, period = 'Last 30 Days') => {
     };
 };
 
-const getComplianceAlerts = async (brandId, limit = 50) => {
+const getComplianceAlerts = async (brandId, limit = 50, filters = {}) => {
     if (!supabase) return [];
-    const { data, error } = await supabase.from('platform_audit_logs').select('*').eq('brand_id', brandId).in('level', ['warn', 'error', 'critical']).order('timestamp', { ascending: false }).limit(limit);
+    let query = supabase.from('platform_audit_logs').select('*').eq('brand_id', brandId).in('level', ['warn', 'error', 'critical']);
+
+    if (filters.startDate) query = query.gte('timestamp', filters.startDate);
+    if (filters.endDate) query = query.lte('timestamp', filters.endDate);
+    if (filters.id) query = query.eq('id', filters.id);
+
+    const { data, error } = await query.order('timestamp', { ascending: false }).limit(limit);
     if (error) return [];
     return data.map(log => ({ id: log.id, user: log.actor_id || 'System', trigger: log.action, risk: log.level === 'critical' ? 'High' : log.level === 'error' ? 'Medium' : 'Low', status: 'Open', date: log.timestamp, message: log.message, metadata: log.metadata }));
 };
@@ -602,11 +608,16 @@ const getFilteredTransactions = async (brandId, filters, page = 1, limit = 10) =
     return { transactions, total: count || 0, totalPages: Math.ceil((count || 0) / limit), currentPage: page };
 };
 
-const getOperationalStream = async (brandId, page = 1, limit = 20, type = null) => {
+const getOperationalStream = async (brandId, page = 1, limit = 20, filters = {}) => {
     if (!supabase) return { events: [], total: 0, totalPages: 0 };
     let query = supabase.from('platform_audit_logs').select('*', { count: 'exact' }).or(`brand_id.eq.${brandId},brand_id.eq.1`);
-    if (type === 'inbound') query = query.ilike('action', 'inbound:%');
-    else if (type === 'outbound') query = query.not('action', 'ilike', 'inbound:%');
+
+    if (filters.type === 'inbound') query = query.ilike('action', 'inbound:%');
+    else if (filters.type === 'outbound') query = query.not('action', 'ilike', 'inbound:%');
+
+    if (filters.startDate) query = query.gte('timestamp', filters.startDate);
+    if (filters.endDate) query = query.lte('timestamp', filters.endDate);
+
     const { data, error, count } = await query.order('timestamp', { ascending: false }).limit(100);
     if (error) return { events: [], total: 0, totalPages: 0 };
     const allEvents = (data || []).map(log => {

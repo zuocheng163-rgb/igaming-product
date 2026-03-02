@@ -639,9 +639,10 @@ export const Compliance = ({ user, token }) => {
 
     const fetchData = (appliedFilters = {}) => {
         setLoading(true);
-        // Build query params for filtering (if backend adds support later)
+        // Build query params for filtering
         const params = new URLSearchParams();
         if (appliedFilters.id) params.append('id', appliedFilters.id);
+        if (appliedFilters.date) params.append('date', appliedFilters.date);
 
         fetch(`/api/operator/compliance/alerts?${params.toString()}`, {
             headers: {
@@ -652,7 +653,7 @@ export const Compliance = ({ user, token }) => {
             .then(res => res.json())
             .then(alerts => {
                 const list = alerts || [];
-                // Filter locally just in case backend ignores the ID param
+                // Locally filter by ID if needed, but date is now handled by backend
                 const filtered = appliedFilters.id ? list.filter(a => a.id === appliedFilters.id) : list;
                 setData(filtered);
                 setLoading(false);
@@ -727,19 +728,75 @@ export const Compliance = ({ user, token }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <h2 className="page-title" style={{ margin: 0 }}>Compliance & Risk</h2>
-                    {filters.id && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 215, 0, 0.1)', border: '1px solid rgba(255, 215, 0, 0.3)', padding: '4px 12px', borderRadius: '16px' }}>
-                            <span style={{ fontSize: '0.8rem', color: '#ffd700' }}>Viewing Alert: {filters.id}</span>
-                            <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: '#ffd700', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                                <RefreshCw size={12} />
-                            </button>
-                        </div>
-                    )}
                 </div>
                 <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
                     <RefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
                     {refreshing ? 'Refreshing...' : 'Refresh'}
                 </button>
+            </div>
+
+            {/* Filter Row */}
+            <div className="glass-panel" style={{ padding: '16px', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Alert ID</label>
+                        <input
+                            type="text"
+                            placeholder="Search ID..."
+                            value={filters.id || ''}
+                            onChange={(e) => setFilters({ ...filters, id: e.target.value })}
+                            style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                background: 'rgba(255,255,255,0.05)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '6px',
+                                color: 'white',
+                                fontSize: '0.9rem'
+                            }}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date</label>
+                        <input
+                            type="text"
+                            placeholder="> 02/15/2026"
+                            value={filters.date || ''}
+                            onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+                            style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                background: 'rgba(255,255,255,0.05)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '6px',
+                                color: 'white',
+                                fontSize: '0.9rem'
+                            }}
+                        />
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                            onClick={() => {
+                                sessionStorage.setItem('complianceFilters', JSON.stringify(filters));
+                                fetchData(filters);
+                            }}
+                            className="btn-primary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 20px', height: '38px' }}
+                        >
+                            <Filter size={16} />
+                            Filter
+                        </button>
+                        {(filters.id || filters.date) && (
+                            <button
+                                onClick={clearFilters}
+                                className="btn-secondary"
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', height: '38px' }}
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
+                    </div>
+                </div>
             </div>
             <DataTable
                 columns={columns}

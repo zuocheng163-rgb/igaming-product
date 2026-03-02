@@ -9,11 +9,13 @@ const OperationalStream = ({ token }) => {
     const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
 
     const [typeFilter, setTypeFilter] = useState('');
+    const [dateFilter, setDateFilter] = useState('');
 
-    const fetchData = (page = 1, type = typeFilter) => {
+    const fetchData = (page = 1, type = typeFilter, date = dateFilter) => {
         setLoading(true);
         const query = new URLSearchParams({ page, limit: 20 });
         if (type) query.append('type', type);
+        if (date) query.append('date', date);
 
         fetch(`/api/operator/operational-stream?${query.toString()}`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -37,10 +39,11 @@ const OperationalStream = ({ token }) => {
 
         const savedFilter = sessionStorage.getItem('operationalStreamFilters');
         if (savedFilter) {
-            const { type } = JSON.parse(savedFilter);
-            if (type) {
-                setTypeFilter(type);
-                fetchData(1, type);
+            const { type, date } = JSON.parse(savedFilter);
+            if (type || date) {
+                if (type) setTypeFilter(type);
+                if (date) setDateFilter(date);
+                fetchData(1, type, date);
                 // Clear it so it doesn't persist forever
                 sessionStorage.removeItem('operationalStreamFilters');
                 return;
@@ -51,17 +54,22 @@ const OperationalStream = ({ token }) => {
 
     const handleRefresh = async () => {
         setRefreshing(true);
-        fetchData(pagination.page, typeFilter);
+        fetchData(pagination.page, typeFilter, dateFilter);
         setTimeout(() => setRefreshing(false), 500);
     };
 
     const handlePageChange = (newPage) => {
-        fetchData(newPage, typeFilter);
+        fetchData(newPage, typeFilter, dateFilter);
     };
 
     const handleTypeFilterChange = (newType) => {
         setTypeFilter(newType);
-        fetchData(1, newType);
+        fetchData(1, newType, dateFilter);
+    };
+
+    const handleDateFilterChange = (newDate) => {
+        setDateFilter(newDate);
+        fetchData(1, typeFilter, newDate);
     };
 
     const columns = [
@@ -115,6 +123,21 @@ const OperationalStream = ({ token }) => {
                     <h2 className="page-title" style={{ margin: 0 }}>Live Operational Stream</h2>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                        type="text"
+                        placeholder="Date Filter (e.g. > 02/15/2026)"
+                        value={dateFilter}
+                        onChange={(e) => handleDateFilterChange(e.target.value)}
+                        style={{
+                            padding: '6px 12px',
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '6px',
+                            color: 'white',
+                            fontSize: '0.85rem',
+                            width: '200px'
+                        }}
+                    />
                     <div className="filter-group" style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', padding: '2px' }}>
                         {['', 'inbound', 'outbound'].map((t) => (
                             <button

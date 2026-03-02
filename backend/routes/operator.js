@@ -1109,8 +1109,24 @@ router.post('/operator/transactions/filter', authenticateRequest, async (req, re
 
 router.get('/operator/compliance/alerts', authenticateRequest, async (req, res) => {
     const brandId = req.brandId || req.user?.brand_id || 1;
+    const { startDate, endDate, id, date } = req.query;
+
+    let start = startDate;
+    let end = endDate;
+
+    if (date) {
+        const parsed = parseOperatorFilter(date);
+        if (parsed) {
+            const dateValue = parseDate(parsed.value, parsed.operator);
+            if (dateValue) {
+                if (parsed.operator === '>=' || parsed.operator === '>') start = dateValue;
+                if (parsed.operator === '<=' || parsed.operator === '<') end = dateValue;
+            }
+        }
+    }
+
     try {
-        const alerts = await supabaseService.getComplianceAlerts(brandId);
+        const alerts = await supabaseService.getComplianceAlerts(brandId, 50, { startDate: start, endDate: end, id });
         res.json(alerts);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch compliance alerts' });
@@ -1120,10 +1136,24 @@ router.get('/operator/compliance/alerts', authenticateRequest, async (req, res) 
 // Operational stream endpoint
 router.get('/operator/operational-stream', authenticateRequest, async (req, res) => {
     const brandId = req.brandId || req.user?.brand_id || 1;
-    const { page = 1, limit = 20, type } = req.query;
+    const { page = 1, limit = 20, type, startDate, endDate, date } = req.query;
+
+    let start = startDate;
+    let end = endDate;
+
+    if (date) {
+        const parsed = parseOperatorFilter(date);
+        if (parsed) {
+            const dateValue = parseDate(parsed.value, parsed.operator);
+            if (dateValue) {
+                if (parsed.operator === '>=' || parsed.operator === '>') start = dateValue;
+                if (parsed.operator === '<=' || parsed.operator === '<') end = dateValue;
+            }
+        }
+    }
 
     try {
-        const result = await supabaseService.getOperationalStream(brandId, parseInt(page), parseInt(limit), type);
+        const result = await supabaseService.getOperationalStream(brandId, parseInt(page), parseInt(limit), { type, startDate: start, endDate: end });
         res.json(result);
     } catch (error) {
         logger.error('Operational stream fetch failed', { error: error.message });

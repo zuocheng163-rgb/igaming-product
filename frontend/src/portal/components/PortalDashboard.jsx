@@ -13,6 +13,39 @@ const fetcher = (url, token) => fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
 }).then(res => res.json());
 
+const getDateFilterValue = (period) => {
+    const now = new Date();
+    const start = new Date();
+
+    switch (period) {
+        case 'Today':
+            start.setHours(0, 0, 0, 0);
+            break;
+        case 'Yesterday':
+            start.setDate(now.getDate() - 1);
+            start.setHours(0, 0, 0, 0);
+            break;
+        case 'Last 7 Days':
+            start.setDate(now.getDate() - 6);
+            start.setHours(0, 0, 0, 0);
+            break;
+        case 'This Month':
+            start.setDate(1);
+            start.setHours(0, 0, 0, 0);
+            break;
+        case 'Last 30 Days':
+        default:
+            start.setDate(now.getDate() - 29);
+            start.setHours(0, 0, 0, 0);
+            break;
+    }
+
+    const day = String(start.getDate()).padStart(2, '0');
+    const month = String(start.getMonth() + 1).padStart(2, '0');
+    const year = start.getFullYear();
+    return `>= ${day}/${month}/${year}`;
+};
+
 const PortalDashboard = ({ user, token, productOffering, onLogout }) => {
     const [dateRange, setDateRange] = useState('Last 30 Days');
     const { data: stats, mutate } = useSWR(
@@ -98,31 +131,30 @@ const PortalDashboard = ({ user, token, productOffering, onLogout }) => {
                             onClick={() => {
                                 if (kpi.label === 'Active Players') {
                                     handleNavigate('/portal/players', () => {
-                                        const now = new Date();
-                                        now.setDate(now.getDate() - 1);
-                                        const day = String(now.getDate()).padStart(2, '0');
-                                        const month = String(now.getMonth() + 1).padStart(2, '0');
-                                        const year = now.getFullYear();
-                                        const yesterdayFormatted = `${day}/${month}/${year}`;
                                         sessionStorage.setItem('playerFilters', JSON.stringify({
-                                            last_login: `>= ${yesterdayFormatted}`
+                                            last_login: getDateFilterValue(dateRange)
                                         }));
                                     });
                                 } else if (kpi.label === 'Total GGR') {
                                     handleNavigate('/portal/wallet', () => {
                                         sessionStorage.setItem('transactionFilters', JSON.stringify({
                                             type: 'DEBIT', // Closest to GGR
-                                            status: 'success'
+                                            status: 'success',
+                                            date: getDateFilterValue(dateRange)
                                         }));
                                     });
                                 } else if (kpi.label === 'Approval Rate') {
                                     handleNavigate('/portal/wallet', () => {
                                         sessionStorage.setItem('transactionFilters', JSON.stringify({
-                                            status: 'failed'
+                                            date: getDateFilterValue(dateRange)
                                         }));
                                     });
                                 } else if (kpi.label === 'Compliance Alerts') {
-                                    handleNavigate('/portal/compliance');
+                                    handleNavigate('/portal/compliance', () => {
+                                        sessionStorage.setItem('complianceFilters', JSON.stringify({
+                                            date: getDateFilterValue(dateRange)
+                                        }));
+                                    });
                                 }
                             }}
                         />
@@ -140,7 +172,8 @@ const PortalDashboard = ({ user, token, productOffering, onLogout }) => {
                             onClick={() => {
                                 handleNavigate('/portal/operational-stream', () => {
                                     sessionStorage.setItem('operationalStreamFilters', JSON.stringify({
-                                        type: 'outbound'
+                                        type: 'outbound',
+                                        date: getDateFilterValue(dateRange)
                                     }));
                                 });
                             }}
