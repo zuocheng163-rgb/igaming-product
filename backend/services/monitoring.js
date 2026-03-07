@@ -11,11 +11,23 @@ class MonitoringService {
      */
     static async getThresholds(brandId) {
         const config = await supabaseService.getTenantConfig(brandId || 1);
+
+        if (!config) {
+            logger.warn(`[Monitoring] No tenant config found for Brand ${brandId}, using hardcoded defaults`, { brandId });
+        } else {
+            logger.debug(`[Monitoring] Applied DoC thresholds for Brand ${brandId}`, {
+                velocity: config.doc_velocity_spike_count,
+                affordability: config.doc_affordability_threshold,
+                limit: config.doc_session_limit_minutes
+            });
+        }
+
+        // Return values from DB, or fallback to sensible defaults if null/missing
         return {
-            affordability: parseFloat(config?.doc_affordability_threshold) || 1000,
-            velocity: parseInt(config?.doc_velocity_spike_count) || 5,
-            rapidEscalationPct: parseFloat(config?.doc_rapid_escalation_pct) || 100, // 100% = doubling
-            sessionLimit: parseInt(config?.doc_session_limit_minutes) || 60
+            affordability: parseFloat(config?.doc_affordability_threshold ?? 1000),
+            velocity: parseInt(config?.doc_velocity_spike_count ?? 5),
+            rapidEscalationPct: parseFloat(config?.doc_rapid_escalation_pct ?? 100),
+            sessionLimit: parseInt(config?.doc_session_limit_minutes ?? 60)
         };
     }
 
@@ -164,12 +176,15 @@ class MonitoringService {
     /**
      * Main evaluate function to be called after every transaction
      */
-    static async evaluateRisk(userId, currentAmount = 0) {
+    static async evaluateRisk(userId, currentAmount = 0, explicitBrandId = null) {
         const user = await supabaseService.getUserById(userId);
         if (!user) return null;
         const publicUserId = user.user_id;
 
-        const thresholds = await this.getThresholds(user.brand_id);
+        // Use explicit brandId from caller (WalletService) if provided, 
+        // fallback to user's brand_id, then finally default to 1.
+        const brandId = explicitBrandId || user.brand_id || 1;
+        const thresholds = await this.getThresholds(brandId);
 
         const results = {
             isLossChasing: await this.checkChasingLosses(publicUserId, thresholds),

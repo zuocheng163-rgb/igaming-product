@@ -983,17 +983,19 @@ router.post('/operator/config/doc', authenticateRequest, requireAdmin, async (re
     try {
         const { error } = await supabaseService.client
             .from('tenant_configs')
-            .update({
+            .upsert({
+                brand_id: brandId,
                 doc_affordability_threshold: affordability_threshold,
                 doc_velocity_spike_count: velocity_spike_count,
                 doc_rapid_escalation_pct: rapid_escalation_pct,
                 doc_session_limit_minutes: session_limit_minutes,
+                operator_name: brandId === 1 ? 'Default Operator' : `Brand ${brandId}`,
                 updated_at: new Date().toISOString()
-            })
-            .eq('brand_id', brandId);
+            }, { onConflict: 'brand_id' });
 
         if (error) throw error;
 
+        logger.info(`DoC config updated for Brand ${brandId}`, { brandId, velocity_spike_count });
         res.json({ success: true });
     } catch (error) {
         logger.error('Failed to update DoC config', { error: error.message, brandId });
