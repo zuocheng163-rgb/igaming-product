@@ -283,9 +283,56 @@ class WalletService {
             this.checkKycGating(user, "CREDIT");
 
             const playerBrandId = user.brand_id || normalizedBrandId;
-            const newBalance = user.balance + amount;
 
-            await supabaseService.updateUser(user.id, { balance: newBalance });
+            // F8: Check for active bonuses to determine where to credit winnings
+            const { data: activeBonuses } = await supabaseService.client
+                .from('bonus_instances')
+                .select('*')
+                .eq('player_id', user.id)
+                .in('state', ['CREATED', 'ONGOING'])
+                .order('created_at', { ascending: true });
+
+            let newBalance = user.balance;
+            let newBonusBalance = user.bonus_balance || 0;
+            const hasActiveBonus = activeBonuses && activeBonuses.length > 0;
+
+            if (hasActiveBonus) {
+                // Credit winnings to Bonus Balance if bonus is active
+                newBonusBalance += amount;
+
+                // Update first active bonus instance winnings accrued (accrue to the oldest one first)
+                const bonus = activeBonuses[0];
+                const updatedWinnings = (bonus.winnings_accrued || 0) + amount;
+
+                await supabaseService.client
+                    .from('bonus_instances')
+                    .update({
+                        winnings_accrued: updatedWinnings,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', bonus.id);
+
+                // Log Bonus event
+                await supabaseService.client.from('bonus_events').insert([{
+                    bonus_instance_id: bonus.id,
+                    brand_id: playerBrandId,
+                    tenant_id: bonus.tenant_id || getTenantId(playerBrandId),
+                    player_id: user.id,
+                    event_type: 'WIN_RECORDED',
+                    amount: amount,
+                    balance_after: newBonusBalance,
+                    created_at: new Date().toISOString()
+                }]);
+
+                logger.info(`[Wallet SPI] Bonus win credited`, { userId, amount, newBonusBalance });
+            } else {
+                newBalance += amount;
+            }
+
+            await supabaseService.updateUser(user.id, {
+                balance: newBalance,
+                bonus_balance: newBonusBalance
+            });
 
             // Persist Transaction record
             await supabaseService.createTransaction({
@@ -297,7 +344,7 @@ class WalletService {
                 amount: amount,
                 currency: user.currency,
                 game_id: gameId,
-                metadata: { correlationId, balance_after: newBalance }
+                metadata: { correlationId, balance_after: newBalance, bonus_balance_after: newBonusBalance }
             });
 
             await auditLog({
@@ -307,7 +354,7 @@ class WalletService {
                 action: 'wallet:credit',
                 entity_type: 'transaction',
                 entity_id: transactionId,
-                metadata: { request: { amount, gameId, balance_after: newBalance } },
+                metadata: { request: { amount, gameId, balance_after: newBalance, bonus_balance_after: newBonusBalance } },
                 message: `SPI Credit Success: ${amount}`
             });
 
@@ -317,6 +364,7 @@ class WalletService {
                 game_id: gameId,
                 balance_before: user.balance,
                 balance_after: newBalance,
+                bonus_balance_after: newBonusBalance,
                 currency: user.currency
             }, { correlationId, brandId });
 
@@ -324,7 +372,7 @@ class WalletService {
             await ftService.pushEvent(user.user_id, 'balance', {
                 balances: [
                     { amount: newBalance, currency: user.currency, key: 'real_money', exchange_rate: 1 },
-                    { amount: user.bonus_balance || 0, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
+                    { amount: newBonusBalance, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
                 ]
             }, { correlationId, brandId });
 
@@ -337,7 +385,7 @@ class WalletService {
             return {
                 transaction_id: transactionId,
                 balance: newBalance,
-                bonus_balance: user.bonus_balance,
+                bonus_balance: newBonusBalance,
                 currency: user.currency
             };
         } catch (error) {
