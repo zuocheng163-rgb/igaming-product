@@ -83,18 +83,18 @@ class WalletService {
             let bonusWager = 0;
             let realWager = 0;
 
-            // F8 Wagering Order: Real balance is ALWAYS staked first
-            if (newBalance >= remainingDebit) {
-                realWager = remainingDebit;
-                newBalance -= remainingDebit;
-                remainingDebit = 0;
-            } else {
-                realWager = newBalance;
-                remainingDebit -= newBalance;
-                newBalance = 0;
-
+            // F8 Wagering Order: Bonus balance is ALWAYS staked first
+            if (newBonusBalance >= remainingDebit) {
                 bonusWager = remainingDebit;
                 newBonusBalance -= remainingDebit;
+                remainingDebit = 0;
+            } else {
+                bonusWager = newBonusBalance;
+                remainingDebit -= newBonusBalance;
+                newBonusBalance = 0;
+
+                realWager = remainingDebit;
+                newBalance -= remainingDebit;
                 remainingDebit = 0;
             }
 
@@ -292,15 +292,12 @@ class WalletService {
                 .in('state', ['CREATED', 'ONGOING'])
                 .order('created_at', { ascending: true });
 
-            let newBalance = user.balance;
+            let newBalance = user.balance + amount; // Business Logic: All wins go to Real Balance
             let newBonusBalance = user.bonus_balance || 0;
             const hasActiveBonus = activeBonuses && activeBonuses.length > 0;
 
             if (hasActiveBonus) {
-                // Credit winnings to Bonus Balance if bonus is active
-                newBonusBalance += amount;
-
-                // Update first active bonus instance winnings accrued (accrue to the oldest one first)
+                // Track winnings in the active bonus instance (accrue to oldest)
                 const bonus = activeBonuses[0];
                 const updatedWinnings = (bonus.winnings_accrued || 0) + amount;
 
@@ -324,9 +321,7 @@ class WalletService {
                     created_at: new Date().toISOString()
                 }]);
 
-                logger.info(`[Wallet SPI] Bonus win credited`, { userId, amount, newBonusBalance });
-            } else {
-                newBalance += amount;
+                logger.info(`[Wallet SPI] Win credited to Real (Bonus Active)`, { userId, amount, newBalance });
             }
 
             await supabaseService.updateUser(user.id, {
