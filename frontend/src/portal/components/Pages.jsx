@@ -874,27 +874,66 @@ export const Compliance = ({ user, token }) => {
 export const Settings = ({ token }) => {
     const [apiKey, setApiKey] = useState('FETCHING...');
     const [isRegenerating, setIsRegenerating] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [docConfig, setDocConfig] = useState({
+        affordability_threshold: 1000,
+        velocity_spike_count: 5,
+        rapid_escalation_pct: 100,
+        session_limit_minutes: 60
+    });
 
     useEffect(() => {
         if (!token) return;
+
+        // Fetch API Key
         fetch('/api/operator/config', {
             headers: { Authorization: `Bearer ${token}` }
         })
             .then(res => res.json())
             .then(config => {
-                // Check both potential locations for compatibility
                 const key = config?.ft_api_key || config?.config?.operator_api_key;
-                if (key) {
-                    setApiKey(key);
-                } else {
-                    setApiKey('NONE SET');
-                }
+                if (key) setApiKey(key);
+                else setApiKey('NONE SET');
             })
             .catch(err => {
                 console.error('Failed to fetch config', err);
                 setApiKey('ERROR LOADING');
             });
+
+        // Fetch DoC Config
+        fetch('/api/operator/config/doc', {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+            .then(res => res.json())
+            .then(config => {
+                if (config) setDocConfig(config);
+            })
+            .catch(err => console.error('Failed to fetch DoC config', err));
     }, [token]);
+
+    const handleSaveDoC = async () => {
+        setIsSaving(true);
+        try {
+            const response = await fetch('/api/operator/config/doc', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(docConfig)
+            });
+
+            if (response.ok) {
+                alert('Duty of Care configuration updated successfully');
+            } else {
+                throw new Error('Failed to update DoC config');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     const handleRegenerateKey = async () => {
         setIsRegenerating(true);
@@ -955,6 +994,69 @@ export const Settings = ({ token }) => {
                         </button>
                     </div>
                 </div>
+            </section>
+
+            <section className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#ff4444' }}>
+                    <Shield size={20} />
+                    <h3>Auto Duty of Care (Rule-Based)</h3>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div className="form-group">
+                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Affordability Threshold (EUR)</label>
+                        <input
+                            type="number"
+                            value={docConfig.affordability_threshold}
+                            onChange={(e) => setDocConfig({ ...docConfig, affordability_threshold: parseInt(e.target.value) })}
+                            className="input-field"
+                            style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Velocity Spike (Bets/Min)</label>
+                        <input
+                            type="number"
+                            value={docConfig.velocity_spike_count}
+                            onChange={(e) => setDocConfig({ ...docConfig, velocity_spike_count: parseInt(e.target.value) })}
+                            className="input-field"
+                            style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Rapid Escalation (% increase)</label>
+                        <input
+                            type="number"
+                            value={docConfig.rapid_escalation_pct}
+                            onChange={(e) => setDocConfig({ ...docConfig, rapid_escalation_pct: parseInt(e.target.value) })}
+                            className="input-field"
+                            style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Session Limit (Minutes)</label>
+                        <input
+                            type="number"
+                            value={docConfig.session_limit_minutes}
+                            onChange={(e) => setDocConfig({ ...docConfig, session_limit_minutes: parseInt(e.target.value) })}
+                            className="input-field"
+                            style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                        />
+                    </div>
+                </div>
+
+                <div style={{ marginTop: '20px', fontSize: '0.85rem', color: 'var(--text-muted)', padding: '12px', background: 'rgba(255,68,68,0.05)', borderRadius: '8px', borderLeft: '3px solid #ff4444' }}>
+                    <strong>Regulatory Compliance:</strong> These rules trigger automated interventions (Reality Checks) and notify the CRM immediately upon detection.
+                </div>
+
+                <button
+                    onClick={handleSaveDoC}
+                    disabled={isSaving}
+                    className="btn-primary"
+                    style={{ marginTop: '20px', padding: '10px 20px', fontSize: '0.9rem' }}
+                >
+                    {isSaving ? 'SAVING...' : 'SAVE DOC CONFIG'}
+                </button>
             </section>
 
             <section className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>

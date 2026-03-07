@@ -55,6 +55,11 @@ class NeoStrikeClient {
         return response.data;
     }
 
+    async getAlerts() {
+        const response = await this.client.get('/api/user/alerts');
+        return response.data;
+    }
+
     // Legacy support for event listeners (noop for now as we don't have WS)
     on(event, handler) {
         console.warn(`[NeoStrikeClient] .on('${event}') called, but WebSockets are removed. State is updated via API responses.`);

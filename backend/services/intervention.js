@@ -1,3 +1,4 @@
+const supabaseService = require('./supabase');
 const SlackService = require('./slack-service');
 const rabbitmq = require('./rabbitmq');
 const ftService = require('./ft-integration');
@@ -12,19 +13,31 @@ class InterventionService {
     /**
      * Trigger a Reality Check or Affordability modal on the frontend
      */
-    static triggerRealityCheck(userId, reason, type = 'REALITY_CHECK') {
+    static async triggerRealityCheck(userId, reason, type = 'REALITY_CHECK') {
         logger.info(`Triggering UI Intervention`, { userId, reason, type });
 
         const message = type === 'AFFORDABILITY_CHECK'
             ? 'We need to verify your affordability to continue. Please connect your bank.'
             : 'You have been playing for a while. Would you like to take a break?';
 
-        rabbitmq.publishEvent(`user.${userId}.alert`, {
-            type,
-            message,
-            reason,
-            timestamp: new Date().toISOString()
+        // Log to DB for polling fallback
+        await supabaseService.saveAuditLog({
+            correlation_id: require('crypto').randomUUID(),
+            level: 'warn',
+            actor_id: userId,
+            action: 'user:alert',
+            metadata: { type, message, reason },
+            message: `Duty of Care Alert: ${type}`
         });
+
+        if (rabbitmq && rabbitmq.publishEvent) {
+            rabbitmq.publishEvent(`user.${userId}.alert`, {
+                type,
+                message,
+                reason,
+                timestamp: new Date().toISOString()
+            });
+        }
     }
 
     /**

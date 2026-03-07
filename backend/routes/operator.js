@@ -425,6 +425,33 @@ router.post('/user/update', authenticateRequest, async (req, res) => {
     }
 });
 
+router.get('/user/alerts', authenticateRequest, async (req, res) => {
+    const userId = req.user.id;
+    const since = new Date(Date.now() - 60 * 1000).toISOString(); // Check last minute for safety
+
+    try {
+        const { data, error } = await supabaseService.client
+            .from('platform_audit_logs')
+            .select('metadata, timestamp')
+            .eq('actor_id', userId)
+            .eq('action', 'user:alert')
+            .gte('timestamp', since)
+            .order('timestamp', { ascending: false })
+            .limit(1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            res.json({ alert: data[0].metadata });
+        } else {
+            res.json({ alert: null });
+        }
+    } catch (error) {
+        logger.error('Failed to fetch user alerts', { error: error.message, userId });
+        res.status(500).json({ error: 'Failed to fetch alerts' });
+    }
+});
+
 // FT Simulation Endpoints (Consents, Blocks, etc.)
 router.put('/userconsents/:userid', authenticateRequest, async (req, res) => {
     const { correlationId } = req;
@@ -922,6 +949,51 @@ router.get('/operator/stats', authenticateRequest, async (req, res) => {
         res.json(stats);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch portal stats' });
+    }
+});
+
+router.get('/operator/config/doc', authenticateRequest, requireAdmin, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    try {
+        const config = await supabaseService.getTenantConfig(brandId);
+        res.json({
+            affordability_threshold: config?.doc_affordability_threshold || 1000,
+            velocity_spike_count: config?.doc_velocity_spike_count || 5,
+            rapid_escalation_pct: config?.doc_rapid_escalation_pct || 100,
+            session_limit_minutes: config?.doc_session_limit_minutes || 60
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch DoC config' });
+    }
+});
+
+router.post('/operator/config/doc', authenticateRequest, requireAdmin, async (req, res) => {
+    const brandId = req.brandId || req.user?.brand_id || 1;
+    const {
+        affordability_threshold,
+        velocity_spike_count,
+        rapid_escalation_pct,
+        session_limit_minutes
+    } = req.body;
+
+    try {
+        const { error } = await supabaseService.client
+            .from('tenant_configs')
+            .update({
+                doc_affordability_threshold: affordability_threshold,
+                doc_velocity_spike_count: velocity_spike_count,
+                doc_rapid_escalation_pct: rapid_escalation_pct,
+                doc_session_limit_minutes: session_limit_minutes,
+                updated_at: new Date().toISOString()
+            })
+            .eq('brand_id', brandId);
+
+        if (error) throw error;
+
+        res.json({ success: true });
+    } catch (error) {
+        logger.error('Failed to update DoC config', { error: error.message, brandId });
+        res.status(500).json({ error: 'Failed to update DoC config' });
     }
 });
 

@@ -84,10 +84,35 @@ export const useBalance = (initialBalance = 0) => {
 };
 
 export const useAlerts = () => {
-    // Alerts are harder with polling. For now, we'll just leave it as a placeholder
-    // In a real serverless app, we'd use Server-Sent Events (SSE) or long-polling
-    // if we really needed push notifications.
-    // For this migration, we'll return empty.
+    const { client, isConnected } = useWebSocket();
+    const [lastAlert, setLastAlert] = useState(null);
+    const seenAlerts = useRef(new Set());
 
-    return { lastAlert: null, clearAlert: () => { } };
+    useEffect(() => {
+        if (!client || !isConnected) return;
+
+        const checkAlerts = async () => {
+            try {
+                const data = await client.getAlerts();
+                if (data && data.alert) {
+                    const alertKey = `${data.alert.type}-${data.alert.reason}`;
+                    if (!seenAlerts.current.has(alertKey)) {
+                        setLastAlert(data.alert);
+                        seenAlerts.current.add(alertKey);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch player alerts', err);
+            }
+        };
+
+        checkAlerts();
+        const interval = setInterval(checkAlerts, 6000); // Poll every 6s
+
+        return () => clearInterval(interval);
+    }, [client, isConnected]);
+
+    const clearAlert = () => setLastAlert(null);
+
+    return { lastAlert, clearAlert };
 };
