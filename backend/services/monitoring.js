@@ -164,16 +164,17 @@ class MonitoringService {
     static async evaluateRisk(userId, currentAmount = 0) {
         const user = await supabaseService.getUserById(userId);
         if (!user) return null;
+        const publicUserId = user.user_id;
 
         const thresholds = await this.getThresholds(user.brand_id);
 
         const results = {
-            isLossChasing: await this.checkChasingLosses(userId, thresholds),
-            isVelocitySpike: await this.checkVelocitySpike(userId, thresholds),
-            isRapidEscalation: await this.checkRapidEscalation(userId, currentAmount, thresholds),
-            isProlongedSession: await this.checkProlongedSession(userId, thresholds),
+            isLossChasing: await this.checkChasingLosses(publicUserId, thresholds),
+            isVelocitySpike: await this.checkVelocitySpike(publicUserId, thresholds),
+            isRapidEscalation: await this.checkRapidEscalation(publicUserId, currentAmount, thresholds),
+            isProlongedSession: await this.checkProlongedSession(publicUserId, thresholds),
             isLateNight: this.isLateNightSession(),
-            isAffordabilityThresholdReached: await this.checkAffordabilityThreshold(userId, thresholds)
+            isAffordabilityThresholdReached: await this.checkAffordabilityThreshold(publicUserId, thresholds)
         };
 
         const isRiskDetected = Object.values(results).some(v => v === true);

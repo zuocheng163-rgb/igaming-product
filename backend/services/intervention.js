@@ -63,8 +63,9 @@ class InterventionService {
         // 1. Notify CRM immediately for all flags
         await this.notifyCRM(userId, riskLevel, reasons);
 
-        // 2. High Risk or Affordability: Force UI Interaction
-        if (riskLevel === 'HIGH' || reasons.includes('isAffordabilityThresholdReached')) {
+        // 2. Trigger Intervention for HIGH and MEDIUM risk
+        // Previously only HIGH was triggering UI interventions
+        if (riskLevel === 'HIGH' || riskLevel === 'MEDIUM' || reasons.includes('isAffordabilityThresholdReached')) {
             const type = reasons.includes('isAffordabilityThresholdReached') ? 'AFFORDABILITY_CHECK' : 'REALITY_CHECK';
             this.triggerRealityCheck(userId, reasons.join(', '), type);
         }
