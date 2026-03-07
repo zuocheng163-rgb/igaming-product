@@ -318,12 +318,15 @@ router.post('/debit', authenticateRequest, async (req, res) => {
         return res.status(400).json({ error: 'Missing user_id or amount' });
     }
 
+    // Normalize user_id: strip timestamp if present from token-based legacy SDK calls
+    const normalizedUserId = user_id.split('-')[0];
+
     try {
         const result = await WalletService.debit(
-            user_id, amount, transaction_id, game_id,
+            normalizedUserId, amount, transaction_id, game_id,
             currentOperatorId, correlationId
         );
-        logger.info('[Debit SPI] Success', { user_id, amount, balance_after: result.balance });
+        logger.info('[Debit SPI] Success', { user_id: normalizedUserId, amount, balance_after: result.balance });
         res.json(result);
     } catch (error) {
         const status = error.message === 'INSUFFICIENT_FUNDS' ? 402 : 500;
@@ -341,12 +344,14 @@ router.post('/credit', authenticateRequest, async (req, res) => {
         return res.status(400).json({ error: 'Missing user_id or amount' });
     }
 
+    const normalizedUserId = user_id.split('-')[0];
+
     try {
         const result = await WalletService.credit(
-            user_id, amount, transaction_id, game_id,
+            normalizedUserId, amount, transaction_id, game_id,
             currentOperatorId, correlationId
         );
-        logger.info('[Credit SPI] Success', { user_id, amount, balance_after: result.balance });
+        logger.info('[Credit SPI] Success', { user_id: normalizedUserId, amount, balance_after: result.balance });
         res.json(result);
     } catch (error) {
         const errorMessage = typeof error === 'string' ? error : (error.message || 'Error occurred');
@@ -426,7 +431,7 @@ router.post('/user/update', authenticateRequest, async (req, res) => {
 });
 
 router.get('/user/alerts', authenticateRequest, async (req, res) => {
-    const userId = req.user.id;
+    const userId = req.user.user_id; // Use canonical username for matching audit logs
     const since = new Date(Date.now() - 60 * 1000).toISOString(); // Check last minute for safety
 
     try {
@@ -436,8 +441,7 @@ router.get('/user/alerts', authenticateRequest, async (req, res) => {
             .eq('actor_id', userId)
             .eq('action', 'user:alert')
             .gte('timestamp', since)
-            .order('timestamp', { ascending: false })
-            .limit(1);
+            .order('timestamp', { ascending: false });
 
         if (error) throw error;
 

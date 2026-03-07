@@ -59,7 +59,10 @@ class MonitoringService {
             .eq('action', 'wallet:debit')
             .gte('timestamp', lastMinute);
 
-        if (error) return false;
+        if (error) {
+            logger.error(`[Monitoring] Velocity check error`, { error: error.message, userId });
+            return false;
+        }
 
         if (count >= thresholds.velocity) {
             logger.warn(`Velocity spike detected`, { userId, betsPerMinute: count, threshold: thresholds.velocity });

@@ -13,7 +13,7 @@ class InterventionService {
     /**
      * Trigger a Reality Check or Affordability modal on the frontend
      */
-    static async triggerRealityCheck(userId, reason, type = 'REALITY_CHECK') {
+    static async triggerRealityCheck(userId, reason, type = 'REALITY_CHECK', brandId = 1) {
         logger.info(`Triggering UI Intervention`, { userId, reason, type });
 
         const message = type === 'AFFORDABILITY_CHECK'
@@ -24,6 +24,7 @@ class InterventionService {
         await supabaseService.saveAuditLog({
             correlation_id: require('crypto').randomUUID(),
             level: 'warn',
+            brand_id: brandId, // Ensure it shows up in Operator Portal stats
             actor_id: userId,
             action: 'user:alert',
             metadata: { type, message, reason },
@@ -57,7 +58,7 @@ class InterventionService {
     /**
      * Apply a temporary restriction or alert
      */
-    static async handleRiskDetected(userId, riskData) {
+    static async handleRiskDetected(userId, riskData, brandId = 1) {
         const { riskLevel, reasons } = riskData;
 
         // 1. Notify CRM immediately for all flags
@@ -67,7 +68,7 @@ class InterventionService {
         // Previously only HIGH was triggering UI interventions
         if (riskLevel === 'HIGH' || riskLevel === 'MEDIUM' || reasons.includes('isAffordabilityThresholdReached')) {
             const type = reasons.includes('isAffordabilityThresholdReached') ? 'AFFORDABILITY_CHECK' : 'REALITY_CHECK';
-            this.triggerRealityCheck(userId, reasons.join(', '), type);
+            this.triggerRealityCheck(userId, reasons.join(', '), type, brandId);
         }
 
         // 3. Slack Integration: Notify for risk events

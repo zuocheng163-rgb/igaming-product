@@ -33,7 +33,7 @@ class NeoStrikeClient {
             amount,
             game_id: gameId,
             transaction_id: transactionId || `tx-${Date.now()}`,
-            user_id: this.token.replace('token-', '') // Simplified for demo
+            user_id: this.username || this.token.replace('token-', '').split('-')[0]
         });
         return response.data; // Returns { balance, bonus_balance, currency }
     }
@@ -43,7 +43,7 @@ class NeoStrikeClient {
             amount,
             game_id: gameId,
             transaction_id: transactionId || `tx-${Date.now()}`,
-            user_id: this.token.replace('token-', '')
+            user_id: this.username || this.token.replace('token-', '').split('-')[0]
         });
         return response.data;
     }

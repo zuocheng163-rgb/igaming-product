@@ -245,9 +245,9 @@ class WalletService {
             }, { correlationId, brandId });
 
             // AI Duty of Care: Evaluate Risk after transaction
-            const riskData = await MonitoringService.evaluateRisk(userId, amount);
+            const riskData = await MonitoringService.evaluateRisk(user.user_id, amount, playerBrandId);
             if (riskData) {
-                await InterventionService.handleRiskDetected(userId, riskData);
+                await InterventionService.handleRiskDetected(user.user_id, riskData, playerBrandId);
             }
 
             return {
@@ -329,9 +329,9 @@ class WalletService {
             }, { correlationId, brandId });
 
             // AI Duty of Care: Evaluate Risk after transaction
-            const riskData = await MonitoringService.evaluateRisk(userId, amount);
+            const riskData = await MonitoringService.evaluateRisk(user.user_id, amount, playerBrandId);
             if (riskData) {
-                await InterventionService.handleRiskDetected(userId, riskData);
+                await InterventionService.handleRiskDetected(user.user_id, riskData, playerBrandId);
             }
 
             return {
@@ -434,9 +434,9 @@ class WalletService {
             });
 
             // AI Duty of Care: Evaluate Risk after transaction (Chasing losses detection)
-            const riskData = await MonitoringService.evaluateRisk(userId, amount);
+            const riskData = await MonitoringService.evaluateRisk(user.user_id, amount, playerBrandId);
             if (riskData) {
-                await InterventionService.handleRiskDetected(userId, riskData);
+                await InterventionService.handleRiskDetected(user.user_id, riskData, playerBrandId);
             }
 
             return {

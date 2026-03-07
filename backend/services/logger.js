@@ -53,9 +53,11 @@ const auditLog = async (data) => {
 
     // Log to DB if hook is set
     if (dbLogHook && typeof dbLogHook === 'function') {
-        dbLogHook(logEntry).catch(err => {
+        try {
+            await dbLogHook(logEntry);
+        } catch (err) {
             console.error('[Logger] Failed to persist audit log to DB:', err.message);
-        });
+        }
     }
 
     return logEntry;
