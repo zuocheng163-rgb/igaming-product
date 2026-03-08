@@ -600,7 +600,16 @@ const getUserByIdAndBrand = async (userId, brandId) => {
         return { ...user, ...profile };
     }
     
-    return user;
+    // If profile auto-creation failed (e.g. missing service role key locally), return defaults
+    // so the UI still displays the GAMSTOP and risk flags accurately.
+    return { 
+        ...user,
+        gamstop_blocked: false,
+        bonus_suppressed: false,
+        edd_pending: false,
+        self_exclusion_type: null,
+        self_exclusion_until: null
+    };
 };
 
 const getFilteredPlayers = async (brandId, filters, page = 1, limit = 10) => {
