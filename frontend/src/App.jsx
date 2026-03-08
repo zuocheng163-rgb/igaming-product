@@ -97,7 +97,8 @@ function App() {
   };
 
   const renderContent = () => {
-    const isPortal = pathname.startsWith('/portal');
+    // Default to portal if at root or explicitly in /portal
+    const isPortal = pathname.startsWith('/portal') || pathname === '/';
 
     if (!user) {
       return (

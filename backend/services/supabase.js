@@ -543,8 +543,22 @@ const searchOperatorGlobal = async (brandId, query) => {
 
 const getUserByIdAndBrand = async (userId, brandId) => {
     if (!supabase) return null;
-    const { data, error } = await supabase.from('users').select('*').eq('brand_id', brandId).or(`user_id.eq.${userId},username.eq.${userId}`).single();
+    // Join with player_profiles to get DoC/RG fields
+    const { data, error } = await supabase
+        .from('users')
+        .select('*, player_profiles(*)')
+        .eq('brand_id', brandId)
+        .or(`user_id.eq.${userId},username.eq.${userId}`)
+        .single();
+        
     if (error) return null;
+    
+    // Flatten the profile data into the main object
+    if (data && data.player_profiles) {
+        const { player_profiles, ...userData } = data;
+        return { ...userData, ...player_profiles };
+    }
+    
     return data;
 };
 

@@ -372,10 +372,14 @@ router.post('/register', async (req, res) => {
     try {
         // Optional GAMSTOP Check
         const gamstopStatus = await SelfExclusionService.checkGAMSTOP(email, brand_id);
-        if (gamstopStatus === 'EXCLUDED') {
-            logger.warn('Registration blocked by GAMSTOP', { username, email, brand_id });
-            await RGAuditService.log(brand_id, username, 'RG_GAMSTOP_BLOCKED_REGISTRATION', { email });
-            return res.status(403).json({ error: 'Registration blocked: Your details match a self-exclusion on GAMSTOP.' });
+        if (['EXCLUDED', 'SERVICE_UNAVAILABLE', 'PARTIAL_MATCH'].includes(gamstopStatus)) {
+            const errorMsg = gamstopStatus === 'EXCLUDED' 
+                ? 'Your details match a self-exclusion on GAMSTOP.'
+                : `GAMSTOP verification is currently ${gamstopStatus.replace(/_/g, ' ').toLowerCase()}. Please try again later.`;
+            
+            logger.warn('Registration blocked by GAMSTOP status:', { username, email, brand_id, gamstopStatus });
+            await RGAuditService.log(brand_id, username, 'RG_GAMSTOP_BLOCKED_REGISTRATION', { email, status: gamstopStatus });
+            return res.status(403).json({ error: `Registration blocked: ${errorMsg}` });
         }
 
         const token = `token-${username}-${Date.now()}`;

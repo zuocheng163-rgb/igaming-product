@@ -1489,8 +1489,9 @@ const ManualIssuanceForm = ({ templates, token }) => {
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ player_id: playerId, template_id: selectedTemplate, amount: Number(amount) })
             });
+            const data = await res.json();
             if (res.ok) alert('Bonus issued successfully');
-            else throw new Error('Failed to issue bonus');
+            else throw new Error(data.error || 'Failed to issue bonus');
         } catch (err) {
             alert(err.message);
         } finally {
