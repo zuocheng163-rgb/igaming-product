@@ -4,7 +4,7 @@ const supabaseService = require('../services/supabase');
 const ftService = require('../services/ft-integration');
 const { logger, auditLog, generateCorrelationId } = require('../services/logger');
 const rabbitmq = require('../services/rabbitmq');
-const { featureGate, getCurrentOffering } = require('../middleware/feature-gate');
+const { featureGate } = require('../middleware/feature-gate');
 const SelfExclusionService = require('../services/self-exclusion-service');
 const RGAuditService = require('../services/rg-audit-service');
 
@@ -280,7 +280,7 @@ router.post('/authenticate', async (req, res) => {
                 last_name: user.last_name,
                 email: user.email
             },
-            productOffering: getCurrentOffering()
+            productOffering: process.env.PRODUCT_OFFERING || 'BASIC'
         };
 
         // Add 'token' field ONLY in demo mode to keep clean
