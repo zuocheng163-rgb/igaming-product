@@ -747,8 +747,12 @@ router.post('/operator/bonuses/issue', authenticateRequest, requireAdmin, async 
         const result = await BonusManagementService.issueManualBonus(brandId, player_id, template_id, amount);
         res.json(result);
     } catch (error) {
-        logger.error('[Operator API] Bonus Issue Failed', { error: error.message, stack: error.stack, player_id });
         const isClientError = error.message === 'BONUS_SUPPRESSED' || error.message === 'Template not found';
+        if (isClientError) {
+            logger.warn('[Operator API] Bonus Issue Blocked (Client Error)', { error: error.message, player_id });
+        } else {
+            logger.error('[Operator API] Bonus Issue Failed', { error: error.message, stack: error.stack, player_id });
+        }
         res.status(isClientError ? 422 : 500).json({ error: error.message });
     }
 });

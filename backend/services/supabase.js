@@ -571,6 +571,8 @@ const getUserByIdAndBrand = async (userId, brandId) => {
             
         if (!profileError) {
             return { ...data, ...newProfile };
+        } else {
+            logger.error('[Supabase] Failed to auto-create missing profile', { userId: data.id, error: profileError.message });
         }
     }
     
