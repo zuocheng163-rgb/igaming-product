@@ -84,12 +84,16 @@ const PlayerDetailsModal = ({ userId, token, onClose }) => {
                                 <DetailRow icon={<Shield size={16} />} label="Internal UUID" value={player.id} sensitive={true} />
                                 <DetailRow icon={<User size={16} />} label="Username" value={player.username} />
 
-                                {/* Dynamic Fields (All other fields from DB) */}
+                                // Dynamic Fields (All other fields from DB)
                                 {Object.entries(player)
                                     .filter(([key]) => !['id', 'user_id', 'username', 'password_hash', 'token', '_gamstop_enabled', '_gamstop_mock_mode'].includes(key))
                                     .filter(([key]) => {
                                         // Gating for optional features
-                                        if (key.startsWith('gamstop_') && !player._gamstop_enabled) return false;
+                                        if (key.startsWith('gamstop_')) {
+                                            // Always show if it's explicitly true or if mock mode is on
+                                            if (player[key] === true || player._gamstop_mock_mode || player._gamstop_enabled) return true;
+                                            return false;
+                                        }
                                         return true;
                                     })
                                     .sort()

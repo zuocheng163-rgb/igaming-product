@@ -629,7 +629,36 @@ const getFilteredPlayers = async (brandId, filters, page = 1, limit = 10) => {
     query = query.order('last_login', { ascending: false, nullsFirst: false }).range(offset, offset + limit - 1);
     const { data, error, count } = await query;
     if (error) return { players: [], total: 0, totalPages: 0 };
-    return { players: data || [], total: count || 0, totalPages: Math.ceil((count || 0) / limit), currentPage: page };
+
+    const players = data || [];
+
+    // Fetch profiles for these players to attach DoC fields
+    if (players.length > 0) {
+        const userIds = players.map(u => u.id);
+        const { data: profiles, error: profileError } = await supabase
+            .from('player_profiles')
+            .select('player_id, gamstop_blocked, bonus_suppressed')
+            .in('player_id', userIds);
+            
+        if (!profileError && profiles) {
+            const profileMap = profiles.reduce((acc, p) => {
+                acc[p.player_id] = p;
+                return acc;
+            }, {});
+            
+            players.forEach(u => {
+                if (profileMap[u.id]) {
+                    u.gamstop_blocked = profileMap[u.id].gamstop_blocked || false;
+                    u.bonus_suppressed = profileMap[u.id].bonus_suppressed || false;
+                } else {
+                    u.gamstop_blocked = false;
+                    u.bonus_suppressed = false;
+                }
+            });
+        }
+    }
+
+    return { players, total: count || 0, totalPages: Math.ceil((count || 0) / limit), currentPage: page };
 };
 
 const getFilteredTransactions = async (brandId, filters, page = 1, limit = 10) => {
