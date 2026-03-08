@@ -1009,7 +1009,7 @@ router.post('/operator/config/doc', authenticateRequest, requireAdmin, async (re
         const { error } = await supabaseService.client
             .from('tenant_configs')
             .upsert({
-                brand_id: brandId,
+                brand_id: String(brandId),
                 product_tier: product_tier || 'basic',
                 gamstop_enabled: !!gamstop_enabled,
                 doc_affordability_threshold: affordability_threshold,

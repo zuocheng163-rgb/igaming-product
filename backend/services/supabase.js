@@ -544,15 +544,23 @@ const searchOperatorGlobal = async (brandId, query) => {
 
 const getUserByIdAndBrand = async (userId, brandId) => {
     if (!supabase) return null;
+    
+    // brand_id in 'users' table is typically a NUMBER in this schema
+    // brand_id in 'tenant_configs' is a STRING
+    const numericBrandId = parseInt(brandId, 10);
+
     // Join with player_profiles to get DoC/RG fields
     const { data, error } = await supabase
         .from('users')
         .select('*, player_profiles(*)')
-        .eq('brand_id', brandId)
+        .eq('brand_id', numericBrandId)
         .or(`user_id.eq.${userId},username.eq.${userId}`)
-        .single();
+        .maybeSingle(); // Use maybeSingle to handle missing users gracefully
         
-    if (error) return null;
+    if (error) {
+        logger.error('[Supabase] getUserByIdAndBrand failed', { userId, brandId: numericBrandId, error: error.message });
+        return null;
+    }
     
     // Auto-create profile if missing
     if (data && !data.player_profiles) {
@@ -561,7 +569,7 @@ const getUserByIdAndBrand = async (userId, brandId) => {
             .from('player_profiles')
             .insert({
                 player_id: data.id,
-                tenant_id: data.brand_id,
+                tenant_id: String(brandId), // player_profiles.tenant_id is usually a string
                 email: data.email,
                 first_name: data.first_name,
                 last_name: data.last_name
