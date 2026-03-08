@@ -105,7 +105,7 @@ export const Players = ({ user, token }) => {
         { header: 'Email', accessor: 'email' },
         { header: 'Balance', accessor: 'balance', render: row => `€${(row.balance || 0).toFixed(2)}` },
         {
-            header: 'Risk Status', accessor: 'risk', render: row => {
+            header: 'GAMSTOP & Risk', accessor: 'risk', render: row => {
                 if (row.gamstop_blocked) return <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: 'rgba(255, 68, 68, 0.2)', color: '#ff4444' }}>GAMSTOP EXCLUDED</span>;
                 if (row.bonus_suppressed) return <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: 'rgba(255, 153, 0, 0.2)', color: '#ff9900' }}>BONUS SUPPRESSED</span>;
                 return <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>CLEAR</span>;
