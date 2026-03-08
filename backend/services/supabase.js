@@ -549,48 +549,58 @@ const getUserByIdAndBrand = async (userId, brandId) => {
     // brand_id in 'tenant_configs' is a STRING
     const numericBrandId = parseInt(brandId, 10);
 
-    // Join with player_profiles to get DoC/RG fields
-    const { data, error } = await supabase
+    // Fetch User without the problematic join
+    const { data: user, error: userError } = await supabase
         .from('users')
-        .select('*, player_profiles(*)')
+        .select('*')
         .eq('brand_id', numericBrandId)
         .or(`user_id.eq.${userId},username.eq.${userId}`)
-        .maybeSingle(); // Use maybeSingle to handle missing users gracefully
+        .maybeSingle();
         
-    if (error) {
-        logger.error('[Supabase] getUserByIdAndBrand failed', { userId, brandId: numericBrandId, error: error.message });
-        return null;
+    if (userError || !user) {
+        if (userError) logger.error('[Supabase] getUserByIdAndBrand failed', { userId, brandId: numericBrandId, error: userError.message });
+        return null; // Return null to correctly trigger the 404
+    }
+
+    // Fetch Profile explicitly
+    let { data: profile, error: profileFetchError } = await supabase
+        .from('player_profiles')
+        .select('*')
+        .eq('player_id', user.id)
+        .maybeSingle();
+
+    if (profileFetchError) {
+        logger.error('[Supabase] Failed fetching player_profiles', { playerId: user.id, error: profileFetchError.message });
     }
     
     // Auto-create profile if missing
-    if (data && !data.player_profiles) {
-        logger.info('[Supabase] Auto-creating missing profile for legacy player', { userId: data.id });
-        const { data: newProfile, error: profileError } = await supabase
+    if (!profile) {
+        logger.info('[Supabase] Auto-creating missing profile for legacy player', { userId: user.id });
+        const { data: newProfile, error: profileCreateError } = await supabase
             .from('player_profiles')
             .insert({
-                player_id: data.id,
-                tenant_id: String(brandId), // player_profiles.tenant_id is usually a string
-                email: data.email,
-                first_name: data.first_name,
-                last_name: data.last_name
+                player_id: user.id,
+                tenant_id: String(brandId), // player_profiles.tenant_id is a string
+                email: user.email,
+                first_name: user.first_name,
+                last_name: user.last_name
             })
             .select()
             .single();
             
-        if (!profileError) {
-            return { ...data, ...newProfile };
+        if (!profileCreateError) {
+            profile = newProfile;
         } else {
-            logger.error('[Supabase] Failed to auto-create missing profile', { userId: data.id, error: profileError.message });
+            logger.error('[Supabase] Failed to auto-create missing profile', { userId: user.id, error: profileCreateError.message });
         }
     }
     
     // Flatten the profile data into the main object
-    if (data && data.player_profiles) {
-        const { player_profiles, ...userData } = data;
-        return { ...userData, ...player_profiles };
+    if (profile) {
+        return { ...user, ...profile };
     }
     
-    return data;
+    return user;
 };
 
 const getFilteredPlayers = async (brandId, filters, page = 1, limit = 10) => {
