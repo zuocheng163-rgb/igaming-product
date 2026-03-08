@@ -21,6 +21,7 @@ export const Players = ({ user, token }) => {
     const [refreshing, setRefreshing] = useState(false);
     const [selectedPlayer, setSelectedPlayer] = useState(null);
     const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
+    const [config, setConfig] = useState(null);
 
     // Filter states
     const [filters, setFilters] = useState({
@@ -66,6 +67,14 @@ export const Players = ({ user, token }) => {
     };
 
     useEffect(() => {
+        // Fetch global config to respect GAMSTOP/Tier toggles on UI
+        fetch('/api/operator/config/doc', {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+        .then(res => res.json())
+        .then(data => setConfig(data))
+        .catch(() => {});
+
         // Load persisted filters from sessionStorage
         const savedFilters = sessionStorage.getItem('playerFilters');
         if (savedFilters) {
@@ -99,18 +108,33 @@ export const Players = ({ user, token }) => {
         }
     };
 
-    const columns = [
+    const showGamstop = config?.gamstop_enabled || config?.is_gamstop_mock_mode;
+    const showRisk = config?.product_tier === 'ADVANCED';
+
+    const baseColumns = [
         { header: 'Country', accessor: 'country' },
         { header: 'Username', accessor: 'username' },
         { header: 'Email', accessor: 'email' },
         { header: 'Balance', accessor: 'balance', render: row => `€${(row.balance || 0).toFixed(2)}` },
-        {
-            header: 'GAMSTOP & Risk', accessor: 'risk', render: row => {
-                if (row.gamstop_blocked) return <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: 'rgba(255, 68, 68, 0.2)', color: '#ff4444' }}>GAMSTOP EXCLUDED</span>;
-                if (row.bonus_suppressed) return <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: 'rgba(255, 153, 0, 0.2)', color: '#ff9900' }}>BONUS SUPPRESSED</span>;
+    ];
+
+    if (showGamstop || showRisk) {
+        baseColumns.push({
+            header: showGamstop && showRisk ? 'GAMSTOP & Risk' : (showGamstop ? 'GAMSTOP Status' : 'Risk Status'),
+            accessor: 'risk',
+            render: row => {
+                const badges = [];
+                if (showGamstop && row.gamstop_blocked) badges.push(<span key="g" style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: 'rgba(255, 68, 68, 0.2)', color: '#ff4444', marginRight: '4px' }}>GAMSTOP EXCLUDED</span>);
+                if (showRisk && row.bonus_suppressed) badges.push(<span key="b" style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: 'rgba(255, 153, 0, 0.2)', color: '#ff9900' }}>BONUS SUPPRESSED</span>);
+                
+                if (badges.length > 0) return <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>{badges}</div>;
                 return <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>CLEAR</span>;
             }
-        },
+        });
+    }
+
+    const columns = [
+        ...baseColumns,
         {
             header: 'Status', accessor: 'status', render: row => (
                 <span style={{

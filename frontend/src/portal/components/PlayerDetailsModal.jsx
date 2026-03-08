@@ -87,6 +87,12 @@ const PlayerDetailsModal = ({ userId, token, onClose }) => {
                                 {/* Dynamic Fields (All other fields from DB) */}
                                 {Object.entries(player)
                                     .filter(([key]) => !['id', 'user_id', 'username', 'password_hash', 'token', '_gamstop_enabled', '_gamstop_mock_mode'].includes(key))
+                                    .filter(([key]) => {
+                                        if (key.startsWith('gamstop_')) {
+                                            return player._gamstop_enabled || player._gamstop_mock_mode;
+                                        }
+                                        return true;
+                                    })
                                     .sort()
                                     .map(([key, value]) => {
                                         let displayValue = value;
