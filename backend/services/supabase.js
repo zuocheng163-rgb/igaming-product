@@ -30,7 +30,8 @@ const getBrandId = (brandId) => {
 
 const getTenantConfig = async (brandId) => {
     if (!supabase) return null;
-    const { data, error } = await supabase.from('tenant_configs').select('*').eq('brand_id', brandId).single();
+    // brand_id is stored as TEXT in DB, so we ensure string comparison
+    const { data, error } = await supabase.from('tenant_configs').select('*').eq('brand_id', String(brandId)).maybeSingle();
     if (error) {
         logger.error('[Supabase] Failed to fetch tenant config', { brandId, error: error.message });
         return null;
@@ -552,6 +553,26 @@ const getUserByIdAndBrand = async (userId, brandId) => {
         .single();
         
     if (error) return null;
+    
+    // Auto-create profile if missing
+    if (data && !data.player_profiles) {
+        logger.info('[Supabase] Auto-creating missing profile for legacy player', { userId: data.id });
+        const { data: newProfile, error: profileError } = await supabase
+            .from('player_profiles')
+            .insert({
+                player_id: data.id,
+                tenant_id: data.brand_id,
+                email: data.email,
+                first_name: data.first_name,
+                last_name: data.last_name
+            })
+            .select()
+            .single();
+            
+        if (!profileError) {
+            return { ...data, ...newProfile };
+        }
+    }
     
     // Flatten the profile data into the main object
     if (data && data.player_profiles) {

@@ -748,7 +748,8 @@ router.post('/operator/bonuses/issue', authenticateRequest, requireAdmin, async 
         res.json(result);
     } catch (error) {
         logger.error('[Operator API] Bonus Issue Failed', { error: error.message, stack: error.stack, player_id });
-        res.status(500).json({ error: error.message });
+        const isClientError = error.message === 'BONUS_SUPPRESSED' || error.message === 'Template not found';
+        res.status(isClientError ? 422 : 500).json({ error: error.message });
     }
 });
 
