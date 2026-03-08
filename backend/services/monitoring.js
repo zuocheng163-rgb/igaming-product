@@ -1,5 +1,6 @@
 const supabaseService = require('./supabase');
 const { logger } = require('./logger');
+const RGScoreService = require('./rg-score-service');
 
 /**
  * MonitoringService
@@ -16,6 +17,7 @@ class MonitoringService {
             logger.warn(`[Monitoring] No tenant config found for Brand ${brandId}, using hardcoded defaults`, { brandId });
         } else {
             logger.debug(`[Monitoring] Applied DoC thresholds for Brand ${brandId}`, {
+                tier: config.product_tier,
                 velocity: config.doc_velocity_spike_count,
                 affordability: config.doc_affordability_threshold,
                 limit: config.doc_session_limit_minutes
@@ -24,6 +26,7 @@ class MonitoringService {
 
         // Return values from DB, or fallback to sensible defaults if null/missing
         return {
+            tier: config?.product_tier || 'basic',
             affordability: parseFloat(config?.doc_affordability_threshold ?? 1000),
             velocity: parseInt(config?.doc_velocity_spike_count ?? 5),
             rapidEscalationPct: parseFloat(config?.doc_rapid_escalation_pct ?? 100),
@@ -36,7 +39,7 @@ class MonitoringService {
      * High risk if 5+ deposits occurred shortly after a period of net losses.
      */
     static async checkChasingLosses(userId, thresholds) {
-        if (!supabaseService.client) return false;
+        if (!supabaseService.client || thresholds.tier !== 'advanced') return false;
 
         const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
@@ -60,7 +63,7 @@ class MonitoringService {
     }
 
     static async checkVelocitySpike(userId, thresholds) {
-        if (!supabaseService.client) return false;
+        if (!supabaseService.client || thresholds.tier !== 'advanced') return false;
 
         const lastMinute = new Date(Date.now() - 60 * 1000).toISOString();
 
@@ -89,7 +92,7 @@ class MonitoringService {
      * Trigger if the current bet is > X% higher than the average of the last 10 bets.
      */
     static async checkRapidEscalation(userId, currentAmount, thresholds) {
-        if (!supabaseService.client || !currentAmount) return false;
+        if (!supabaseService.client || !currentAmount || thresholds.tier !== 'advanced') return false;
 
         const { data: recentBets, error } = await supabaseService.client
             .from('platform_audit_logs')
@@ -149,6 +152,27 @@ class MonitoringService {
         return hour >= 2 && hour <= 6;
     }
 
+    static async checkDepositVelocity(userId, thresholds) {
+        if (!supabaseService.client || thresholds.tier !== 'advanced') return false;
+
+        const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+        const { count, error } = await supabaseService.client
+            .from('platform_audit_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('actor_id', userId)
+            .eq('action', 'wallet:deposit')
+            .gte('timestamp', fifteenMinsAgo);
+
+        if (error) return false;
+
+        // Threshold: 3 deposits in 15 mins
+        if (count >= 3) {
+            logger.warn(`Deposit velocity spike detected`, { userId, count });
+            return true;
+        }
+        return false;
+    }
+
     static async checkAffordabilityThreshold(userId, thresholds) {
         if (!supabaseService.client) return false;
 
@@ -189,18 +213,26 @@ class MonitoringService {
         const results = {
             isLossChasing: await this.checkChasingLosses(publicUserId, thresholds),
             isVelocitySpike: await this.checkVelocitySpike(publicUserId, thresholds),
+            isDepositVelocitySpike: await this.checkDepositVelocity(publicUserId, thresholds),
             isRapidEscalation: await this.checkRapidEscalation(publicUserId, currentAmount, thresholds),
             isProlongedSession: await this.checkProlongedSession(publicUserId, thresholds),
             isLateNight: this.isLateNightSession(),
             isAffordabilityThresholdReached: await this.checkAffordabilityThreshold(publicUserId, thresholds)
         };
 
-        const isRiskDetected = Object.values(results).some(v => v === true);
+        let scoreData = null;
+        if (thresholds.tier === 'advanced') {
+            scoreData = await RGScoreService.recalculate(user.id, brandId);
+        }
+
+        const isRiskDetected = Object.values(results).some(v => v === true) || (scoreData && scoreData.compositeScore >= 6);
 
         if (isRiskDetected) {
             return {
-                riskLevel: (results.isLossChasing || results.isAffordabilityThresholdReached || results.isRapidEscalation) ? 'HIGH' : 'MEDIUM',
-                reasons: Object.entries(results).filter(([_, v]) => v === true).map(([k]) => k)
+                riskLevel: (results.isLossChasing || results.isAffordabilityThresholdReached || results.isRapidEscalation || (scoreData && scoreData.compositeScore >= 9)) ? 'HIGH' : 'MEDIUM',
+                reasons: Object.entries(results).filter(([_, v]) => v === true).map(([k]) => k),
+                compositeScore: scoreData?.compositeScore,
+                netLossTier: scoreData?.netTier
             };
         }
 

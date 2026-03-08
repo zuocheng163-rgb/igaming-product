@@ -160,9 +160,18 @@ class BonusManagementService {
 
         const amount = customAmount || template.max_amount || 10;
 
-        // Use existing WalletService logic but handle here or export/import
-        // For simplicity in this service, we call the wallet-service via a requires inside methods if needed
-        // but it's better to keep logic centralized.
+        // Check for bonus suppression
+        const { data: profile } = await supabaseService.client
+            .from('player_profiles')
+            .select('bonus_suppressed')
+            .eq('player_id', playerId)
+            .maybeSingle();
+
+        if (profile?.bonus_suppressed) {
+            logger.warn('Bonus issuance blocked: Player is under bonus suppression', { playerId, templateId });
+            throw new Error('BONUS_SUPPRESSED');
+        }
+
         const WalletService = require('./wallet-service');
         return await WalletService.creditBonus(playerId, amount, template.bonus_code, brandId, `manual-${Date.now()}`);
     }

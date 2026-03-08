@@ -86,11 +86,20 @@ const PlayerDetailsModal = ({ userId, token, onClose }) => {
 
                                 {/* Dynamic Fields (All other fields from DB) */}
                                 {Object.entries(player)
-                                    .filter(([key]) => !['id', 'user_id', 'username', 'password_hash', 'token'].includes(key))
+                                    .filter(([key]) => !['id', 'user_id', 'username', 'password_hash', 'token', '_gamstop_enabled', '_gamstop_mock_mode'].includes(key))
+                                    .filter(([key]) => {
+                                        // Gating for optional features
+                                        if (key.startsWith('gamstop_') && !player._gamstop_enabled) return false;
+                                        return true;
+                                    })
                                     .sort()
                                     .map(([key, value]) => {
                                         let displayValue = value;
                                         if (typeof value === 'boolean') displayValue = value ? 'Yes' : 'No';
+                                        
+                                        // Add Simulator Badge for GAMSTOP fields
+                                        const isGamstopField = key.startsWith('gamstop_');
+                                        const labelSuffix = (isGamstopField && player._gamstop_mock_mode) ? ' (SIMULATED)' : '';
                                         if (typeof value === 'object' && value !== null) displayValue = JSON.stringify(value);
                                         if (value === null || value === undefined) displayValue = 'null';
 
@@ -104,7 +113,7 @@ const PlayerDetailsModal = ({ userId, token, onClose }) => {
                                             <DetailRow
                                                 key={key}
                                                 icon={<div style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />}
-                                                label={key.replace(/_/g, ' ').toUpperCase()}
+                                                label={key.replace(/_/g, ' ').toUpperCase() + labelSuffix}
                                                 value={displayValue}
                                             />
                                         );

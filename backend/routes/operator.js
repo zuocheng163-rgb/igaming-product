@@ -5,6 +5,8 @@ const ftService = require('../services/ft-integration');
 const { logger, auditLog, generateCorrelationId } = require('../services/logger');
 const rabbitmq = require('../services/rabbitmq');
 const { featureGate, getCurrentOffering } = require('../middleware/feature-gate');
+const SelfExclusionService = require('../services/self-exclusion-service');
+const RGAuditService = require('../services/rg-audit-service');
 
 // Middleware to extract or generate Correlation ID
 const correlationMiddleware = (req, res, next) => {
@@ -368,6 +370,14 @@ router.post('/register', async (req, res) => {
     if (!brand_id) return res.status(400).json({ error: 'Brand ID is required' });
 
     try {
+        // Optional GAMSTOP Check
+        const gamstopStatus = await SelfExclusionService.checkGAMSTOP(email, brand_id);
+        if (gamstopStatus === 'EXCLUDED') {
+            logger.warn('Registration blocked by GAMSTOP', { username, email, brand_id });
+            await RGAuditService.log(brand_id, username, 'RG_GAMSTOP_BLOCKED_REGISTRATION', { email });
+            return res.status(403).json({ error: 'Registration blocked: Your details match a self-exclusion on GAMSTOP.' });
+        }
+
         const token = `token-${username}-${Date.now()}`;
         const newUser = await supabaseService.createUser({
             username, email, first_name, last_name,
@@ -961,6 +971,10 @@ router.get('/operator/config/doc', authenticateRequest, requireAdmin, async (req
     try {
         const config = await supabaseService.getTenantConfig(brandId);
         res.json({
+            product_tier: config?.product_tier || 'basic',
+            gamstop_enabled: config?.gamstop_enabled || false,
+            is_gamstop_key_set: !!process.env.GAMSTOP_API_KEY,
+            is_gamstop_mock_mode: process.env.GAMSTOP_MOCK_MODE === 'true',
             affordability_threshold: config?.doc_affordability_threshold || 1000,
             velocity_spike_count: config?.doc_velocity_spike_count || 5,
             rapid_escalation_pct: config?.doc_rapid_escalation_pct || 100,
@@ -974,6 +988,8 @@ router.get('/operator/config/doc', authenticateRequest, requireAdmin, async (req
 router.post('/operator/config/doc', authenticateRequest, requireAdmin, async (req, res) => {
     const brandId = req.brandId || req.user?.brand_id || 1;
     const {
+        product_tier,
+        gamstop_enabled,
         affordability_threshold,
         velocity_spike_count,
         rapid_escalation_pct,
@@ -985,6 +1001,8 @@ router.post('/operator/config/doc', authenticateRequest, requireAdmin, async (re
             .from('tenant_configs')
             .upsert({
                 brand_id: brandId,
+                product_tier: product_tier || 'basic',
+                gamstop_enabled: !!gamstop_enabled,
                 doc_affordability_threshold: affordability_threshold,
                 doc_velocity_spike_count: velocity_spike_count,
                 doc_rapid_escalation_pct: rapid_escalation_pct,
@@ -1022,7 +1040,15 @@ router.get('/operator/users/:userId', authenticateRequest, async (req, res) => {
         if (!player) {
             return res.status(404).json({ error: 'Player not found' });
         }
-        res.json(player);
+        
+        // Fetch tenant config to know if GAMSTOP is enabled
+        const cfg = await supabaseService.getTenantConfig(brandId);
+
+        res.json({
+            ...player,
+            _gamstop_enabled: cfg?.gamstop_enabled || false,
+            _gamstop_mock_mode: process.env.GAMSTOP_MOCK_MODE === 'true'
+        });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch player details' });
     }

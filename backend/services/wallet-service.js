@@ -864,6 +864,12 @@ class WalletService {
             provider: pspAdapter
         });
 
+        // AI Duty of Care: Evaluate Risk after confirmation
+        const riskData = await MonitoringService.evaluateRisk(user.user_id, amount, pmt.brand_id);
+        if (riskData) {
+            await InterventionService.handleRiskDetected(user.user_id, riskData, pmt.brand_id);
+        }
+
         return updatedPmt;
     }
 }

@@ -876,6 +876,9 @@ export const Settings = ({ token }) => {
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [docConfig, setDocConfig] = useState({
+        product_tier: 'basic',
+        gamstop_enabled: false,
+        is_gamstop_key_set: false,
         affordability_threshold: 1000,
         velocity_spike_count: 5,
         rapid_escalation_pct: 100,
@@ -1002,6 +1005,56 @@ export const Settings = ({ token }) => {
                     <h3>Auto Duty of Care (Rule-Based)</h3>
                 </div>
 
+                <div style={{ marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', paddingBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div className="form-group">
+                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Product Offering Tier</label>
+                        <select
+                            value={docConfig.product_tier}
+                            onChange={(e) => setDocConfig({ ...docConfig, product_tier: e.target.value })}
+                            className="input-field"
+                            style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
+                        >
+                            <option value="basic">BASIC (Tier 1 Compliance)</option>
+                            <option value="advanced">ADVANCED (Full Duty of Care)</option>
+                        </select>
+                        <div style={{ fontSize: '0.75rem', color: docConfig.product_tier === 'basic' ? '#ffd700' : 'var(--text-muted)', marginTop: '6px' }}>
+                            {docConfig.product_tier === 'basic' 
+                                ? 'Basic tier focuses on player-controlled limits and statutory exclusions.' 
+                                : 'Advanced tier enables behavioral monitoring, risk scoring, and longitudinal analysis.'}
+                        </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>
+                            GAMSTOP Integration
+                            {docConfig.is_gamstop_mock_mode && (
+                                <span style={{ marginLeft: '8px', padding: '2px 6px', background: 'rgba(0,183,255,0.2)', border: '1px solid rgba(0,183,255,0.3)', borderRadius: '4px', fontSize: '0.65rem', color: '#00b7ff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Simulator Active
+                                </span>
+                            )}
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', height: '42px' }}>
+                            <input
+                                type="checkbox"
+                                id="gamstop_enable"
+                                checked={docConfig.gamstop_enabled}
+                                disabled={!docConfig.is_gamstop_key_set && !docConfig.is_gamstop_mock_mode}
+                                onChange={(e) => setDocConfig({ ...docConfig, gamstop_enabled: e.target.checked })}
+                                style={{ width: '20px', height: '20px', cursor: (docConfig.is_gamstop_key_set || docConfig.is_gamstop_mock_mode) ? 'pointer' : 'not-allowed' }}
+                            />
+                            <label htmlFor="gamstop_enable" style={{ color: (docConfig.is_gamstop_key_set || docConfig.is_gamstop_mock_mode) ? 'white' : 'var(--text-muted)' }}>
+                                Enable UK GAMSTOP Checks
+                            </label>
+                        </div>
+                        {(!docConfig.is_gamstop_key_set && !docConfig.is_gamstop_mock_mode) && (
+                            <div style={{ fontSize: '0.7rem', color: '#ff4444', marginTop: '4px' }}>
+                                <AlertCircle size={10} style={{ display: 'inline', marginRight: '4px' }} />
+                                Missing GAMSTOP_API_KEY in backend environment.
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                     <div className="form-group">
                         <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Affordability Threshold (EUR)</label>
@@ -1013,20 +1066,26 @@ export const Settings = ({ token }) => {
                             style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
                         />
                     </div>
-                    <div className="form-group">
-                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Velocity Spike (Bets/Min)</label>
+                    <div className="form-group" style={{ opacity: docConfig.product_tier === 'basic' ? 0.4 : 1 }}>
+                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>
+                            Velocity Spike (Bets/Min) {docConfig.product_tier === 'basic' && <span style={{fontSize: '0.7rem'}}>(ADVANCED ONLY)</span>}
+                        </label>
                         <input
                             type="number"
+                            disabled={docConfig.product_tier === 'basic'}
                             value={docConfig.velocity_spike_count}
                             onChange={(e) => setDocConfig({ ...docConfig, velocity_spike_count: parseInt(e.target.value) })}
                             className="input-field"
                             style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
                         />
                     </div>
-                    <div className="form-group">
-                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>Rapid Escalation (% increase)</label>
+                    <div className="form-group" style={{ opacity: docConfig.product_tier === 'basic' ? 0.4 : 1 }}>
+                        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)' }}>
+                            Rapid Escalation (% increase) {docConfig.product_tier === 'basic' && <span style={{fontSize: '0.7rem'}}>(ADVANCED ONLY)</span>}
+                        </label>
                         <input
                             type="number"
+                            disabled={docConfig.product_tier === 'basic'}
                             value={docConfig.rapid_escalation_pct}
                             onChange={(e) => setDocConfig({ ...docConfig, rapid_escalation_pct: parseInt(e.target.value) })}
                             className="input-field"
