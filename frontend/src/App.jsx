@@ -121,6 +121,7 @@ function App() {
     }
 
     if (isPortal) {
+      // productOffering is passed to PortalDashboard
       return <PortalDashboard user={user} token={token} productOffering={productOffering} onLogout={handleLogout} />;
     }
 

@@ -57,6 +57,16 @@ class BonusManagementService {
         return data;
     }
 
+    static async deleteTemplate(templateId) {
+        const { error } = await supabaseService.client
+            .from('bonus_templates')
+            .delete()
+            .eq('id', templateId);
+
+        if (error) throw error;
+        return { success: true };
+    }
+
     /**
      * Active Bonus Instances
      */

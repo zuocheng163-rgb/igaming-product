@@ -89,7 +89,7 @@ const PlayerDetailsModal = ({ userId, token, onClose }) => {
                                     .filter(([key]) => !['id', 'user_id', 'username', 'password_hash', 'token', '_gamstop_enabled', '_gamstop_mock_mode'].includes(key))
                                     .filter(([key]) => {
                                         if (key.startsWith('gamstop_')) {
-                                            return player._gamstop_enabled || player._gamstop_mock_mode;
+                                            return player._gamstop_enabled === true;
                                         }
                                         return true;
                                     })

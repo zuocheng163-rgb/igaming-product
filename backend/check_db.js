@@ -10,6 +10,7 @@ async function checkConfig() {
         brand_id: 1,
         operator_name: 'Default Operator',
         ft_api_key: 'test-key-' + Date.now(),
+        product_tier: 'advanced',
         updated_at: new Date().toISOString()
     }, { onConflict: 'brand_id' });
 

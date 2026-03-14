@@ -108,7 +108,7 @@ export const Players = ({ user, token }) => {
         }
     };
 
-    const showGamstop = config?.gamstop_enabled || config?.is_gamstop_mock_mode;
+    const showGamstop = config?.gamstop_enabled === true;
     const showRisk = config?.product_tier === 'ADVANCED';
 
     const baseColumns = [
@@ -1408,7 +1408,7 @@ const BonusWizard = ({ isOpen, onClose, onSave, token, initialData }) => {
     );
 };
 
-const TemplateCard = ({ template, onEdit }) => (
+const TemplateCard = ({ template, onEdit, onDelete }) => (
     <div className="glass-panel" style={{ padding: '20px', borderLeft: '4px solid var(--accent-gold)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
             <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{template.name}</h3>
@@ -1424,7 +1424,7 @@ const TemplateCard = ({ template, onEdit }) => (
             <div><label style={{ color: 'var(--text-muted)' }}>Type</label><br />{template.type}</div>
             <div style={{ display: 'flex', gap: '8px', alignSelf: 'end', justifyContent: 'flex-end' }}>
                 <Edit size={16} style={{ cursor: 'pointer', color: 'var(--accent-gold)' }} onClick={() => onEdit(template)} />
-                <Trash2 size={16} style={{ cursor: 'pointer', color: '#ff4444' }} />
+                <Trash2 size={16} style={{ cursor: 'pointer', color: '#ff4444' }} onClick={() => onDelete(template.id)} />
             </div>
         </div>
     </div>
@@ -1661,6 +1661,27 @@ export const Bonuses = ({ token }) => {
         setIsWizardOpen(true);
     };
 
+    const handleDeleteTemplate = async (templateId) => {
+        if (!window.confirm('Are you sure you want to delete this template? This cannot be undone.')) return;
+
+        try {
+            const res = await fetch(`/api/operator/bonuses/templates/${templateId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                fetchTemplates();
+            } else {
+                const errData = await res.json();
+                alert('Failed to delete template: ' + errData.error);
+            }
+        } catch (err) {
+            console.error('Delete template failed', err);
+            alert('Delete template failed: ' + err.message);
+        }
+    };
+
     const tabs = [
         { id: 'templates', label: 'Templates', icon: SettingsIcon },
         { id: 'active', label: 'Active Bonuses', icon: Award },
@@ -1715,6 +1736,7 @@ export const Bonuses = ({ token }) => {
                                     key={t.id}
                                     template={t}
                                     onEdit={handleEditClick}
+                                    onDelete={handleDeleteTemplate}
                                 />
                             ))}
                             {templates.length === 0 && <div style={{ color: 'var(--text-muted)' }}>No templates created yet.</div>}

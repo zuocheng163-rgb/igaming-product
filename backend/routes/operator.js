@@ -265,6 +265,9 @@ router.post('/authenticate', async (req, res) => {
             currency: user.currency
         }, { correlationId, brandId });
 
+        const config = await supabaseService.getTenantConfig(brandId);
+        const offering = (config?.product_tier || process.env.PRODUCT_OFFERING || 'BASIC').toUpperCase();
+
         const authResponse = {
             sid: sessionId,
             user_id: user.user_id,
@@ -280,7 +283,7 @@ router.post('/authenticate', async (req, res) => {
                 last_name: user.last_name,
                 email: user.email
             },
-            productOffering: process.env.PRODUCT_OFFERING || 'BASIC'
+            productOffering: offering
         };
 
         // Add 'token' field ONLY in demo mode to keep clean
@@ -417,10 +420,14 @@ router.post('/register', async (req, res) => {
             throw new Error('User creation succeeded but no data was returned');
         }
 
+        const config = await supabaseService.getTenantConfig(brand_id);
+        const offering = (config?.product_tier || process.env.PRODUCT_OFFERING || 'BASIC').toUpperCase();
+
         res.json({
             user_id: newUser.username,
             token,
-            user: { ...newUser, user_id: newUser.username }
+            user: { ...newUser, user_id: newUser.username },
+            productOffering: offering
         });
     } catch (error) {
         logger.error('Registration failed', { correlationId, error: error.message });
@@ -708,6 +715,16 @@ router.patch('/operator/bonuses/templates/:id', authenticateRequest, requireAdmi
     } catch (error) {
         logger.error('[Operator API] Template Update Failed', { error: error.message, stack: error.stack, id: req.params.id });
         res.status(500).json({ error: 'Failed to update template' });
+    }
+});
+
+router.delete('/operator/bonuses/templates/:id', authenticateRequest, requireAdmin, featureGate('BONUSING'), async (req, res) => {
+    try {
+        await BonusManagementService.deleteTemplate(req.params.id);
+        res.json({ success: true });
+    } catch (error) {
+        logger.error('[Operator API] Template Deletion Failed', { error: error.message, stack: error.stack, id: req.params.id });
+        res.status(500).json({ error: 'Failed to delete template' });
     }
 });
 
