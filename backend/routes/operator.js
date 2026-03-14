@@ -266,7 +266,7 @@ router.post('/authenticate', async (req, res) => {
         }, { correlationId, brandId });
 
         const config = await supabaseService.getTenantConfig(brandId);
-        const offering = (config?.product_tier || process.env.PRODUCT_OFFERING || 'BASIC').toUpperCase();
+        const offering = (process.env.PRODUCT_OFFERING || config?.product_tier || 'BASIC').toUpperCase();
 
         const authResponse = {
             sid: sessionId,
@@ -421,7 +421,7 @@ router.post('/register', async (req, res) => {
         }
 
         const config = await supabaseService.getTenantConfig(brand_id);
-        const offering = (config?.product_tier || process.env.PRODUCT_OFFERING || 'BASIC').toUpperCase();
+        const offering = (process.env.PRODUCT_OFFERING || config?.product_tier || 'BASIC').toUpperCase();
 
         res.json({
             user_id: newUser.username,
