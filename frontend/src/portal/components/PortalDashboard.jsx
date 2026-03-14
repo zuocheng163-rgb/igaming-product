@@ -100,7 +100,7 @@ const PortalDashboard = ({ user, token, productOffering, onLogout }) => {
         if (currentPath.includes('/portal/games')) return <Games user={user} token={token} />;
         if (currentPath.includes('/portal/compliance')) return <Compliance user={user} token={token} />;
         if (currentPath.includes('/portal/bonuses')) return <Bonuses token={token} />;
-        if (currentPath.includes('/portal/settings')) return <Settings user={user} token={token} />;
+        if (currentPath.includes('/portal/settings')) return <Settings user={user} token={token} productOffering={productOffering} />;
         if (currentPath.includes('/portal/operational-stream')) return <OperationalStream user={user} token={token} />;
 
         return (
