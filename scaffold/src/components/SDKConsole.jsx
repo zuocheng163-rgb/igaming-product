@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { subscribeToSDK } from '@neostrike/sdk/src/utils';
+import { subscribeToSDK, logSDKEvent } from '@neostrike/sdk/src/utils';
 
 export const SDKConsole = () => {
     const [events, setEvents] = useState([]);

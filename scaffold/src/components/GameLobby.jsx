@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useGames, useSession } from '@neostrike/sdk';
+import { useGames, useSession, useFavourites, useRecentlyPlayed, FilterBar, LobbyCarousel } from '@neostrike/sdk';
 import { logSDKEvent } from '@neostrike/sdk/src/utils';
 import { GameLauncher } from './GameLauncher';
 import theme from '../../theme.config';
@@ -16,7 +16,7 @@ const GAME_THEMES = {
     'netent:divine-fortune': { emoji: '🐴', gradient: 'linear-gradient(135deg, #8B0000 0%, #4b134f 60%, #b8860b 100%)' },
 };
 
-const GameCard = ({ game, onLaunch }) => {
+const GameCard = ({ game, onLaunch, isFavourite, onToggleFavourite }) => {
     const theme_ = GAME_THEMES[game.id] || { emoji: '🎮', gradient: 'linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%)' };
 
     return (
@@ -41,27 +41,33 @@ const GameCard = ({ game, onLaunch }) => {
                 e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
                 e.currentTarget.style.boxShadow = 'none';
             }}
-            onClick={() => onLaunch(game)}
         >
-            <div style={{
-                height: '140px',
-                background: theme_.gradient,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '50px',
-                position: 'relative'
-            }}>
+            <div 
+                style={{ height: '140px', background: theme_.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '50px', position: 'relative' }}
+                onClick={() => onLaunch(game)}
+            >
                 <span>{theme_.emoji}</span>
-                <div style={{
-                    position: 'absolute', top: '10px', right: '10px',
-                    padding: '4px 8px', borderRadius: '4px', background: 'rgba(0,0,0,0.6)',
-                    fontSize: '10px', color: '#fff', fontWeight: 'bold'
-                }}>
+                <div style={{ position: 'absolute', top: '10px', right: '10px', padding: '4px 8px', borderRadius: '4px', background: 'rgba(0,0,0,0.6)', fontSize: '10px', color: '#fff', fontWeight: 'bold' }}>
                     {game.provider.split(':')[0].toUpperCase()}
                 </div>
             </div>
-            <div style={{ padding: '15px' }}>
+            
+            {/* Favourite Toggle */}
+            <button
+                onClick={(e) => { e.stopPropagation(); onToggleFavourite(game.id); }}
+                style={{
+                    position: 'absolute', top: '10px', left: '10px',
+                    background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%',
+                    width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', zIndex: 10, transition: 'all 0.2s', padding: 0
+                }}
+            >
+                <span style={{ fontSize: '18px', color: isFavourite(game.id) ? '#ff4d4d' : 'white' }}>
+                    {isFavourite(game.id) ? '❤️' : '🤍'}
+                </span>
+            </button>
+
+            <div style={{ padding: '15px' }} onClick={() => onLaunch(game)}>
                 <div style={{ fontWeight: 'bold', color: '#fff', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {game.name}
                 </div>
@@ -75,23 +81,10 @@ const GameCard = ({ game, onLaunch }) => {
 
 export const GameLobby = () => {
     const { player, isAuthenticated } = useSession();
-    const { games, loading, error, search, filter, loadMore, total } = useGames();
-    const [activeCategory, setActiveCategory] = useState('');
+    const { games, loading, error, search, filter, loadMore, total, filters } = useGames();
+    const { favourites, isFavourite, toggleFavourite } = useFavourites();
+    const { games: recentlyPlayed } = useRecentlyPlayed();
     const [launchState, setLaunchState] = useState({ game: null, url: null });
-
-    const categories = [
-        { label: 'All Games', value: '' },
-        { label: '🔥 Popular', value: 'popular' },
-        { label: '🎰 Slots', value: 'slots' },
-        { label: '🎡 Live Casino', value: 'live-casino' },
-        { label: '🃏 Table Games', value: 'table' }
-    ];
-
-    const handleCategoryChange = (val) => {
-        setActiveCategory(val);
-        filter({ category: val });
-        logSDKEvent('UI', `Category changed to: ${val || 'All'}`);
-    };
 
     const handleLaunch = async (game) => {
         if (!isAuthenticated) {
@@ -122,63 +115,32 @@ export const GameLobby = () => {
             logSDKEvent('SDK', 'Game launch URL received', { url: data.game_url });
         } catch (err) {
             logSDKEvent('ERROR', `Launch failed: ${err.message}. Failover to Simulation Mode.`);
-            // Auto-launch simulation if real fails, for better demo flow
             setLaunchState({ game, url: null });
-            logSDKEvent('UI', `Launching ${game.name} in Simulation Mode (Automatic Failover)`);
         }
     };
 
     return (
-        <div className="game-lobby" style={{ padding: '40px' }}>
-            {/* Search and Filters */}
-            <div style={{
-                display: 'flex', flexDirection: 'column', gap: '20px',
-                marginBottom: '40px', background: 'rgba(255,255,255,0.02)',
-                padding: '24px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)'
-            }}>
-                <div style={{ position: 'relative' }}>
-                    <input
-                        type="text"
-                        placeholder="Search for your favorite games..."
-                        onChange={(e) => search(e.target.value)}
-                        style={{
-                            width: '100%', padding: '16px 20px', borderRadius: '12px',
-                            background: '#0a0a0f', border: '1px solid #333',
-                            color: '#fff', fontSize: '16px', boxSizing: 'border-box',
-                            outline: 'none', transition: 'border-color 0.3s'
-                        }}
-                        onFocus={(e) => e.target.style.borderColor = theme.colors.primary}
-                        onBlur={(e) => e.target.style.borderColor = '#333'}
-                    />
-                </div>
+        <div className="game-lobby" style={{ padding: '0 40px 40px' }}>
+            {/* SDK Filter Bar */}
+            <FilterBar 
+                filters={filters} 
+                setSearch={search} 
+                setCategory={(cat) => filter({ category: cat })}
+                setProvider={(p) => filter({ provider: p })}
+            />
 
-                <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' }}>
-                    {categories.map(cat => (
-                        <button
-                            key={cat.value}
-                            onClick={() => handleCategoryChange(cat.value)}
-                            style={{
-                                padding: '8px 20px', borderRadius: '20px',
-                                background: activeCategory === cat.value ? theme.colors.primary : 'rgba(255,255,255,0.05)',
-                                color: '#fff', border: 'none', cursor: 'pointer',
-                                whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '13px',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            {cat.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            {/* SDK Carousels */}
+            {recentlyPlayed.length > 0 && (
+                <LobbyCarousel title="Continue Playing" games={recentlyPlayed} onLaunch={handleLaunch} />
+            )}
+            
+            {favourites.length > 0 && (
+                <LobbyCarousel title="Your Favourites" games={favourites} onLaunch={handleLaunch} />
+            )}
 
-            {/* Results Info */}
-            <div style={{
-                display: 'flex', justifyContent: 'space-between',
-                alignItems: 'center', marginBottom: '20px'
-            }}>
-                <h2 style={{ margin: 0, fontSize: '20px' }}>
-                    {activeCategory ? categories.find(c => c.value === activeCategory).label.split(' ')[1] : 'All Games'}
-                </h2>
+            {/* Results Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '40px 0 20px' }}>
+                <h2 style={{ margin: 0, fontSize: '20px' }}>Game Catalog</h2>
                 <span style={{ color: '#666', fontSize: '14px' }}>Showing {games.length} of {total} games</span>
             </div>
 
@@ -199,7 +161,13 @@ export const GameLobby = () => {
                 gap: '24px'
             }}>
                 {games.map(game => (
-                    <GameCard key={game.id} game={game} onLaunch={handleLaunch} />
+                    <GameCard 
+                        key={game.id} 
+                        game={game} 
+                        onLaunch={handleLaunch}
+                        isFavourite={isFavourite}
+                        onToggleFavourite={toggleFavourite}
+                    />
                 ))}
             </div>
 

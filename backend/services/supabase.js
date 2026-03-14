@@ -250,6 +250,148 @@ const logKycEvent = async (eventData) => {
     }
 };
 
+/**
+ * Game Favourites
+ */
+const getUserFavourites = async (userId) => {
+    if (!supabase) return [];
+    const user = await getUserById(userId);
+    if (!user) return [];
+
+    const { data: favs, error: favError } = await supabase
+        .from('user_favourites')
+        .select('game_id')
+        .eq('user_id', user.id);
+
+    if (favError || !favs || favs.length === 0) return [];
+
+    const gameIds = favs.map(f => f.game_id);
+    const { data: games, error: gameError } = await supabase
+        .from('games_master')
+        .select('*')
+        .in('id', gameIds);
+
+    if (gameError) {
+        logger.error('[Supabase] Failed to fetch game details for favourites', { userId, error: gameError.message });
+        return [];
+    }
+    return games || [];
+};
+
+const toggleFavourite = async (userId, gameId) => {
+    if (!supabase) return { success: false };
+    const user = await getUserById(userId);
+    if (!user) return { success: false };
+
+    const { data: existing } = await supabase
+        .from('user_favourites')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('game_id', gameId)
+        .maybeSingle();
+
+    if (existing) {
+        const { error } = await supabase
+            .from('user_favourites')
+            .delete()
+            .eq('id', existing.id);
+        return { success: !error, status: 'removed', is_favourite: false };
+    } else {
+        const { error } = await supabase
+            .from('user_favourites')
+            .insert({ user_id: user.id, game_id: gameId });
+        return { success: !error, status: 'added', is_favourite: true };
+    }
+};
+
+/**
+ * User Activity (Recently Played)
+ */
+const getRecentlyPlayed = async (userId, limit = 20) => {
+    if (!supabase) return [];
+    const user = await getUserById(userId);
+    if (!user) return [];
+
+    const { data: activity, error: activityError } = await supabase
+        .from('user_activity')
+        .select('game_id, timestamp')
+        .eq('user_id', user.id)
+        .eq('activity_type', 'game_launch')
+        .order('timestamp', { ascending: false })
+        .limit(limit * 2); // Get more to allow for deduping
+
+    if (activityError || !activity) return [];
+
+    const gameIds = [];
+    const seen = new Set();
+    activity.forEach(item => {
+        if (item.game_id && !seen.has(item.game_id)) {
+            seen.add(item.game_id);
+            gameIds.push(item.game_id);
+        }
+    });
+
+    if (gameIds.length === 0) return [];
+
+    const { data: games, error: gameError } = await supabase
+        .from('games_master')
+        .select('*')
+        .in('id', gameIds.slice(0, limit));
+
+    if (gameError) {
+        logger.error('[Supabase] Failed to fetch game details for recently played', { userId, error: gameError.message });
+        return [];
+    }
+
+    // Maintain the order of gameIds
+    return gameIds.slice(0, limit).map(id => games.find(g => g.id === id)).filter(Boolean);
+};
+
+const trackActivity = async (userId, activityType, gameId = null, metadata = {}) => {
+    if (!supabase) return null;
+    const user = await getUserById(userId);
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('user_activity')
+        .insert({
+            user_id: user.id,
+            activity_type: activityType,
+            game_id: gameId,
+            metadata
+        })
+        .select()
+        .single();
+
+    if (error) {
+        logger.error('[Supabase] Failed to track activity', { userId, activityType, error: error.message });
+        return null;
+    }
+    return data;
+};
+
+/**
+ * Player Ledger / Transactions
+ */
+const getUserTransactions = async (userId, limit = 50) => {
+    if (!supabase) return [];
+    const user = await getUserById(userId);
+    if (!user) return [];
+
+    const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.username) // transactions table uses public user_id/username
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+    if (error) {
+        logger.error('[Supabase] Failed to fetch user transactions', { userId, error: error.message });
+        return [];
+    }
+    return data;
+};
+
 module.exports = {
     client: supabase,
     getTenantConfig,
@@ -760,7 +902,11 @@ module.exports = {
     getOperationalStream,
     getBrandId,
     updateOperatorApiKey,
-    client: supabase,
     upsertPlayerProfile,
-    logKycEvent
+    logKycEvent,
+    getUserFavourites,
+    toggleFavourite,
+    getRecentlyPlayed,
+    trackActivity,
+    getUserTransactions
 };

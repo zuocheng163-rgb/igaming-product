@@ -55,5 +55,5 @@ export const useGames = (config = {}) => {
     const filter = (newFilters) => setFilters(prev => ({ ...prev, ...newFilters, page: 1 }));
     const loadMore = () => setFilters(prev => ({ ...prev, page: prev.page + 1 }));
 
-    return { games, total, loading, error, search, filter, loadMore, refresh: fetchGames };
+    return { games, total, loading, error, search, filter, loadMore, filters, refresh: fetchGames };
 };

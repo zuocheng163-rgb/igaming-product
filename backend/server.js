@@ -65,6 +65,7 @@ app.use(sandboxMiddleware);
 // Routes
 app.use('/api/authenticate', authLimiter);
 app.use('/api/register', authLimiter);
+app.use('/api/user', require('./routes/user'));
 app.use('/api', operatorRoutes);
 app.use('/api/v1/games', featureGate('GAMES'), require('./routes/games'));
 app.use('/api/v1/kyc', featureGate('KYC'), require('./routes/kyc'));
