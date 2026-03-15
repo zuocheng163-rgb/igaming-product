@@ -1,12 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useProfile, useBalance, useActivePromotions, useWebSocket } from '../hooks';
 
-const AccountDashboard = ({ user, onClose }) => {
+const AccountDashboard = ({ user, isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('profile');
     const { loading, kycStatus, transactions, fetchKyc, fetchTransactions, requestErasure } = useProfile();
     const { balance, bonusBalance } = useBalance();
     const { promotions } = useActivePromotions();
     const [erasureStep, setErasureStep] = useState(0);
+
+    if (!isOpen) return null;
+
+    // Use a placeholder if user is missing to prevent crashes
+    const activeUser = user || {
+        username: 'Guest',
+        email: 'N/A',
+        user_id: 'N/A',
+        created_at: new Date()
+    };
 
     const tabs = [
         { id: 'profile', label: 'Profile', icon: '👤' },
@@ -30,10 +40,10 @@ const AccountDashboard = ({ user, onClose }) => {
                         <div style={sectionStyle}>
                             <h4 style={sectionTitleStyle}>General Information</h4>
                             <div style={infoGridStyle}>
-                                <div style={infoItemStyle}><label>Username</label><span>{user.username}</span></div>
-                                <div style={infoItemStyle}><label>Email</label><span>{user.email || 'N/A'}</span></div>
-                                <div style={infoItemStyle}><label>Account ID</label><span>{user.user_id}</span></div>
-                                <div style={infoItemStyle}><label>Member Since</label><span>{new Date(user.created_at).toLocaleDateString()}</span></div>
+                                <div style={infoItemStyle}><label>Username</label><span>{activeUser.username}</span></div>
+                                <div style={infoItemStyle}><label>Email</label><span>{activeUser.email || 'N/A'}</span></div>
+                                <div style={infoItemStyle}><label>Account ID</label><span>{activeUser.user_id}</span></div>
+                                <div style={infoItemStyle}><label>Member Since</label><span>{activeUser.created_at ? new Date(activeUser.created_at).toLocaleDateString() : 'N/A'}</span></div>
                             </div>
                         </div>
                     </div>
@@ -143,7 +153,7 @@ const AccountDashboard = ({ user, onClose }) => {
                     <div style={sidebarHeaderStyle}>
                         <div style={avatarStyle}>NS</div>
                         <div>
-                            <div style={{ fontWeight: 800, fontSize: '1rem' }}>{user.username}</div>
+                            <div style={{ fontWeight: 800, fontSize: '1rem' }}>{activeUser.username}</div>
                             <div style={{ fontSize: '0.7rem', color: 'var(--primary)' }}>VERIFIED PLAYER</div>
                         </div>
                     </div>

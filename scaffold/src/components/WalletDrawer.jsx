@@ -134,6 +134,7 @@ export const WalletDrawer = ({ isOpen, onClose, player }) => {
             <AccountDashboard 
                 isOpen={isAccountOpen} 
                 onClose={() => setAccountOpen(false)} 
+                user={player}
             />
 
             {/* Backdrop for Drawer */}
