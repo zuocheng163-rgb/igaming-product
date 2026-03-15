@@ -111,12 +111,12 @@ class GameService {
             .from('games_master')
             .select('*', { count: 'exact' });
 
-        if (provider) {
+        if (provider && provider !== 'all') {
             const providers = provider.split(',');
             query = query.in('provider', providers);
         }
 
-        if (category) {
+        if (category && category !== 'all') {
             query = query.eq('category', category);
         }
 
