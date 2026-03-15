@@ -58,5 +58,43 @@ export const usePayments = (playerId, config = {}) => {
         }
     }, [playerId, config.brandId]);
 
-    return { deposit, withdraw, loading, error };
+    const getMethods = useCallback(async (type) => {
+        setLoading(true);
+        try {
+            const apiUrl = getEnv('VITE_NEOSTRIKE_API_URL');
+            const response = await axios.get(`${apiUrl}/api/v1/payments/methods`, {
+                params: { type },
+                headers: { 'x-brand-id': config.brandId || '1' }
+            });
+            return response.data.methods || [];
+        } catch (err) {
+            console.error('[NeoStrike SDK] Failed to fetch payment methods', err);
+            return []; // Fallback
+        } finally {
+            setLoading(false);
+        }
+    }, [config.brandId]);
+
+    const submitPayment = useCallback(async (details) => {
+        setLoading(true);
+        try {
+            const apiUrl = getEnv('VITE_NEOSTRIKE_API_URL');
+            const response = await axios.post(`${apiUrl}/api/v1/payments/submit`, {
+                ...details,
+                user_id: playerId
+            }, {
+                headers: {
+                    'x-brand-id': config.brandId || '1',
+                    ...(config.token ? { 'Authorization': `Bearer ${config.token}` } : {})
+                }
+            });
+            return { success: true, ...response.data };
+        } catch (err) {
+            return { success: false, error: err.response?.data?.error || err.message };
+        } finally {
+            setLoading(false);
+        }
+    }, [playerId, config.brandId, config.token]);
+
+    return { deposit, withdraw, getMethods, submitPayment, loading, error };
 };
