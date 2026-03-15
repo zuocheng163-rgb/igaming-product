@@ -908,5 +908,20 @@ module.exports = {
     toggleFavourite,
     getRecentlyPlayed,
     trackActivity,
-    getUserTransactions
+    getUserTransactions,
+    getActivePromotions
+};
+
+const getActivePromotions = async (brandId = 1) => {
+    if (!supabase) return [];
+    const { data, error } = await supabase
+        .from('bonus_templates')
+        .select('*')
+        .eq('active', true);
+
+    if (error) {
+        logger.error('[Supabase] Failed to fetch active promotions', { error: error.message });
+        return [];
+    }
+    return data || [];
 };
