@@ -7,6 +7,7 @@ export const useFavourites = () => {
     const [loading, setLoading] = useState(false);
 
     const fetchFavourites = useCallback(async () => {
+        if (!client.isAuthenticated()) return;
         setLoading(true);
         try {
             const data = await client.getFavourites();

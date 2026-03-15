@@ -6,15 +6,26 @@ class NeoStrikeClient {
         this.token = config.token;
         this.brandId = config.brandId || '1';
         this.username = config.username;
+        const headers = {
+            'Content-Type': 'application/json',
+            'x-brand-id': this.brandId
+        };
+
+        if (this.token) {
+            headers['Authorization'] = `Bearer ${this.token}`;
+        }
+        if (this.username) {
+            headers['x-username'] = this.username;
+        }
+
         this.client = axios.create({
             baseURL: this.apiUrl,
-            headers: {
-                'Authorization': `Bearer ${this.token}`,
-                'Content-Type': 'application/json',
-                'x-brand-id': this.brandId,
-                'x-username': this.username
-            }
+            headers: headers
         });
+    }
+
+    isAuthenticated() {
+        return !!this.token;
     }
 
     async getGameCatalog(filters = {}) {

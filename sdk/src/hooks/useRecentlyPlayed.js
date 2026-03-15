@@ -7,6 +7,7 @@ export const useRecentlyPlayed = () => {
     const [loading, setLoading] = useState(false);
 
     const fetchRecentlyPlayed = useCallback(async () => {
+        if (!client.isAuthenticated()) return;
         setLoading(true);
         try {
             const data = await client.getRecentlyPlayed();
