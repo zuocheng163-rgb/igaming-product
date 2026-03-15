@@ -392,21 +392,7 @@ const getUserTransactions = async (userId, limit = 50) => {
     return data;
 };
 
-module.exports = {
-    client: supabase,
-    getTenantConfig,
-    saveAuditLog,
-    getUser,
-    getUserById,
-    getUserConsents,
-    getUserBlocks,
-    updateUser,
-    createUser,
-    updateBalance,
-    getBrandId,
-    updateOperatorApiKey,
-    getPeriodDates
-};
+// NOTE: module.exports is at the end of this file to ensure all functions are defined first
 
 /**
  * Helper to convert period labels to start dates
@@ -876,6 +862,20 @@ const getOperationalStream = async (brandId, page = 1, limit = 20, filters = {})
     return { events: paginatedEvents, total: Math.min(allEvents.length, 100), totalPages: Math.ceil(Math.min(allEvents.length, 100) / limit), currentPage: page };
 };
 
+const getActivePromotions = async (brandId = 1) => {
+    if (!supabase) return [];
+    const { data, error } = await supabase
+        .from('bonus_templates')
+        .select('*')
+        .eq('active', true);
+
+    if (error) {
+        logger.error('[Supabase] Failed to fetch active promotions', { error: error.message });
+        return [];
+    }
+    return data || [];
+};
+
 module.exports = {
     client: supabase,
     getTenantConfig,
@@ -909,19 +909,6 @@ module.exports = {
     getRecentlyPlayed,
     trackActivity,
     getUserTransactions,
-    getActivePromotions
-};
-
-const getActivePromotions = async (brandId = 1) => {
-    if (!supabase) return [];
-    const { data, error } = await supabase
-        .from('bonus_templates')
-        .select('*')
-        .eq('active', true);
-
-    if (error) {
-        logger.error('[Supabase] Failed to fetch active promotions', { error: error.message });
-        return [];
-    }
-    return data || [];
+    getActivePromotions,
+    getPeriodDates
 };
