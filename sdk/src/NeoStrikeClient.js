@@ -12,7 +12,8 @@ class NeoStrikeClient {
         };
 
         if (this.token) {
-            headers['Authorization'] = `Bearer ${this.token}`;
+            const tokenValue = this.token.startsWith('Bearer ') ? this.token : `Bearer ${this.token}`;
+            headers['Authorization'] = tokenValue;
         }
         if (this.username) {
             headers['x-username'] = this.username;

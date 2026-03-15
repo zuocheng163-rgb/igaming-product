@@ -7,16 +7,20 @@ const { logger } = require('../services/logger');
 const authenticatePlayer = async (req, res, next) => {
     try {
         const authHeader = req.headers['authorization'] || '';
-        // Robust Bearer stripping (case-insensitive, handles any whitespace)
-        const sessionToken = authHeader.replace(/^Bearer\s+/i, '');
+        
+        // Recursive Bearer stripping to handle accidentally doubled prefixes
+        let sessionToken = authHeader;
+        while (sessionToken.toLowerCase().startsWith('bearer ')) {
+            sessionToken = sessionToken.substring(7).trim();
+        }
+        
         const username = req.headers['x-username'];
 
-        // Verbose logging for production debugging
         logger.info('[Auth Trace] Player request', { 
             path: req.path,
             hasAuth: !!authHeader,
             hasUsername: !!username,
-            strippedTokenPrefix: sessionToken?.substring(0, 8)
+            tokenPrefix: sessionToken?.substring(0, 10)
         });
 
         if (!sessionToken && !username) {

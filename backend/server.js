@@ -26,16 +26,21 @@ const PORT = process.env.PORT || 5000;
 // 1. Security Headers
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginOpenerPolicy: { policy: "unsafe-none" }
+  crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  contentSecurityPolicy: false // Disable CSP for PoC to avoid blocking resources
 }));
 
 // Robust CORS for local development and production
 app.use(cors({
-  origin: true, // Allow all origins in PoC for flexibility, or specify ['http://localhost:5173']
+  origin: true, 
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-brand-id', 'x-api-key', 'x-username', 'x-sandbox-mode']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-brand-id', 'x-api-key', 'x-username', 'x-sandbox-mode', 'x-correlation-id', 'Accept']
 }));
+
+// Explicit Preflight Handler (Ensure OPTIONS always returns 200 before other middleware)
+app.options('*', cors()); 
+
 app.use(express.json());
 
 // 2. Global Rate Limiting (General Protection)

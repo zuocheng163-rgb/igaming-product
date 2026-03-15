@@ -23,9 +23,13 @@ const authenticateRequest = async (req, res, next) => {
     const correlationId = req.correlationId;
     try {
         const apiKey = req.headers['x-api-key'];
-        const sessionToken = req.headers['authorization']?.startsWith('Bearer ')
-            ? req.headers['authorization'].slice(7)
-            : req.headers['authorization'];
+        const authHeader = req.headers['authorization'] || '';
+        
+        let sessionToken = authHeader;
+        while (sessionToken.toLowerCase().startsWith('bearer ')) {
+            sessionToken = sessionToken.substring(7).trim();
+        }
+        
         const username = req.headers['x-username'] || req.body?.username;
 
         logger.info('Authenticating request', {
@@ -203,9 +207,15 @@ router.post('/authenticate', async (req, res) => {
         const { username, password } = req.body;
         const isDemo = process.env.DEMO_MODE === 'true';
 
-        const sessionToken = req.headers['authorization']?.startsWith('Bearer ')
-            ? req.headers['authorization'].slice(7)
-            : (req.headers['authorization'] || (isDemo ? password : null));
+        const authHeader = req.headers['authorization'] || '';
+        let sessionToken = authHeader;
+        while (sessionToken.toLowerCase().startsWith('bearer ')) {
+            sessionToken = sessionToken.substring(7).trim();
+        }
+        
+        if (!sessionToken && isDemo && password) {
+            sessionToken = password;
+        }
 
         let user = await supabaseService.getUser(username, sessionToken);
 
