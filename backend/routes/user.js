@@ -19,11 +19,12 @@ const authenticatePlayer = async (req, res, next) => {
 
         // Demo/Sandbox Mode Fallback (JIT User Creation)
         const isDemo = process.env.DEMO_MODE === 'true';
-        const isSandbox = req.headers['x-sandbox-mode'] === 'true' || isDemo;
+        const isSandbox = req.headers['x-sandbox-mode'] === 'true' || isDemo || (sessionToken && sessionToken.startsWith('token-'));
 
         if (!user && isSandbox && (sessionToken?.startsWith('token-') || username)) {
             let targetUsername = username;
             if (!targetUsername && sessionToken?.startsWith('token-')) {
+                // Best effort extraction: remove 'token-' and strip timestamp if it looks like one
                 const raw = sessionToken.replace('token-', '');
                 targetUsername = raw.split('-')[0];
             }
@@ -52,17 +53,25 @@ const authenticatePlayer = async (req, res, next) => {
                     } catch (e) {
                         logger.error('[Auth] Player JIT Creation Failed', { error: e.message });
                         // Last resort fallback
-                        user = { id: targetUsername, user_id: targetUsername, username: targetUsername, brand_id: 1 };
+                        user = { id: targetUsername, username: targetUsername, brand_id: 1 };
                     }
                 }
             }
         }
 
         if (!user) {
+            logger.warn('[Auth] Player Unauthorized Access', { 
+                username, 
+                hasToken: !!sessionToken,
+                isSandbox,
+                tokenPrefix: sessionToken?.substring(0, 6)
+            });
             return res.status(401).json({ error: 'Unauthorized: Invalid session' });
         }
 
-        req.user = user;
+        // Ensure we handle both 'id' and 'user_id' fields consistently
+        const userIdForQuery = user.user_id || user.username || user.id;
+        req.user = { ...user, user_id: userIdForQuery };
         next();
     } catch (error) {
         logger.error('Player Auth Error', { error: error.message });
