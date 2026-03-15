@@ -6,17 +6,17 @@ const { logger } = require('../services/logger');
 // Reuse authentication logic similar to operator.js but focused on player context
 const authenticatePlayer = async (req, res, next) => {
     try {
-        const sessionToken = req.headers['authorization']?.startsWith('Bearer ')
-            ? req.headers['authorization'].slice(7)
-            : req.headers['authorization'];
+        const authHeader = req.headers['authorization'] || '';
+        // Robust Bearer stripping (case-insensitive, handles any whitespace)
+        const sessionToken = authHeader.replace(/^Bearer\s+/i, '');
         const username = req.headers['x-username'];
 
         // Verbose logging for production debugging
         logger.info('[Auth Trace] Player request', { 
             path: req.path,
-            hasAuth: !!req.headers['authorization'],
+            hasAuth: !!authHeader,
             hasUsername: !!username,
-            sessionTokenPrefix: sessionToken?.substring(0, 8)
+            strippedTokenPrefix: sessionToken?.substring(0, 8)
         });
 
         if (!sessionToken && !username) {
@@ -28,6 +28,7 @@ const authenticatePlayer = async (req, res, next) => {
 
         // Demo/Sandbox Mode Fallback (JIT User Creation)
         const isDemo = process.env.DEMO_MODE === 'true';
+        // Sandbox is active if explicitly requested, if demo mode is on, OR if the token looks like a test token
         const isSandbox = req.headers['x-sandbox-mode'] === 'true' || isDemo || (sessionToken && sessionToken.startsWith('token-'));
 
         if (!user && isSandbox && (sessionToken?.startsWith('token-') || username)) {
@@ -56,12 +57,12 @@ const authenticatePlayer = async (req, res, next) => {
                         await supabaseService.upsertPlayerProfile({
                             player_id: user.id,
                             tenant_id: '1',
-                            email: user.email,
-                            display_name: user.username
+                            email: `${targetUsername}@example.com`,
+                            display_name: targetUsername
                         });
                     } catch (e) {
                         logger.error('[Auth] Player JIT Creation Failed', { error: e.message });
-                        // Last resort fallback
+                        // Last resort fallback (non-persistent but allows request to proceed if valid enough)
                         user = { id: targetUsername, username: targetUsername, brand_id: 1 };
                     }
                 }
@@ -78,11 +79,12 @@ const authenticatePlayer = async (req, res, next) => {
             });
             return res.status(401).json({ 
                 error: 'Unauthorized: Invalid session',
-                debug: isSandbox ? 'Sandbox active but user resolution failed' : 'Production auth failed'
+                debug: isSandbox ? 'Sandbox active but user resolution failed' : 'Production auth failed. Check if user exists in DB with this token.',
+                received_token_prefix: sessionToken?.substring(0, 8)
             });
         }
 
-        // Ensure we handle both 'id' and 'user_id' fields consistently
+        // Ensure we handle both 'id' and 'user_id' fields consistently (UUID vs Login name)
         const userIdForQuery = user.user_id || user.username || user.id;
         req.user = { ...user, user_id: userIdForQuery };
         next();
