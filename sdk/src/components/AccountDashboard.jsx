@@ -3,12 +3,10 @@ import { useProfile, useBalance, useActivePromotions, useWebSocket } from '../ho
 
 const AccountDashboard = ({ user, isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('profile');
-    const { loading, kycStatus, transactions, fetchKyc, fetchTransactions, requestErasure } = useProfile();
+    const { loading, kycStatus, transactions, requestErasure, refresh: fetchProfileData } = useProfile();
     const { balance, bonusBalance } = useBalance();
     const { promotions } = useActivePromotions();
     const [erasureStep, setErasureStep] = useState(0);
-
-    if (!isOpen) return null;
 
     // Use a placeholder if user is missing to prevent crashes
     const activeUser = user || {
@@ -28,9 +26,13 @@ const AccountDashboard = ({ user, isOpen, onClose }) => {
     ];
 
     useEffect(() => {
-        if (activeTab === 'verification') fetchKyc();
-        if (activeTab === 'wallet') fetchTransactions();
+        if ((activeTab === 'verification' || activeTab === 'wallet') && fetchProfileData) {
+            fetchProfileData();
+        }
     }, [activeTab]);
+
+    if (!isOpen) return null;
+
 
     const renderTabContent = () => {
         switch (activeTab) {
@@ -40,10 +42,10 @@ const AccountDashboard = ({ user, isOpen, onClose }) => {
                         <div style={sectionStyle}>
                             <h4 style={sectionTitleStyle}>General Information</h4>
                             <div style={infoGridStyle}>
-                                <div style={infoItemStyle}><label>Username</label><span>{activeUser.username}</span></div>
-                                <div style={infoItemStyle}><label>Email</label><span>{activeUser.email || 'N/A'}</span></div>
-                                <div style={infoItemStyle}><label>Account ID</label><span>{activeUser.user_id}</span></div>
-                                <div style={infoItemStyle}><label>Member Since</label><span>{activeUser.created_at ? new Date(activeUser.created_at).toLocaleDateString() : 'N/A'}</span></div>
+                                <div style={infoItemStyle}><label>Username</label><span>{activeUser?.username || 'Guest'}</span></div>
+                                <div style={infoItemStyle}><label>Email</label><span>{activeUser?.email || 'N/A'}</span></div>
+                                <div style={infoItemStyle}><label>Account ID</label><span>{activeUser?.user_id || 'N/A'}</span></div>
+                                <div style={infoItemStyle}><label>Member Since</label><span>{activeUser?.created_at ? new Date(activeUser.created_at).toLocaleDateString() : 'N/A'}</span></div>
                             </div>
                         </div>
                     </div>
@@ -153,7 +155,7 @@ const AccountDashboard = ({ user, isOpen, onClose }) => {
                     <div style={sidebarHeaderStyle}>
                         <div style={avatarStyle}>NS</div>
                         <div>
-                            <div style={{ fontWeight: 800, fontSize: '1rem' }}>{activeUser.username}</div>
+                            <div style={{ fontWeight: 800, fontSize: '1rem' }}>{activeUser?.username || 'Guest'}</div>
                             <div style={{ fontSize: '0.7rem', color: 'var(--primary)' }}>VERIFIED PLAYER</div>
                         </div>
                     </div>
@@ -185,7 +187,7 @@ const AccountDashboard = ({ user, isOpen, onClose }) => {
 };
 
 // Styles
-const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' };
+const overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' };
 const containerStyle = { display: 'flex', width: '100%', maxWidth: '1000px', height: '100%', maxHeight: '700px', borderRadius: '24px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' };
 const sidebarStyle = { width: '260px', background: 'rgba(0,0,0,0.3)', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', padding: '32px 0' };
 const sidebarHeaderStyle = { padding: '0 32px', display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '40px' };

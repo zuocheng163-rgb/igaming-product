@@ -50,7 +50,7 @@ const CashierModal = ({ isOpen, onClose, onTransactionSuccess }) => {
             background: 'rgba(0,0,0,0.85)',
             backdropFilter: 'blur(8px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 9999,
             padding: '20px'
         }}>
             <div className="sdk-modal-content glass-panel" style={{
