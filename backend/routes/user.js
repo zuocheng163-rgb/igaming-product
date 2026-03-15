@@ -11,7 +11,16 @@ const authenticatePlayer = async (req, res, next) => {
             : req.headers['authorization'];
         const username = req.headers['x-username'];
 
+        // Verbose logging for production debugging
+        logger.info('[Auth Trace] Player request', { 
+            path: req.path,
+            hasAuth: !!req.headers['authorization'],
+            hasUsername: !!username,
+            sessionTokenPrefix: sessionToken?.substring(0, 8)
+        });
+
         if (!sessionToken && !username) {
+            logger.warn('[Auth] Rejected: No token or username');
             return res.status(401).json({ error: 'Unauthorized: No token or username' });
         }
 
@@ -64,9 +73,13 @@ const authenticatePlayer = async (req, res, next) => {
                 username, 
                 hasToken: !!sessionToken,
                 isSandbox,
-                tokenPrefix: sessionToken?.substring(0, 6)
+                tokenPrefix: sessionToken?.substring(0, 8),
+                isDemo
             });
-            return res.status(401).json({ error: 'Unauthorized: Invalid session' });
+            return res.status(401).json({ 
+                error: 'Unauthorized: Invalid session',
+                debug: isSandbox ? 'Sandbox active but user resolution failed' : 'Production auth failed'
+            });
         }
 
         // Ensure we handle both 'id' and 'user_id' fields consistently
