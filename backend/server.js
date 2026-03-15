@@ -87,6 +87,7 @@ app.use('/api/v1/kyc', featureGate('KYC'), require('./routes/kyc'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/providers', featureGate('PROVIDERS'), require('./routes/providers'));
 app.use('/api/promotions', require('./routes/promotions'));
+app.use('/api/v1/payments', require('./routes/payments'));
 
 app.get('/', (req, res) => {
   res.send('iGaming Integration Platform Backend Running');
