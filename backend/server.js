@@ -1,5 +1,5 @@
 const dotenv = require('dotenv');
-dotenv.config();
+try { dotenv.config(); } catch (e) { /* .env not present in production, use Vercel env vars */ }
 
 const express = require('express');
 const http = require('http');
